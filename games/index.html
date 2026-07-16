@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>buam — arcade</title>
+<meta name="theme-color" content="#05070a">
+<link rel="icon" href="../icon-192.png">
+<style>
+  :root{
+    --bg:#05070a;
+    --panel:#0a120d;
+    --border:#144024;
+    --ink:#baffc9;
+    --ink-dim:#4f8f5c;
+    --accent:#00ff66;
+    --cyan:#39d6ff;
+    --magenta:#ff3fd6;
+    --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:var(--font);
+    min-height:100vh;
+    min-height:100dvh;
+    padding:calc(22px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+  }
+  .wrap{ max-width:720px; margin:0 auto; }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:20px;
+    border-bottom:1px dashed var(--border);
+    padding-bottom:12px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .logo{
+    font-size:1.2rem;
+    font-weight:700;
+    color:var(--accent);
+    text-shadow:0 0 14px rgba(0,255,102,0.35);
+  }
+  .logo::before{ content:">"; margin-right:6px; opacity:0.8; }
+  .back{
+    color:var(--ink-dim);
+    text-decoration:none;
+    font-size:0.8rem;
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:6px 10px;
+  }
+  .back:hover{ color:var(--accent); border-color:var(--accent); }
+  .section-label{
+    font-size:0.72rem;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-bottom:12px;
+  }
+  .games{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media(min-width:560px){ .games{ grid-template-columns:1fr 1fr; } }
+  .card{
+    display:block;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-left:2px solid var(--accent);
+    border-radius:4px;
+    padding:18px;
+    text-decoration:none;
+    color:var(--ink);
+    transition:box-shadow .15s, border-color .15s;
+  }
+  .card:hover{ border-color:var(--accent); box-shadow:0 0 14px rgba(0,255,102,0.18); }
+  .card h2{ margin:0 0 6px; font-size:1.05rem; }
+  .card.neon{ border-left-color:var(--magenta); }
+  .card.neon:hover{ box-shadow:0 0 14px rgba(255,63,214,0.18); border-color:var(--magenta); }
+  .card p{ margin:0; font-size:0.78rem; color:var(--ink-dim); line-height:1.5; }
+  .tag{
+    display:inline-block;
+    margin-top:10px;
+    font-size:0.68rem;
+    color:var(--cyan);
+    border:1px solid rgba(57,214,255,0.3);
+    border-radius:3px;
+    padding:2px 7px;
+  }
+  footer{ text-align:center; color:var(--ink-dim); font-size:0.68rem; margin-top:28px; opacity:0.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">arcade.exe</div>
+    <a class="back" href="../index.html">&larr; back to tasks</a>
+  </header>
+
+  <div class="section-label">select_program</div>
+  <div class="games">
+    <a class="card" href="./breach-runner.html">
+      <h2>Breach Runner</h2>
+      <p>Terminal-style arcade runner. Dodge, hack, and chase a high score.</p>
+      <span class="tag">arcade</span>
+    </a>
+    <a class="card neon" href="./neon-arena.html">
+      <h2>NEON ARENA</h2>
+      <p>Cyberpunk FPS. Fight through a neon-lit arena in 3D.</p>
+      <span class="tag" style="color:var(--magenta);border-color:rgba(255,63,214,0.3);">FPS</span>
+    </a>
+  </div>
+
+  <footer>buam arcade — locally stored high scores</footer>
+</div>
+</body>
+</html>

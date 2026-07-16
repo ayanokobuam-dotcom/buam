@@ -4,7 +4,10 @@ const ASSETS = [
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./games/index.html",
+  "./games/breach-runner.html",
+  "./games/neon-arena.html"
 ];
 
 self.addEventListener("install", (e) => {
