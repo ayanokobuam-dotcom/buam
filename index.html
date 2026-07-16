@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>buam — task terminal</title>
+<meta name="description" content="จัดการงานและการบ้านสไตล์ hacker terminal">
+<meta name="theme-color" content="#05070a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#05070a;
+    --panel:#0a120d;
+    --panel-2:#0d1a12;
+    --border:#144024;
+    --border-bright:#00ff66;
+    --ink:#baffc9;
+    --ink-dim:#4f8f5c;
+    --accent:#00ff66;
+    --accent-dim:rgba(0,255,102,0.14);
+    --cyan:#39d6ff;
+    --amber:#ffd23f;
+    --red:#ff3b3b;
+    --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:var(--font);
+    min-height:100vh;
+    padding:22px 14px 60px;
+    position:relative;
+  }
+  /* subtle scanlines */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,255,102,0.025) 0px,
+      rgba(0,255,102,0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    z-index:0;
+  }
+  .wrap{
+    max-width:720px;
+    margin:0 auto;
+    position:relative;
+    z-index:1;
+  }
+  ::selection{ background:var(--accent); color:#00170a; }
+
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+    gap:8px;
+    border-bottom:1px dashed var(--border);
+    padding-bottom:12px;
+  }
+  .logo{
+    font-size:1.3rem;
+    font-weight:700;
+    color:var(--accent);
+    text-shadow:0 0 8px rgba(0,255,102,0.55), 0 0 2px rgba(0,255,102,0.8);
+    letter-spacing:0.02em;
+  }
+  .logo::before{ content:">"; margin-right:6px; opacity:0.8; }
+  .cursor{
+    display:inline-block;
+    width:0.55em;
+    background:var(--accent);
+    margin-left:2px;
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .stats{
+    display:flex;
+    gap:14px;
+    font-size:0.78rem;
+    color:var(--ink-dim);
+  }
+  .stats b{ color:var(--accent); }
+
+  .add-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:14px;
+    margin-bottom:18px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    box-shadow: 0 0 0 1px rgba(0,255,102,0.04) inset;
+  }
+  .prompt-label{
+    font-size:0.72rem;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .add-row1{ display:flex; gap:8px; align-items:center; }
+  .add-row1 .glyph{ color:var(--accent); font-weight:700; }
+  input[type=text]{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--ink);
+    border-radius:3px;
+    padding:10px 12px;
+    font-size:0.92rem;
+    font-family:inherit;
+  }
+  input[type=text]::placeholder{ color:var(--ink-dim); }
+  input[type=text]:focus, select:focus, input[type=date]:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px rgba(0,255,102,0.15);
+  }
+  .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
+  select, input[type=date]{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--ink);
+    border-radius:3px;
+    padding:8px 10px;
+    font-size:0.82rem;
+    font-family:inherit;
+    color-scheme:dark;
+  }
+  button{ font-family:inherit; cursor:pointer; border:none; }
+  .btn-add{
+    background:var(--accent);
+    color:#00170a;
+    border-radius:3px;
+    padding:8px 18px;
+    font-size:0.85rem;
+    font-weight:700;
+    margin-left:auto;
+    letter-spacing:0.03em;
+  }
+  .btn-add:hover{ box-shadow:0 0 12px rgba(0,255,102,0.6); }
+
+  .filters{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .chip{
+    background:var(--panel);
+    border:1px solid var(--border);
+    color:var(--ink-dim);
+    border-radius:3px;
+    padding:6px 12px;
+    font-size:0.76rem;
+  }
+  .chip::before{ content:"#"; opacity:0.6; margin-right:3px; }
+  .chip.active{
+    background:var(--accent-dim);
+    border-color:var(--accent);
+    color:var(--accent);
+    text-shadow:0 0 6px rgba(0,255,102,0.5);
+  }
+
+  .empty{
+    text-align:center;
+    color:var(--ink-dim);
+    padding:40px 10px;
+    font-size:0.85rem;
+    border:1px dashed var(--border);
+    border-radius:4px;
+  }
+  .empty::before{ content:"$ "; color:var(--accent); }
+
+  .task{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-left:2px solid var(--border-bright);
+    border-radius:3px;
+    padding:12px;
+    margin-bottom:8px;
+  }
+  .task.overdue{ border-left-color:var(--red); }
+  .task.overdue::after{ content:"⚠"; }
+  .task.done{ opacity:0.45; border-left-color:var(--ink-dim); }
+
+  .check{
+    width:18px; height:18px;
+    border-radius:3px;
+    border:1px solid var(--ink-dim);
+    background:transparent;
+    flex-shrink:0;
+    margin-top:2px;
+    display:flex; align-items:center; justify-content:center;
+    color:#00170a;
+    font-size:0.7rem;
+    font-weight:700;
+  }
+  .task.done .check{ background:var(--accent); border-color:var(--accent); }
+
+  .task-body{ flex:1; min-width:0; }
+  .task-title{ font-size:0.92rem; word-break:break-word; }
+  .task-title::before{ content:"$ "; color:var(--ink-dim); }
+  .task.done .task-title{ text-decoration:line-through; color:var(--ink-dim); }
+
+  .task-meta{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; font-size:0.68rem; }
+  .tag{ padding:2px 7px; border-radius:3px; background:var(--panel-2); color:var(--ink-dim); border:1px solid var(--border); }
+  .tag.cat-homework{ color:var(--cyan); border-color:rgba(57,214,255,0.3); }
+  .tag.cat-work{ color:var(--accent); border-color:rgba(0,255,102,0.3); }
+  .tag.cat-personal{ color:var(--amber); border-color:rgba(255,210,63,0.3); }
+  .tag.cat-other{ color:var(--ink-dim); }
+  .tag.pri-high{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
+  .tag.due{ background:rgba(255,210,63,0.08); color:var(--amber); border-color:rgba(255,210,63,0.25); }
+  .tag.due.late{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
+
+  .task-actions{ display:flex; gap:4px; flex-shrink:0; }
+  .icon-btn{
+    background:transparent; color:var(--ink-dim);
+    width:26px; height:26px; border-radius:3px;
+    font-size:0.85rem;
+    border:1px solid transparent;
+  }
+  .icon-btn:hover{ border-color:var(--border); color:var(--accent); }
+
+  footer{
+    text-align:center;
+    color:var(--ink-dim);
+    font-size:0.68rem;
+    margin-top:24px;
+    opacity:0.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">buam<span class="cursor">_</span></div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="add-card">
+    <div class="prompt-label">new_task</div>
+    <div class="add-row1">
+      <span class="glyph">$</span>
+      <input type="text" id="titleInput" placeholder="./add_task --title=&quot;ทำการบ้านคณิต บทที่ 5&quot;" maxlength="200">
+    </div>
+    <div class="add-row2">
+      <select id="catInput">
+        <option value="homework">การบ้าน</option>
+        <option value="work">งาน</option>
+        <option value="personal">ส่วนตัว</option>
+        <option value="other">อื่นๆ</option>
+      </select>
+      <select id="priInput">
+        <option value="normal">ปกติ</option>
+        <option value="high">สำคัญ</option>
+      </select>
+      <input type="date" id="dueInput">
+      <button class="btn-add" id="addBtn">+ เพิ่มงาน</button>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="chip active" data-filter="all">all</button>
+    <button class="chip" data-filter="active">active</button>
+    <button class="chip" data-filter="done">done</button>
+    <button class="chip" data-filter="homework">การบ้าน</button>
+    <button class="chip" data-filter="work">งาน</button>
+    <button class="chip" data-filter="personal">ส่วนตัว</button>
+  </div>
+
+  <div id="list"></div>
+
+  <footer>buam v1 — data stored locally on this device</footer>
+</div>
+
+<script>
+const STORAGE_KEY = "buam-tasks-v1";
+let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let filter = "all";
+
+const catLabel = {homework:"การบ้าน", work:"งาน", personal:"ส่วนตัว", other:"อื่นๆ"};
+
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  render();
+}
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+function fmtDate(s){
+  const [y,m,d] = s.split("-");
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
+function addTask(){
+  const titleEl = document.getElementById("titleInput");
+  const title = titleEl.value.trim();
+  if(!title) return;
+  const cat = document.getElementById("catInput").value;
+  const pri = document.getElementById("priInput").value;
+  const due = document.getElementById("dueInput").value;
+  tasks.unshift({
+    id: Date.now() + Math.random().toString(36).slice(2),
+    title, cat, pri, due,
+    done:false,
+    createdAt: Date.now()
+  });
+  titleEl.value = "";
+  document.getElementById("dueInput").value = "";
+  save();
+  titleEl.focus();
+}
+
+function toggleDone(id){
+  const t = tasks.find(t=>t.id===id);
+  if(t) t.done = !t.done;
+  save();
+}
+
+function deleteTask(id){
+  tasks = tasks.filter(t=>t.id!==id);
+  save();
+}
+
+function editTask(id){
+  const t = tasks.find(t=>t.id===id);
+  if(!t) return;
+  const next = prompt("แก้ไขงาน:", t.title);
+  if(next===null) return;
+  const trimmed = next.trim();
+  if(trimmed) t.title = trimmed;
+  save();
+}
+
+function render(){
+  const list = document.getElementById("list");
+  const today = todayStr();
+
+  let filtered = tasks.filter(t=>{
+    if(filter==="all") return true;
+    if(filter==="active") return !t.done;
+    if(filter==="done") return t.done;
+    return t.cat===filter;
+  });
+
+  document.querySelectorAll(".chip").forEach(c=>{
+    c.classList.toggle("active", c.dataset.filter===filter);
+  });
+
+  const total = tasks.length;
+  const done = tasks.filter(t=>t.done).length;
+  const overdue = tasks.filter(t=>!t.done && t.due && t.due<today).length;
+  document.getElementById("stats").innerHTML =
+    `<span><b>${total}</b> total</span><span><b>${done}</b> done</span>` +
+    (overdue>0 ? `<span style="color:var(--red)"><b>${overdue}</b> overdue</span>` : "");
+
+  if(filtered.length===0){
+    list.innerHTML = `<div class="empty">no_tasks_found</div>`;
+    return;
+  }
+
+  filtered.sort((a,b)=>{
+    if(a.done!==b.done) return a.done ? 1 : -1;
+    if(!!a.due !== !!b.due) return a.due ? -1 : 1;
+    if(a.due && b.due && a.due!==b.due) return a.due<b.due ? -1 : 1;
+    return b.createdAt - a.createdAt;
+  });
+
+  list.innerHTML = filtered.map(t=>{
+    const isLate = !t.done && t.due && t.due<today;
+    const isOverdueClass = isLate ? "overdue" : "";
+    const doneClass = t.done ? "done" : "";
+    let dueTag = "";
+    if(t.due){
+      dueTag = `<span class="tag due ${isLate?'late':''}">${isLate?'เลยกำหนด ':'กำหนด '}${fmtDate(t.due)}</span>`;
+    }
+    const priTag = t.pri==="high" ? `<span class="tag pri-high">สำคัญ</span>` : "";
+    return `
+      <div class="task ${isOverdueClass} ${doneClass}">
+        <button class="check" onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+        <div class="task-body">
+          <div class="task-title">${escapeHtml(t.title)}</div>
+          <div class="task-meta">
+            <span class="tag cat-${t.cat}">${catLabel[t.cat]}</span>
+            ${priTag}
+            ${dueTag}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="icon-btn" onclick="editTask('${t.id}')" title="แก้ไข">✎</button>
+          <button class="icon-btn" onclick="deleteTask('${t.id}')" title="ลบ">✕</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function escapeHtml(s){
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+document.getElementById("addBtn").addEventListener("click", addTask);
+document.getElementById("titleInput").addEventListener("keydown", e=>{
+  if(e.key==="Enter") addTask();
+});
+document.getElementById("filters").addEventListener("click", e=>{
+  const btn = e.target.closest(".chip");
+  if(!btn) return;
+  filter = btn.dataset.filter;
+  render();
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  });
+}
+
+render();
+</script>
+</body>
+</html>
