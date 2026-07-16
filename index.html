@@ -1,11 +1,13 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>buam — task terminal</title>
-<meta name="description" content="จัดการงานและการบ้านสไตล์ hacker terminal">
+<meta name="description" content="Manage tasks and homework, hacker-terminal style">
 <meta name="theme-color" content="#05070a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -23,18 +25,27 @@
     --cyan:#39d6ff;
     --amber:#ffd23f;
     --red:#ff3b3b;
+    --magenta:#ff3fd6;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0; overscroll-behavior-y:none;}
   body{
     background:
       radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
     color:var(--ink);
     font-family:var(--font);
     min-height:100vh;
-    padding:22px 14px 60px;
+    min-height:100dvh;
+    padding:calc(22px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(60px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
     position:relative;
+  }
+  #bgCanvas{
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
+    display:block;
   }
   /* subtle scanlines */
   body::before{
@@ -72,11 +83,20 @@
   .logo{
     font-size:1.3rem;
     font-weight:700;
-    color:var(--accent);
-    text-shadow:0 0 8px rgba(0,255,102,0.55), 0 0 2px rgba(0,255,102,0.8);
     letter-spacing:0.02em;
+    background:linear-gradient(90deg, var(--accent), var(--cyan), var(--magenta), var(--accent));
+    background-size:300% 100%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    text-shadow:0 0 14px rgba(0,255,102,0.35);
+    animation:logoSweep 6s linear infinite;
   }
-  .logo::before{ content:">"; margin-right:6px; opacity:0.8; }
+  @keyframes logoSweep{
+    0%{ background-position:0% 50%; }
+    100%{ background-position:300% 50%; }
+  }
+  .logo::before{ content:">"; margin-right:6px; opacity:0.8; color:var(--accent); }
   .cursor{
     display:inline-block;
     width:0.55em;
@@ -120,14 +140,14 @@
     color:var(--ink);
     border-radius:3px;
     padding:10px 12px;
-    font-size:0.92rem;
+    font-size:16px;
     font-family:inherit;
   }
   input[type=text]::placeholder{ color:var(--ink-dim); }
   input[type=text]:focus, select:focus, input[type=date]:focus{
     outline:none;
     border-color:var(--accent);
-    box-shadow:0 0 0 2px rgba(0,255,102,0.15);
+    box-shadow:0 0 0 2px rgba(0,255,102,0.22);
   }
   .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
   select, input[type=date]{
@@ -136,7 +156,7 @@
     color:var(--ink);
     border-radius:3px;
     padding:8px 10px;
-    font-size:0.82rem;
+    font-size:16px;
     font-family:inherit;
     color-scheme:dark;
   }
@@ -150,6 +170,7 @@
     font-weight:700;
     margin-left:auto;
     letter-spacing:0.03em;
+    box-shadow:0 0 8px rgba(0,255,102,0.35);
   }
   .btn-add:hover{ box-shadow:0 0 12px rgba(0,255,102,0.6); }
 
@@ -159,7 +180,7 @@
     border:1px solid var(--border);
     color:var(--ink-dim);
     border-radius:3px;
-    padding:6px 12px;
+    padding:8px 12px;
     font-size:0.76rem;
   }
   .chip::before{ content:"#"; opacity:0.6; margin-right:3px; }
@@ -168,6 +189,7 @@
     border-color:var(--accent);
     color:var(--accent);
     text-shadow:0 0 6px rgba(0,255,102,0.5);
+    box-shadow:0 0 8px rgba(0,255,102,0.25);
   }
 
   .empty{
@@ -191,11 +213,15 @@
     padding:12px;
     margin-bottom:8px;
   }
-  .task.overdue{ border-left-color:var(--red); }
-  .task.overdue::after{ content:"⚠"; }
-  .task.done{ opacity:0.45; border-left-color:var(--ink-dim); }
+  .task.cat-homework{ border-left-color:var(--cyan); }
+  .task.cat-work{ border-left-color:var(--accent); }
+  .task.cat-personal{ border-left-color:var(--amber); }
+  .task.cat-other{ border-left-color:var(--ink-dim); }
+  .task.overdue::after{ content:"⚠"; color:var(--red); margin-left:6px; }
+  .task.done{ opacity:0.45; }
 
   .check{
+    position:relative;
     width:18px; height:18px;
     border-radius:3px;
     border:1px solid var(--ink-dim);
@@ -207,6 +233,7 @@
     font-size:0.7rem;
     font-weight:700;
   }
+  .check::before{ content:""; position:absolute; inset:-13px; }
   .task.done .check{ background:var(--accent); border-color:var(--accent); }
 
   .task-body{ flex:1; min-width:0; }
@@ -226,11 +253,13 @@
 
   .task-actions{ display:flex; gap:4px; flex-shrink:0; }
   .icon-btn{
+    position:relative;
     background:transparent; color:var(--ink-dim);
     width:26px; height:26px; border-radius:3px;
     font-size:0.85rem;
     border:1px solid transparent;
   }
+  .icon-btn::before{ content:""; position:absolute; inset:-9px; }
   .icon-btn:hover{ border-color:var(--border); color:var(--accent); }
 
   footer{
@@ -243,6 +272,7 @@
 </style>
 </head>
 <body>
+<canvas id="bgCanvas"></canvas>
 <div class="wrap">
   <header>
     <div class="logo">buam<span class="cursor">_</span></div>
@@ -253,21 +283,21 @@
     <div class="prompt-label">new_task</div>
     <div class="add-row1">
       <span class="glyph">$</span>
-      <input type="text" id="titleInput" placeholder="./add_task --title=&quot;ทำการบ้านคณิต บทที่ 5&quot;" maxlength="200">
+      <input type="text" id="titleInput" placeholder="./add_task --title=&quot;finish math homework ch.5&quot;" maxlength="200">
     </div>
     <div class="add-row2">
       <select id="catInput">
-        <option value="homework">การบ้าน</option>
-        <option value="work">งาน</option>
-        <option value="personal">ส่วนตัว</option>
-        <option value="other">อื่นๆ</option>
+        <option value="homework">Homework</option>
+        <option value="work">Work</option>
+        <option value="personal">Personal</option>
+        <option value="other">Other</option>
       </select>
       <select id="priInput">
-        <option value="normal">ปกติ</option>
-        <option value="high">สำคัญ</option>
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
       </select>
       <input type="date" id="dueInput">
-      <button class="btn-add" id="addBtn">+ เพิ่มงาน</button>
+      <button class="btn-add" id="addBtn">+ add_task</button>
     </div>
   </div>
 
@@ -275,9 +305,9 @@
     <button class="chip active" data-filter="all">all</button>
     <button class="chip" data-filter="active">active</button>
     <button class="chip" data-filter="done">done</button>
-    <button class="chip" data-filter="homework">การบ้าน</button>
-    <button class="chip" data-filter="work">งาน</button>
-    <button class="chip" data-filter="personal">ส่วนตัว</button>
+    <button class="chip" data-filter="homework">homework</button>
+    <button class="chip" data-filter="work">work</button>
+    <button class="chip" data-filter="personal">personal</button>
   </div>
 
   <div id="list"></div>
@@ -290,7 +320,7 @@ const STORAGE_KEY = "buam-tasks-v1";
 let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 let filter = "all";
 
-const catLabel = {homework:"การบ้าน", work:"งาน", personal:"ส่วนตัว", other:"อื่นๆ"};
+const catLabel = {homework:"Homework", work:"Work", personal:"Personal", other:"Other"};
 
 function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
@@ -337,7 +367,7 @@ function deleteTask(id){
 function editTask(id){
   const t = tasks.find(t=>t.id===id);
   if(!t) return;
-  const next = prompt("แก้ไขงาน:", t.title);
+  const next = prompt("edit_task >", t.title);
   if(next===null) return;
   const trimmed = next.trim();
   if(trimmed) t.title = trimmed;
@@ -382,13 +412,14 @@ function render(){
     const isLate = !t.done && t.due && t.due<today;
     const isOverdueClass = isLate ? "overdue" : "";
     const doneClass = t.done ? "done" : "";
+    const catClass = `cat-${t.cat}`;
     let dueTag = "";
     if(t.due){
-      dueTag = `<span class="tag due ${isLate?'late':''}">${isLate?'เลยกำหนด ':'กำหนด '}${fmtDate(t.due)}</span>`;
+      dueTag = `<span class="tag due ${isLate?'late':''}">${isLate?'overdue ':'due '}${fmtDate(t.due)}</span>`;
     }
-    const priTag = t.pri==="high" ? `<span class="tag pri-high">สำคัญ</span>` : "";
+    const priTag = t.pri==="high" ? `<span class="tag pri-high">high</span>` : "";
     return `
-      <div class="task ${isOverdueClass} ${doneClass}">
+      <div class="task ${catClass} ${isOverdueClass} ${doneClass}">
         <button class="check" onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
         <div class="task-body">
           <div class="task-title">${escapeHtml(t.title)}</div>
@@ -399,8 +430,8 @@ function render(){
           </div>
         </div>
         <div class="task-actions">
-          <button class="icon-btn" onclick="editTask('${t.id}')" title="แก้ไข">✎</button>
-          <button class="icon-btn" onclick="deleteTask('${t.id}')" title="ลบ">✕</button>
+          <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
+          <button class="icon-btn" onclick="deleteTask('${t.id}')" title="Delete">✕</button>
         </div>
       </div>
     `;
@@ -429,6 +460,98 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
   });
 }
+
+/* ---------------- falling code rain background ---------------- */
+(function(){
+  const canvas = document.getElementById("bgCanvas");
+  const ctx = canvas.getContext("2d");
+
+  const FONT_SIZE = 16;
+  const CHARS = "01{}[]()<>/;:=+-*#$%&_01010110";
+  const HEAD_COLORS = ["#39d6ff","#ffd23f","#ff3fd6","#baffc9"];
+
+  let dpr = 1, cols = 0, rowsVisible = 0;
+  let drops = [], speeds = [];
+  let animId = null, lastT = 0;
+
+  function randChar(){ return CHARS[Math.floor(Math.random()*CHARS.length)]; }
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = Math.floor(w*dpr);
+    canvas.height = Math.floor(h*dpr);
+    canvas.style.width = w+"px";
+    canvas.style.height = h+"px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.font = FONT_SIZE+"px monospace";
+    ctx.textBaseline = "top";
+
+    cols = Math.ceil(w/FONT_SIZE);
+    rowsVisible = Math.ceil(h/FONT_SIZE);
+    drops = new Array(cols).fill(0).map(()=> Math.random()*-rowsVisible);
+    speeds = new Array(cols).fill(0).map(()=> 0.35 + Math.random()*0.9);
+
+    ctx.fillStyle = "#05070a";
+    ctx.fillRect(0,0,w,h);
+  }
+
+  function frame(now){
+    animId = requestAnimationFrame(frame);
+    if(now-lastT < 33) return; // cap ~30fps, plenty smooth for falling glyphs
+    lastT = now;
+    const w = window.innerWidth, h = window.innerHeight;
+    ctx.fillStyle = "rgba(5,7,10,0.11)";
+    ctx.fillRect(0,0,w,h);
+
+    for(let i=0;i<cols;i++){
+      const x = i*FONT_SIZE;
+      const y = drops[i]*FONT_SIZE;
+      const isHead = Math.random() < 0.045;
+      if(isHead){
+        ctx.shadowColor = HEAD_COLORS[Math.floor(Math.random()*HEAD_COLORS.length)];
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = ctx.shadowColor;
+      } else {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = Math.random() < 0.5 ? "rgba(0,255,102,0.75)" : "rgba(0,255,102,0.4)";
+      }
+      ctx.fillText(randChar(), x, y);
+      ctx.shadowBlur = 0;
+
+      drops[i] += speeds[i];
+      if(y > h && Math.random() > 0.975){
+        drops[i] = Math.random()*-20;
+        speeds[i] = 0.35 + Math.random()*0.9;
+      }
+    }
+  }
+
+  function start(){
+    if(animId) return;
+    lastT = performance.now();
+    animId = requestAnimationFrame(frame);
+  }
+  function stop(){
+    if(animId){ cancelAnimationFrame(animId); animId = null; }
+  }
+
+  let resizeTimer;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      resize();
+      start();
+    }, 150);
+  });
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.hidden) stop();
+    else start();
+  });
+
+  resize();
+  start();
+})();
 
 render();
 </script>

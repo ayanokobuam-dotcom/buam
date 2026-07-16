@@ -1,7 +1,7 @@
 {
   "name": "buam — task terminal",
   "short_name": "buam",
-  "description": "จัดการงานและการบ้านสไตล์ hacker terminal",
+  "description": "Manage tasks and homework, hacker-terminal style",
   "start_url": "./",
   "scope": "./",
   "id": "./",
@@ -9,7 +9,7 @@
   "background_color": "#05070a",
   "theme_color": "#05070a",
   "orientation": "portrait",
-  "lang": "th",
+  "lang": "en",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
