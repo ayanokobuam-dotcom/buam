@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>buam — arcade</title>
 <meta name="theme-color" content="#05070a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="../manifest.json">
 <link rel="icon" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../icon-192.png">
 <style>
   :root{
     --bg:#05070a;
@@ -19,7 +23,7 @@
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0; overscroll-behavior:none; background:var(--bg);}
   body{
     background: radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
     color:var(--ink);
@@ -55,6 +59,14 @@
     padding:6px 10px;
   }
   .back:hover{ color:var(--accent); border-color:var(--accent); }
+  .header-actions{ display:flex; gap:8px; align-items:center; }
+  .snd-toggle{
+    background:transparent; color:var(--ink-dim);
+    border:1px solid var(--border); border-radius:3px;
+    padding:6px 10px; font-size:0.72rem; letter-spacing:0.03em;
+  }
+  .snd-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+  .snd-toggle.muted{ opacity:0.55; }
   .section-label{
     font-size:0.72rem;
     color:var(--ink-dim);
@@ -96,7 +108,10 @@
 <div class="wrap">
   <header>
     <div class="logo">arcade.exe</div>
-    <a class="back" href="../index.html">&larr; back to tasks</a>
+    <div class="header-actions">
+      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
+      <a class="back" href="../index.html">&larr; back to tasks</a>
+    </div>
   </header>
 
   <div class="section-label">select_program</div>
@@ -115,5 +130,18 @@
 
   <footer>buam arcade — locally stored high scores</footer>
 </div>
+<script src="../buam-fx.js"></script>
+<script>
+  var sndBtn = document.getElementById("sndToggle");
+  function updateSndBtn(){
+    var m = window.buamFx ? buamFx.isMuted() : false;
+    sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
+    sndBtn.classList.toggle("muted", m);
+  }
+  sndBtn.addEventListener("click", function(){
+    if(window.buamFx){ buamFx.toggleMuted(); updateSndBtn(); }
+  });
+  updateSndBtn();
+</script>
 </body>
 </html>

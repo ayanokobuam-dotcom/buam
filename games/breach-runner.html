@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Breach Runner</title>
 <meta name="description" content="Steer a rogue program down a neon data highway, dodge ICE firewalls, and harvest data shards before the trace catches you.">
+<meta name="theme-color" content="#04060b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%B9%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root{
@@ -24,7 +29,7 @@
     --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "SFMono-Regular", Menlo, monospace;
   }
 
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0; overscroll-behavior:none; background:var(--void);}
   body{
     min-height:100vh;
     display:flex;
@@ -228,6 +233,8 @@
 
 <a href="./index.html" style="position:fixed;top:10px;left:10px;z-index:999;font:12px/1 Consolas,monospace;color:#baffc9;background:rgba(5,7,10,.75);border:1px solid #144024;border-radius:3px;padding:6px 10px;text-decoration:none;">&larr; arcade</a>
 
+<script src="../buam-fx.js"></script>
+
 <div class="stage">
   <div class="crt-frame" id="frame">
     <div class="title-bar">
@@ -315,7 +322,9 @@
     localStorage.setItem('breachRunnerSound', soundOn ? 'on' : 'off');
     soundBtn.textContent = 'SND:' + (soundOn ? 'ON' : 'OFF');
     if(soundOn) ensureAudio();
+    if(window.buamFx) buamFx.setMuted(!soundOn);
   });
+  if(window.buamFx) buamFx.setMuted(!soundOn);
 
   function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
   function lerp(a,b,t){ return a+(b-a)*t; }

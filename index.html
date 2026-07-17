@@ -29,16 +29,25 @@
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0; overscroll-behavior-y:none;}
+  html{ background:var(--bg); }
+  html,body{margin:0;padding:0; overscroll-behavior:none;}
   body{
-    background:
-      radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
+    background:transparent;
     color:var(--ink);
     font-family:var(--font);
     min-height:100vh;
     min-height:100dvh;
     padding:calc(22px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(60px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
     position:relative;
+  }
+  /* sits behind #bgCanvas so the rain animation stays visible on top of it */
+  body::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:-2;
+    pointer-events:none;
+    background: radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
   }
   #bgCanvas{
     position:fixed;
@@ -262,6 +271,29 @@
   .icon-btn::before{ content:""; position:absolute; inset:-9px; }
   .icon-btn:hover{ border-color:var(--border); color:var(--accent); }
 
+  .audio-controls{ display:flex; gap:6px; align-items:center; flex-shrink:0; }
+  .snd-toggle{
+    background:transparent; color:var(--ink-dim);
+    border:1px solid var(--border); border-radius:3px;
+    padding:6px 10px; font-size:0.72rem; letter-spacing:0.03em;
+    display:flex; align-items:center; gap:5px; flex-shrink:0;
+  }
+  .snd-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+  .snd-toggle.muted{ opacity:0.55; }
+  .music-clear{
+    background:transparent; color:var(--ink-dim);
+    border:1px solid var(--border); border-radius:3px;
+    width:26px; height:26px; font-size:0.75rem; flex-shrink:0;
+  }
+  .music-clear:hover{ border-color:var(--red); color:var(--red); }
+
+  @keyframes taskPulse{
+    0%{ box-shadow:0 0 0 rgba(0,255,102,0); }
+    30%{ box-shadow:0 0 18px rgba(0,255,102,0.55); }
+    100%{ box-shadow:0 0 0 rgba(0,255,102,0); }
+  }
+  .task.celebrate{ animation:taskPulse 0.6s ease-out; }
+
   footer{
     text-align:center;
     color:var(--ink-dim);
@@ -273,10 +305,17 @@
 </head>
 <body>
 <canvas id="bgCanvas"></canvas>
+<script src="./buam-fx.js"></script>
 <div class="wrap">
   <header>
     <div class="logo">CheeraBuam.exe<span class="cursor">_</span></div>
     <div class="stats" id="stats"></div>
+    <div class="audio-controls">
+      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
+      <button class="snd-toggle" id="musicPickBtn" type="button" data-fx-skip title="Choose your own background music">🎵 music</button>
+      <button class="music-clear" id="musicClearBtn" type="button" data-fx-skip title="Remove custom track, use default ambient" style="display:none;">✕</button>
+      <input type="file" id="musicFileInput" accept="audio/*" data-fx-skip style="display:none;">
+    </div>
   </header>
 
   <a href="./games/index.html" style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-left:2px solid var(--magenta);border-radius:4px;padding:10px 14px;margin-bottom:18px;color:var(--ink);text-decoration:none;font-size:0.85rem;">
@@ -359,11 +398,21 @@ function addTask(){
 
 function toggleDone(id){
   const t = tasks.find(t=>t.id===id);
-  if(t) t.done = !t.done;
+  if(!t) return;
+  t.done = !t.done;
+  if(window.buamFx){
+    if(t.done){ buamFx.confirm(); if(navigator.vibrate) navigator.vibrate([10,30,10]); }
+    else { buamFx.blip(); }
+  }
   save();
+  if(t.done){
+    const row = document.querySelector(`.task[data-id="${t.id}"]`);
+    if(row){ row.classList.add("celebrate"); setTimeout(()=>row.classList.remove("celebrate"), 600); }
+  }
 }
 
 function deleteTask(id){
+  if(window.buamFx) buamFx.cancel();
   tasks = tasks.filter(t=>t.id!==id);
   save();
 }
@@ -423,8 +472,8 @@ function render(){
     }
     const priTag = t.pri==="high" ? `<span class="tag pri-high">high</span>` : "";
     return `
-      <div class="task ${catClass} ${isOverdueClass} ${doneClass}">
-        <button class="check" onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <div class="task ${catClass} ${isOverdueClass} ${doneClass}" data-id="${t.id}">
+        <button class="check" data-fx-skip onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
         <div class="task-body">
           <div class="task-title">${escapeHtml(t.title)}</div>
           <div class="task-meta">
@@ -435,7 +484,7 @@ function render(){
         </div>
         <div class="task-actions">
           <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
-          <button class="icon-btn" onclick="deleteTask('${t.id}')" title="Delete">✕</button>
+          <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete">✕</button>
         </div>
       </div>
     `;
@@ -464,6 +513,40 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
   });
 }
+
+const sndBtn = document.getElementById("sndToggle");
+function updateSndBtn(){
+  const m = window.buamFx ? buamFx.isMuted() : false;
+  sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
+  sndBtn.classList.toggle("muted", m);
+}
+sndBtn.addEventListener("click", ()=>{
+  if(window.buamFx){ buamFx.toggleMuted(); updateSndBtn(); }
+});
+updateSndBtn();
+
+const musicPickBtn = document.getElementById("musicPickBtn");
+const musicClearBtn = document.getElementById("musicClearBtn");
+const musicFileInput = document.getElementById("musicFileInput");
+function refreshMusicUI(){
+  if(!window.buamFx) return;
+  buamFx.getCustomTrackInfo().then(info=>{
+    musicClearBtn.style.display = info ? "inline-flex" : "none";
+    musicPickBtn.textContent = info ? `🎵 ${info.name}` : "🎵 music";
+    musicPickBtn.title = info ? `Now playing: ${info.name} — click to change` : "Choose your own background music";
+  });
+}
+musicPickBtn.addEventListener("click", ()=> musicFileInput.click());
+musicFileInput.addEventListener("change", ()=>{
+  const f = musicFileInput.files[0];
+  musicFileInput.value = "";
+  if(!f || !window.buamFx) return;
+  buamFx.setCustomTrack(f).then(refreshMusicUI);
+});
+musicClearBtn.addEventListener("click", ()=>{
+  if(window.buamFx) buamFx.clearCustomTrack().then(refreshMusicUI);
+});
+refreshMusicUI();
 
 /* ---------------- falling code rain background ---------------- */
 (function(){

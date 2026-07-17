@@ -4,12 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>NEON ARENA — Cyberpunk FPS</title>
+<meta name="theme-color" content="#040308">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="../manifest.json">
+<link rel="apple-touch-icon" href="../icon-192.png">
 <style>
   :root{
     --cyan:#33f6ff; --magenta:#ff2fd0; --blue:#2299ff; --red:#ff3355; --yellow:#ffe21a;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{width:100%; height:100%; overflow:hidden; background:#040308; font-family:'Segoe UI',Consolas,monospace; user-select:none; touch-action:none; -webkit-touch-callout:none;}
+  html,body{width:100%; height:100%; overflow:hidden; overscroll-behavior:none; background:#040308; font-family:'Segoe UI',Consolas,monospace; user-select:none; touch-action:none; -webkit-touch-callout:none;}
   canvas{display:block;}
 
   #gameCanvas{position:fixed; top:0; left:0; width:100%; height:100%; touch-action:none;}
@@ -149,11 +154,24 @@
     background:rgba(6,6,14,.6); border:2px solid #8fe8ff;
   }
   @media (hover:hover) and (pointer:fine){ #touchControls{ display:none; } }
+
+  #sndToggle{
+    position:fixed; top:14px; right:14px; z-index:90;
+    font:11px/1 Consolas,monospace; letter-spacing:1px; color:#8fe8ff;
+    background:rgba(6,6,14,.7); border:1px solid #2a2f45; border-radius:4px;
+    padding:7px 11px; cursor:pointer;
+  }
+  #sndToggle:hover{ border-color:var(--cyan); }
+  #sndToggle.muted{ opacity:.55; }
+  @media (pointer:coarse){ #sndToggle{ top:calc(58px + env(safe-area-inset-top)); } }
 </style>
 </head>
 <body>
 
 <a href="./index.html" style="position:fixed;top:10px;left:10px;z-index:999;font:12px/1 Consolas,monospace;color:#baffc9;background:rgba(5,7,10,.75);border:1px solid #144024;border-radius:3px;padding:6px 10px;text-decoration:none;">&larr; arcade</a>
+<button id="sndToggle" type="button" data-fx-skip>SND:ON</button>
+
+<script src="../buam-fx.js"></script>
 
 <canvas id="gameCanvas"></canvas>
 
@@ -243,6 +261,37 @@
 <script>
 (function(){
 "use strict";
+
+/* ============================================================
+   SOUND
+   ============================================================ */
+var sndToggle = document.getElementById('sndToggle');
+function updateSndToggle(){
+  var m = window.buamFx ? buamFx.isMuted() : false;
+  sndToggle.textContent = 'SND:' + (m ? 'OFF' : 'ON');
+  sndToggle.classList.toggle('muted', m);
+}
+sndToggle.addEventListener('click', function(){
+  if(window.buamFx){ buamFx.toggleMuted(); updateSndToggle(); }
+});
+updateSndToggle();
+
+function sfx(name){
+  if(!window.buamFx) return;
+  switch(name){
+    case 'fire':    buamFx.sweep(620, 260, 0.07, 'sawtooth', 0.08); break;
+    case 'hit':     buamFx.tone(180, 0.07, 'square', 0.1); break;
+    case 'kill':    buamFx.tone(880, 0.07, 'square', 0.14); buamFx.tone(1320, 0.11, 'square', 0.13, 0.07); break;
+    case 'damage':  buamFx.sweep(220, 90, 0.16, 'sawtooth', 0.12); break;
+    case 'death':   buamFx.sweep(300, 60, 0.5, 'sawtooth', 0.14); break;
+    case 'reload':  buamFx.tone(320, 0.09, 'triangle', 0.09); buamFx.tone(420, 0.09, 'triangle', 0.09, 0.12); break;
+    case 'dash':    buamFx.sweep(300, 900, 0.18, 'sawtooth', 0.11); break;
+    case 'dome':    buamFx.tone(200, 0.4, 'sine', 0.1); break;
+    case 'scan':    buamFx.tone(1200, 0.18, 'square', 0.09); break;
+    case 'win':     buamFx.tone(660, 0.16, 'square', 0.14); buamFx.tone(880, 0.16, 'square', 0.14, 0.16); buamFx.tone(1320, 0.3, 'square', 0.15, 0.32); break;
+    case 'lose':    buamFx.sweep(400, 100, 0.6, 'sawtooth', 0.13); break;
+  }
+}
 
 /* ============================================================
    CONFIG
@@ -551,6 +600,7 @@ function updateTracers(dt){
    ============================================================ */
 const domes = [];
 function activateDome(entity){
+  entity.abilityCooldown = entity.abilityCooldownMax;
   const dome = {
     team: entity.team,
     position: entity.position.clone(),
@@ -768,6 +818,9 @@ function applyDamage(target, amount, attacker){
   target.hp -= amount;
   if(target.isPlayer){
     flashIntensity = 1;
+    sfx('damage');
+  } else if(attacker && attacker.isPlayer){
+    sfx('hit');
   }
   if(target.hp <= 0){
     die(target, attacker);
@@ -780,7 +833,7 @@ function die(target, attacker){
   target.deaths++;
   target.respawnTimer = CFG.RESPAWN_TIME;
   if(!target.isPlayer) target.model.group.visible = false;
-  else showCenterMsg(true);
+  else { showCenterMsg(true); sfx('death'); }
 
   spawnParticles(target.position.clone().add(new THREE.Vector3(0,1.3,0)), TEAM_COLOR[target.team], 22, 6, 0.7);
 
@@ -788,6 +841,7 @@ function die(target, attacker){
     attacker.kills++;
     if(attacker.team === TEAM_BLUE) blueScore++; else redScore++;
     addKillFeed(attacker, target);
+    if(attacker.isPlayer) sfx('kill');
     checkWinCondition();
   }
 }
@@ -818,6 +872,7 @@ function respawn(e){
 }
 
 function fireWeapon(shooter, origin, dir){
+  if(shooter.isPlayer) sfx('fire');
   const targets = blockerMeshes.concat(getEnemyMeshes(shooter.team));
   raycaster.set(origin, dir);
   raycaster.near = 0.05;
@@ -868,10 +923,13 @@ function useAbility(entity, forwardDir){
   if(entity.abilityCooldown > 0 || !entity.alive) return;
   if(entity.className === 'assault'){
     activateDash(entity, forwardDir);
+    if(entity.isPlayer) sfx('dash');
   } else if(entity.className === 'support'){
     activateDome(entity);
+    if(entity.isPlayer) sfx('dome');
   } else if(entity.className === 'recon'){
     activateScan(entity);
+    if(entity.isPlayer) sfx('scan');
   }
 }
 
@@ -1040,6 +1098,7 @@ function tryReload(e){
   if(e.reloading || e.ammo === e.magSize || !e.alive) return;
   e.reloading = true;
   e.reloadTimer = CFG.RELOAD_TIME;
+  if(e.isPlayer) sfx('reload');
 }
 
 canvas.addEventListener('mousedown', (e)=>{
@@ -1389,6 +1448,7 @@ function triggerWin(team){
   el.winText.textContent = (team === TEAM_BLUE ? 'BLUE TEAM WINS' : 'RED TEAM WINS');
   el.winText.style.color = team === TEAM_BLUE ? '#66ccff' : '#ff8899';
   el.winScreen.classList.remove('hidden');
+  sfx(team === TEAM_BLUE ? 'win' : 'lose');
 }
 
 document.getElementById('playAgainBtn').addEventListener('click', ()=>{
