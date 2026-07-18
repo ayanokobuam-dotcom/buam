@@ -660,6 +660,7 @@
   .quick-link.pick .qsym{ color:var(--accent); }
   .quick-link.report .qsym{ color:var(--amber); }
   .quick-link.calendar .qsym{ color:var(--cyan); }
+  .quick-link.sync .qsym{ color:var(--red); }
 
   .dose-size-row button:disabled{ opacity:0.3; cursor:not-allowed; }
   .dose-size-hint{ font-size:0.72rem; color:var(--amber); margin-top:6px; }
@@ -723,6 +724,7 @@
     <button type="button" id="randomPickBtn" class="quick-link pick"><span class="qsym">&gt;</span> random_pick</button>
     <button type="button" id="weeklyReportBtn" class="quick-link report"><span class="qsym">&gt;</span> weekly_report</button>
     <button type="button" id="calendarBtn" class="quick-link calendar"><span class="qsym">&gt;</span> calendar</button>
+    <button type="button" id="syncBtn" class="quick-link sync"><span class="qsym">&gt;</span> sync</button>
   </div>
 
   <div class="add-card">
@@ -844,6 +846,19 @@
   </div>
 </div>
 
+<div class="dose-overlay hidden" id="syncOverlay">
+  <div class="dose-modal" id="syncModal" style="max-width:420px;">
+    <div class="prompt-label">sync</div>
+    <div id="syncBody"></div>
+    <div class="dose-modal-actions" style="margin-top:14px;">
+      <button class="dose-cancel-btn" id="syncCloseBtn" type="button" style="flex:none; padding:9px 18px;">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script>
 /* ---------------- boot intro ---------------- */
 (function(){
@@ -1014,6 +1029,79 @@ function save(){
   renderCalendar();
 }
 
+/* ---------------- cloud sync: data layer ---------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDyTqqILT30_DCW0LiqDqdwkT3IwyUpU_A",
+  authDomain: "buam-22206.firebaseapp.com",
+  projectId: "buam-22206",
+  storageBucket: "buam-22206.firebasestorage.app",
+  messagingSenderId: "436257731560",
+  appId: "1:436257731560:web:4f928ab67d88a15e86aa5d"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+db.enablePersistence({ synchronizeTabs: true }).catch(err => console.warn("[sync] persistence unavailable", err.code));
+
+let currentUser = null;
+let tasksCollection = null;
+let unsubscribeTasks = null;
+
+function taskDocRef(id){ return tasksCollection.doc(id); }
+function pushTaskUpsert(task){ if(!currentUser) return; taskDocRef(task.id).set(task).catch(err => console.error("[sync] upsert failed", err)); }
+function pushTaskFields(id, fields){ if(!currentUser) return; taskDocRef(id).update(fields).catch(err => console.error("[sync] update failed", err)); }
+function pushTaskDelete(id){ if(!currentUser) return; taskDocRef(id).delete().catch(err => console.error("[sync] delete failed", err)); }
+function pushDoseAppend(id, dose){ if(!currentUser) return; taskDocRef(id).update({ doses: firebase.firestore.FieldValue.arrayUnion(dose) }).catch(err => console.error("[sync] dose push failed", err)); }
+
+function attachTasksListener(){
+  if(unsubscribeTasks) return;
+  unsubscribeTasks = tasksCollection.onSnapshot(snapshot => {
+    let changed = false;
+    snapshot.docChanges().forEach(change => {
+      if(change.doc.metadata.hasPendingWrites) return;
+      const remote = change.doc.data();
+      const idx = tasks.findIndex(t => t.id === remote.id);
+      if(change.type === "removed"){
+        if(idx !== -1){ tasks.splice(idx, 1); changed = true; }
+      } else if(idx === -1){
+        tasks.push(remote); changed = true;
+      } else if(JSON.stringify(tasks[idx]) !== JSON.stringify(remote)){
+        tasks[idx] = remote; changed = true;
+      }
+    });
+    if(changed) save();
+  }, err => console.error("[sync] tasks listener error", err));
+}
+function detachTasksListener(){
+  if(unsubscribeTasks){ unsubscribeTasks(); unsubscribeTasks = null; }
+}
+
+async function mergeLocalWithRemote(){
+  const snapshot = await tasksCollection.get();
+  const remoteById = new Map();
+  snapshot.forEach(doc => remoteById.set(doc.id, doc.data()));
+
+  const batch = db.batch();
+  let pendingWrites = 0;
+  tasks.forEach(t => {
+    if(!remoteById.has(t.id)){
+      batch.set(taskDocRef(t.id), t);
+      pendingWrites++;
+    }
+  });
+  if(pendingWrites > 0) await batch.commit();
+
+  let localChanged = false;
+  const localIds = new Set(tasks.map(t => t.id));
+  remoteById.forEach((remoteTask, id) => {
+    if(!localIds.has(id)){
+      tasks.push(remoteTask);
+      localChanged = true;
+    }
+  });
+  if(localChanged) save();
+}
+
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 function fmtDate(s){
@@ -1029,15 +1117,17 @@ function addTask(){
   const pri = document.getElementById("priInput").value;
   const due = document.getElementById("dueInput").value;
   const id = Date.now() + Math.random().toString(36).slice(2);
-  tasks.unshift({
+  const newTask = {
     id, title, cat, pri, due,
     done:false,
     doses:[],
     createdAt: Date.now()
-  });
+  };
+  tasks.unshift(newTask);
   titleEl.value = "";
   document.getElementById("dueInput").value = "";
   save();
+  pushTaskUpsert(newTask);
   titleEl.focus();
   celebrateTask(id, cat);
 }
@@ -1051,6 +1141,7 @@ function toggleDone(id){
     else { buamFx.blip(); }
   }
   save();
+  pushTaskFields(id, {done: t.done});
   if(t.done) celebrateTask(t.id, t.cat);
 }
 
@@ -1082,6 +1173,7 @@ function deleteTask(id){
   if(window.buamFx) buamFx.cancel();
   tasks = tasks.filter(t=>t.id!==id);
   save();
+  pushTaskDelete(id);
 }
 
 function editTask(id){
@@ -1092,6 +1184,7 @@ function editTask(id){
   const trimmed = next.trim();
   if(trimmed) t.title = trimmed;
   save();
+  pushTaskFields(id, {title: t.title});
 }
 
 function render(){
@@ -1329,18 +1422,21 @@ function showFeelingView(t){
 function finalizeDose(feeling){
   if(!pendingDoseRecord) return;
   const t = tasks.find(t=>t.id===pendingDoseRecord.taskId);
+  let doseEntry = null;
   if(t){
     if(!Array.isArray(t.doses)) t.doses = [];
-    t.doses.push({
+    doseEntry = {
       step: pendingDoseRecord.step,
       minutes: pendingDoseRecord.minutes,
       takenAt: pendingDoseRecord.takenAt,
       feeling: feeling || null
-    });
+    };
+    t.doses.push(doseEntry);
   }
   pendingDoseRecord = null;
   closeDoseOverlay();
   save();
+  if(t && doseEntry) pushDoseAppend(t.id, doseEntry);
 }
 
 doseFeelingRow.addEventListener("click", e=>{
@@ -1551,6 +1647,65 @@ document.getElementById("calendarBtn").addEventListener("click", ()=>{
 });
 document.getElementById("calendarCloseBtn").addEventListener("click", ()=>{
   calendarOverlay.classList.add("hidden");
+});
+
+/* ---------------- cloud sync: auth UI ---------------- */
+const syncOverlay = document.getElementById("syncOverlay");
+const syncBody = document.getElementById("syncBody");
+
+function renderSyncBody(){
+  if(currentUser){
+    syncBody.innerHTML = `
+      <div style="font-size:0.82rem;margin-bottom:12px;">signed in as <b style="color:var(--accent)">${escapeHtml(currentUser.email)}</b></div>
+      <div style="font-size:0.74rem;color:var(--ink-dim);margin-bottom:14px;">tasks sync automatically across devices while online.</div>
+      <button type="button" class="dose-cancel-btn" data-action="signout" style="width:100%;">sign_out</button>`;
+  } else {
+    syncBody.innerHTML = `
+      <div style="font-size:0.74rem;color:var(--ink-dim);margin-bottom:10px;">sign in to sync tasks across devices. optional — the app keeps working offline without it.</div>
+      <input type="email" id="syncEmailInput" placeholder="email" style="width:100%;margin-bottom:8px;" autocomplete="email">
+      <input type="password" id="syncPasswordInput" placeholder="password" style="width:100%;margin-bottom:10px;" autocomplete="current-password">
+      <div id="syncErrorLine" style="font-size:0.72rem;color:var(--red);min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="dose-start-btn" data-action="signin" style="flex:1;">sign_in</button>
+        <button type="button" class="dose-cancel-btn" data-action="signup" style="flex:1;">sign_up</button>
+      </div>`;
+  }
+}
+
+syncBody.addEventListener("click", async e=>{
+  const btn = e.target.closest("[data-action]");
+  if(!btn) return;
+  if(btn.dataset.action === "signout"){ detachTasksListener(); await auth.signOut(); return; }
+  const email = document.getElementById("syncEmailInput").value.trim();
+  const password = document.getElementById("syncPasswordInput").value;
+  const errEl = document.getElementById("syncErrorLine");
+  if(!email || !password){ errEl.textContent = "enter email and password"; return; }
+  try{
+    if(btn.dataset.action === "signin") await auth.signInWithEmailAndPassword(email, password);
+    else await auth.createUserWithEmailAndPassword(email, password);
+  } catch(err){ errEl.textContent = err.message; }
+});
+
+auth.onAuthStateChanged(async user=>{
+  detachTasksListener();
+  currentUser = user;
+  if(user){
+    tasksCollection = db.collection("users").doc(user.uid).collection("tasks");
+    try{ await mergeLocalWithRemote(); } catch(err){ console.error("[sync] initial merge failed", err); }
+    attachTasksListener();
+  } else {
+    tasksCollection = null;
+  }
+  renderSyncBody();
+});
+
+document.getElementById("syncBtn").addEventListener("click", ()=>{
+  renderSyncBody();
+  syncOverlay.classList.remove("hidden");
+  if(window.buamFx) buamFx.blip();
+});
+document.getElementById("syncCloseBtn").addEventListener("click", ()=>{
+  syncOverlay.classList.add("hidden");
 });
 
 document.getElementById("addBtn").addEventListener("click", addTask);
