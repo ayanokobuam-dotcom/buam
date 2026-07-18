@@ -350,9 +350,10 @@
   /* ---------- dose it ---------- */
   .dose-overlay{
     position:fixed; inset:0;
-    background:rgba(5,7,10,0.82);
+    background:rgba(2,4,5,0.95);
     display:flex; align-items:center; justify-content:center;
     padding:16px; z-index:50;
+    overflow-y:auto;
   }
   .dose-overlay.hidden{ display:none; }
   .dose-modal{
@@ -397,6 +398,7 @@
 
   /* ---------- calendar ---------- */
   #calendarOverlay{ z-index:45; }
+  .cal-modal{ max-height:85vh; overflow-y:auto; }
   .cal-nav{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
   .cal-month-label{
     flex:1; text-align:center; font-weight:700; color:var(--accent);
@@ -404,14 +406,14 @@
   }
   .cal-weekdays{
     display:grid; grid-template-columns:repeat(7,1fr); gap:4px;
-    font-size:0.66rem; color:var(--ink-dim); text-align:center; margin-bottom:4px;
+    font-size:0.64rem; color:var(--ink-dim); text-align:center; margin-bottom:4px;
   }
   .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal-day{
-    aspect-ratio:1; border:1px solid var(--border); border-radius:3px;
-    background:var(--panel-2); padding:3px 2px;
+    min-height:36px; border:1px solid var(--border); border-radius:3px;
+    background:var(--panel-2); padding:5px 2px 4px;
     font-size:0.7rem; color:var(--ink-dim);
-    display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
     cursor:pointer;
   }
   .cal-day:hover{ border-color:var(--accent); color:var(--ink); }
