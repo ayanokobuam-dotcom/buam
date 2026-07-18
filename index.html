@@ -171,6 +171,7 @@
     100%{ background-position:300% 50%; }
   }
   .logo::before{ content:">"; margin-right:6px; opacity:0.8; color:var(--accent); }
+  .username-edit{ cursor:pointer; }
   .cursor{
     display:inline-block;
     width:0.55em;
@@ -711,7 +712,7 @@
 <script src="./buam-fx.js"></script>
 <div class="wrap">
   <header>
-    <div class="logo">CheeraBuam.exe<span class="cursor">_</span></div>
+    <div class="logo"><span id="usernameText" class="username-edit" title="คลิกเพื่อแก้ไขชื่อ">CheeraBuam.exe</span><span class="cursor">_</span></div>
     <div class="stats" id="stats"></div>
     <div class="audio-controls">
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
@@ -1013,6 +1014,19 @@
     if(e.key === "Enter") start();
   });
 })();
+
+/* ---------------- username ---------------- */
+const USERNAME_KEY = "buam-username";
+const usernameEl = document.getElementById("usernameText");
+usernameEl.textContent = localStorage.getItem(USERNAME_KEY) || "CheeraBuam.exe";
+usernameEl.addEventListener("click", () => {
+  const next = prompt("username >", usernameEl.textContent);
+  if(next === null) return;
+  const trimmed = next.trim();
+  if(!trimmed) return;
+  localStorage.setItem(USERNAME_KEY, trimmed);
+  usernameEl.textContent = trimmed;
+});
 
 const STORAGE_KEY = "buam-tasks-v1";
 let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
