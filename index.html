@@ -656,53 +656,17 @@
     setTimeout(()=>{ boot.remove(); }, 500);
   }
 
-  let gateActive = false;
-  function showStartGate(){
-    if(gateActive) return;
-    gateActive = true;
-    if(hint) hint.style.display = "none";
-
-    const gate = document.createElement("div");
-    gate.className = "boot-gate";
-    const q = document.createElement("span");
-    q.className = "boot-gate-q";
-    q.textContent = "start using buam? ";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "boot-enter-btn";
-    btn.setAttribute("data-fx-skip", "");
-    btn.textContent = "[ ENTER ↵ ]";
-    gate.appendChild(q);
-    gate.appendChild(btn);
-    linesWrap.appendChild(gate);
-
-    let started = false;
-    function confirmStart(){
-      if(started) return;
-      started = true;
-      if(window.buamFx) buamFx.confirm();
-      finish();
-    }
-    btn.addEventListener("click", confirmStart);
-    window.addEventListener("keydown", function(e){
-      if(e.key === "Enter") confirmStart();
-    });
-  }
-
   let skipped = false;
   function skip(){
-    if(skipped || gateActive) return;
+    if(skipped) return;
     skipped = true;
-    showStartGate();
+    finish();
   }
-  window.addEventListener("pointerdown", skip, { once: true });
-  window.addEventListener("keydown", skip, { once: true });
-  window.addEventListener("touchstart", skip, { once: true, passive: true });
 
   let si = 0;
   function nextStep(){
     if(skipped) return;
-    if(si >= STEPS.length){ showStartGate(); return; }
+    if(si >= STEPS.length){ setTimeout(finish, 550); return; }
     const step = STEPS[si];
     const lineEl = document.createElement("div");
     lineEl.className = "boot-line";
@@ -739,7 +703,7 @@
       } else if(step.final){
         cursor.remove();
         si++;
-        setTimeout(showStartGate, 500);
+        setTimeout(finish, 700);
       } else {
         cursor.remove();
         si++;
@@ -748,7 +712,39 @@
     }
     typeChar();
   }
-  setTimeout(nextStep, 300);
+
+  /* ---- start gate: shown first, before typing begins ---- */
+  if(hint) hint.style.display = "none";
+  const gate = document.createElement("div");
+  gate.className = "boot-gate";
+  const q = document.createElement("span");
+  q.className = "boot-gate-q";
+  q.textContent = "press enter to boot ";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "boot-enter-btn";
+  btn.setAttribute("data-fx-skip", "");
+  btn.textContent = "[ ENTER ↵ ]";
+  gate.appendChild(q);
+  gate.appendChild(btn);
+  linesWrap.appendChild(gate);
+
+  let started = false;
+  function start(){
+    if(started) return;
+    started = true;
+    gate.remove();
+    if(hint) hint.style.display = "";
+    if(window.buamFx) buamFx.confirm();
+    window.addEventListener("pointerdown", skip, { once: true });
+    window.addEventListener("keydown", skip, { once: true });
+    window.addEventListener("touchstart", skip, { once: true, passive: true });
+    setTimeout(nextStep, 300);
+  }
+  btn.addEventListener("click", start);
+  window.addEventListener("keydown", function(e){
+    if(e.key === "Enter") start();
+  });
 })();
 
 const STORAGE_KEY = "buam-tasks-v1";
