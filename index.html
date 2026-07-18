@@ -337,6 +337,25 @@
   .snd-toggle:hover{ border-color:var(--accent); color:var(--accent); }
   .snd-toggle.muted{ opacity:0.55; }
 
+  .vol-slider{
+    -webkit-appearance:none; appearance:none;
+    width:64px; height:4px; border-radius:2px;
+    background:var(--border); outline:none; flex-shrink:0; cursor:pointer;
+  }
+  .vol-slider::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--accent); box-shadow:0 0 6px rgba(0,255,102,0.5);
+    cursor:pointer;
+  }
+  .vol-slider::-moz-range-thumb{
+    width:12px; height:12px; border-radius:50%; border:none;
+    background:var(--accent); box-shadow:0 0 6px rgba(0,255,102,0.5);
+    cursor:pointer;
+  }
+  .vol-slider::-moz-range-track{ background:var(--border); height:4px; border-radius:2px; }
+  .vol-slider.muted{ opacity:0.4; }
+
   @keyframes taskPulse{
     0%{ box-shadow:0 0 0 rgba(0,255,102,0); }
     30%{ box-shadow:0 0 18px rgba(0,255,102,0.55); }
@@ -504,6 +523,7 @@
     <div class="stats" id="stats"></div>
     <div class="audio-controls">
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
+      <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
 
@@ -1302,10 +1322,21 @@ function updateSndBtn(){
   sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
   sndBtn.classList.toggle("muted", m);
 }
+const volSlider = document.getElementById("musicVolInput");
+function updateVolSlider(){
+  if(!window.buamFx) return;
+  volSlider.value = Math.round(buamFx.getVolume() * 100);
+  volSlider.classList.toggle("muted", buamFx.isMuted());
+}
+volSlider.addEventListener("input", ()=>{
+  if(window.buamFx) buamFx.setVolume(volSlider.value / 100);
+});
+
 sndBtn.addEventListener("click", ()=>{
-  if(window.buamFx){ buamFx.toggleMuted(); updateSndBtn(); }
+  if(window.buamFx){ buamFx.toggleMuted(); updateSndBtn(); updateVolSlider(); }
 });
 updateSndBtn();
+updateVolSlider();
 
 /* ---------------- falling code rain background ---------------- */
 (function(){

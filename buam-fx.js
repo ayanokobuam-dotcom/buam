@@ -3,10 +3,12 @@
   "use strict";
   var MUTE_KEY = "buam-muted";
   var POS_KEY = "buam-track-pos";
+  var VOL_KEY = "buam-music-vol";
   var muted = localStorage.getItem(MUTE_KEY) === "1";
 
   var ctx = null, sfxGain = null, musicGain = null, musicStarted = false, unlocked = false;
-  var MUSIC_VOL = 0.55;
+  var storedVol = parseFloat(localStorage.getItem(VOL_KEY));
+  var musicVol = isNaN(storedVol) ? 0.55 : Math.min(1, Math.max(0, storedVol));
 
   function ensureCtx(){
     if(ctx) return ctx;
@@ -90,7 +92,7 @@
     src.connect(musicGain);
     audioEl.play().catch(function(){});
     musicGain.gain.cancelScheduledValues(c.currentTime);
-    musicGain.gain.setTargetAtTime(muted ? 0 : MUSIC_VOL, c.currentTime, 1.2);
+    musicGain.gain.setTargetAtTime(muted ? 0 : musicVol, c.currentTime, 1.2);
 
     function savePos(){
       try{ localStorage.setItem(POS_KEY, String(audioEl.currentTime)); }catch(e){}
@@ -121,7 +123,7 @@
     if(!ctx) return;
     var now = ctx.currentTime;
     sfxGain.gain.setTargetAtTime(muted ? 0 : 0.5, now, 0.05);
-    musicGain.gain.setTargetAtTime(muted ? 0 : MUSIC_VOL, now, 0.4);
+    musicGain.gain.setTargetAtTime(muted ? 0 : musicVol, now, 0.4);
   }
 
   function setMuted(m){
@@ -131,6 +133,15 @@
   }
   function toggleMuted(){ setMuted(!muted); return muted; }
   function isMuted(){ return muted; }
+
+  function setVolume(v){
+    musicVol = Math.min(1, Math.max(0, v));
+    localStorage.setItem(VOL_KEY, String(musicVol));
+    if(ctx && !muted){
+      musicGain.gain.setTargetAtTime(musicVol, ctx.currentTime, 0.1);
+    }
+  }
+  function getVolume(){ return musicVol; }
 
   function unlock(){
     if(unlocked) return;
@@ -159,6 +170,8 @@
     isMuted: isMuted,
     setMuted: setMuted,
     toggleMuted: toggleMuted,
+    getVolume: getVolume,
+    setVolume: setVolume,
     unlock: unlock
   };
 })(window);
