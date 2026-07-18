@@ -49,6 +49,71 @@
     pointer-events:none;
     background: radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
   }
+  /* faint, slow-drifting color wash — sits between the radial vignette and the rain */
+  .app-aurora{
+    position:fixed; inset:0; z-index:-1.8;
+    overflow:hidden; pointer-events:none;
+  }
+  .app-aurora-blob{
+    position:absolute;
+    width:55vmax; height:55vmax;
+    border-radius:50%;
+    filter:blur(90px);
+    opacity:0.14;
+    mix-blend-mode:screen;
+    will-change:transform;
+  }
+  .app-aurora-blob-a{
+    top:-20%; left:-15%;
+    background:radial-gradient(circle, rgba(0,255,102,0.6) 0%, transparent 70%);
+    animation:appAuroraDriftA 46s ease-in-out infinite;
+  }
+  .app-aurora-blob-b{
+    bottom:-25%; right:-15%;
+    background:radial-gradient(circle, rgba(57,214,255,0.55) 0%, transparent 70%);
+    animation:appAuroraDriftB 54s ease-in-out infinite;
+  }
+  .app-aurora-blob-c{
+    top:35%; left:40%;
+    width:42vmax; height:42vmax;
+    background:radial-gradient(circle, rgba(0,255,102,0.4) 0%, transparent 70%);
+    animation:appAuroraDriftC 60s ease-in-out infinite;
+  }
+  @keyframes appAuroraDriftA{
+    0%, 100%{ transform:translate(0,0) scale(1); }
+    50%{ transform:translate(6%, 5%) scale(1.1); }
+  }
+  @keyframes appAuroraDriftB{
+    0%, 100%{ transform:translate(0,0) scale(1); }
+    50%{ transform:translate(-5%, -6%) scale(1.08); }
+  }
+  @keyframes appAuroraDriftC{
+    0%, 100%{ transform:translate(0,0) scale(1); opacity:0.12; }
+    50%{ transform:translate(-8%, 4%) scale(1.15); opacity:0.2; }
+  }
+  /* sparse drifting dust, same recipe as the boot intro but calmer for continuous use */
+  .app-dust{
+    position:fixed; inset:0; z-index:-1.7;
+    overflow:hidden; pointer-events:none;
+  }
+  .app-dust-mote{
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+    animation:dustDrift linear infinite;
+  }
+  /* brief glow after adding or completing a task — color set per-instance via --pulse-rgb */
+  .app-spark{
+    position:fixed; inset:0; z-index:-1.6;
+    pointer-events:none;
+    background:radial-gradient(circle at 50% 8%, rgba(var(--pulse-rgb, 0,255,102), 0.18), transparent 55%);
+    opacity:0;
+    animation:appSparkFade 1.3s ease-out forwards;
+  }
+  @keyframes appSparkFade{
+    0%{ opacity:1; }
+    100%{ opacity:0; }
+  }
   #bgCanvas{
     position:fixed;
     inset:0;
@@ -120,7 +185,7 @@
     background:var(--bg); color:var(--accent);
     font-family:var(--font);
     padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
-    display:flex; flex-direction:column; justify-content:center;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
     cursor:pointer;
     transition:opacity 0.5s ease;
   }
@@ -133,8 +198,119 @@
     );
   }
   .boot-screen.boot-hide{ opacity:0; pointer-events:none; }
+
+  .boot-aurora{
+    position:absolute; inset:0; z-index:0;
+    overflow:hidden; pointer-events:none;
+  }
+  .aurora-blob{
+    position:absolute;
+    width:60vmax; height:60vmax;
+    border-radius:50%;
+    filter:blur(70px);
+    opacity:0.35;
+    mix-blend-mode:screen;
+    will-change:transform;
+  }
+  .aurora-blob-a{
+    top:-20%; left:-15%;
+    background:radial-gradient(circle, rgba(0,255,102,0.55) 0%, transparent 70%);
+    animation:auroraDriftA 22s ease-in-out infinite;
+  }
+  .aurora-blob-b{
+    bottom:-25%; right:-15%;
+    background:radial-gradient(circle, rgba(57,214,255,0.5) 0%, transparent 70%);
+    animation:auroraDriftB 27s ease-in-out infinite;
+  }
+  .aurora-blob-c{
+    top:25%; left:30%;
+    width:45vmax; height:45vmax;
+    background:radial-gradient(circle, rgba(0,255,102,0.35) 0%, transparent 70%);
+    animation:auroraDriftC 31s ease-in-out infinite;
+  }
+  @keyframes auroraDriftA{
+    0%, 100%{ transform:translate(0,0) scale(1); }
+    50%{ transform:translate(8%, 6%) scale(1.15); }
+  }
+  @keyframes auroraDriftB{
+    0%, 100%{ transform:translate(0,0) scale(1); }
+    50%{ transform:translate(-7%, -8%) scale(1.1); }
+  }
+  @keyframes auroraDriftC{
+    0%, 100%{ transform:translate(0,0) scale(1); opacity:0.3; }
+    50%{ transform:translate(-10%, 5%) scale(1.2); opacity:0.45; }
+  }
+
+  .boot-dust{
+    position:absolute; inset:0; z-index:0;
+    overflow:hidden; pointer-events:none;
+  }
+  .dust-mote{
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+    animation:dustDrift linear infinite;
+  }
+  @keyframes dustDrift{
+    0%, 100%{ transform:translate(0, 0); }
+    50%{ transform:translate(var(--dx), var(--dy)); }
+  }
+
+  /* ---- one-shot "ignition" burst, fired only at the moment ENTER is pressed ---- */
+  .boot-ignite{
+    position:absolute; inset:0; z-index:0;
+    pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .boot-ignite::before{
+    content:"";
+    width:14px; height:14px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(186,255,201,0.95) 0%, rgba(0,255,102,0.7) 35%, rgba(57,214,255,0.35) 60%, transparent 72%);
+    opacity:0;
+    transform:scale(0);
+  }
+  .boot-ignite.ignite-active::before{
+    animation:ignitePulse 1s cubic-bezier(0.15,0.8,0.25,1) forwards;
+  }
+  @keyframes ignitePulse{
+    0%{ transform:scale(0); opacity:1; }
+    55%{ opacity:0.5; }
+    100%{ transform:scale(70); opacity:0; }
+  }
+  .boot-screen.ignite-flash::after{
+    content:"";
+    position:absolute; inset:0; z-index:2;
+    pointer-events:none;
+    background:radial-gradient(circle, rgba(0,255,102,0.4) 0%, transparent 65%);
+    animation:igniteFlash 0.6s ease-out forwards;
+  }
+  @keyframes igniteFlash{
+    0%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+  .boot-panel.ignite-kick{
+    animation:panelKick 0.55s cubic-bezier(0.2,0.8,0.3,1);
+  }
+  @keyframes panelKick{
+    0%{ transform:scale(0.95); box-shadow:0 0 40px rgba(0,255,102,0.55), inset 0 0 30px rgba(0,255,102,0.18); }
+    100%{ transform:scale(1); box-shadow:0 0 22px rgba(57,214,255,0.08), inset 0 0 18px rgba(0,255,102,0.03); }
+  }
+
+  .boot-panel{
+    position:relative; z-index:1;
+    max-width:560px; width:100%;
+    border:1px solid var(--border-bright);
+    border-radius:4px;
+    padding:16px 18px 14px;
+    background:rgba(0,255,102,0.02);
+    box-shadow:0 0 22px rgba(57,214,255,0.08), inset 0 0 18px rgba(0,255,102,0.03);
+  }
+  .boot-panel-label{
+    font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--cyan); opacity:0.75; margin-bottom:8px;
+  }
   .boot-lines{
-    max-width:560px; margin:0 auto; width:100%;
     font-size:0.86rem; line-height:1.7;
   }
   .boot-line{
@@ -149,7 +325,7 @@
     animation:blink 0.9s steps(1) infinite;
   }
   .boot-hint{
-    max-width:560px; margin:14px auto 0; width:100%;
+    margin:14px 0 0;
     font-size:0.68rem; color:var(--ink-dim); opacity:0.7; text-align:right;
   }
   .boot-gate{
@@ -357,11 +533,11 @@
   .vol-slider.muted{ opacity:0.4; }
 
   @keyframes taskPulse{
-    0%{ box-shadow:0 0 0 rgba(0,255,102,0); }
-    30%{ box-shadow:0 0 18px rgba(0,255,102,0.55); }
-    100%{ box-shadow:0 0 0 rgba(0,255,102,0); }
+    0%{ box-shadow:0 0 0 rgba(var(--pulse-rgb, 0,255,102), 0); }
+    30%{ box-shadow:0 0 20px rgba(var(--pulse-rgb, 0,255,102), 0.6); }
+    100%{ box-shadow:0 0 0 rgba(var(--pulse-rgb, 0,255,102), 0); }
   }
-  .task.celebrate{ animation:taskPulse 0.6s ease-out; }
+  .task.celebrate{ animation:taskPulse 1.3s ease-out; }
 
   .task-actions button.dose-btn{ color:var(--accent); }
   .task-actions button.dose-btn:hover{ border-color:var(--accent); }
@@ -512,9 +688,24 @@
 </head>
 <body>
 <div class="boot-screen" id="bootScreen">
-  <div class="boot-lines" id="bootLines"></div>
-  <div class="boot-hint" id="bootHint">[ tap or press any key to skip ]</div>
+  <div class="boot-aurora" aria-hidden="true">
+    <span class="aurora-blob aurora-blob-a"></span>
+    <span class="aurora-blob aurora-blob-b"></span>
+    <span class="aurora-blob aurora-blob-c"></span>
+  </div>
+  <div class="boot-ignite" id="bootIgnite" aria-hidden="true"></div>
+  <div class="boot-panel" id="bootPanel">
+    <div class="boot-panel-label">boot_log</div>
+    <div class="boot-lines" id="bootLines"></div>
+    <div class="boot-hint" id="bootHint">[ tap or press any key to skip ]</div>
+  </div>
 </div>
+<div class="app-aurora" aria-hidden="true">
+  <span class="app-aurora-blob app-aurora-blob-a"></span>
+  <span class="app-aurora-blob app-aurora-blob-b"></span>
+  <span class="app-aurora-blob app-aurora-blob-c"></span>
+</div>
+<div class="app-dust" id="appDust" aria-hidden="true"></div>
 <canvas id="bgCanvas"></canvas>
 <script src="./buam-fx.js"></script>
 <div class="wrap">
@@ -661,6 +852,39 @@
   const hint = document.getElementById("bootHint");
   if(!boot || !linesWrap) return;
 
+  /* ---- drifting dust motes, generated once — pure CSS animation from here, no JS loop ---- */
+  (function(){
+    const aurora = boot.querySelector(".boot-aurora");
+    if(!aurora) return;
+    const dustWrap = document.createElement("div");
+    dustWrap.className = "boot-dust";
+    dustWrap.setAttribute("aria-hidden", "true");
+    const DUST_COLORS = ["0,255,102", "57,214,255", "186,255,201"];
+    const DUST_COUNT = 46;
+    for(let i = 0; i < DUST_COUNT; i++){
+      const m = document.createElement("span");
+      m.className = "dust-mote";
+      const size = 1 + Math.random() * 2.2;
+      const hue = DUST_COLORS[Math.floor(Math.random() * DUST_COLORS.length)];
+      const alpha = 0.12 + Math.random() * 0.35;
+      const dur = 18 + Math.random() * 22;
+      const dx = (Math.random() - 0.5) * 90;
+      const dy = -(20 + Math.random() * 60);
+      m.style.left = Math.random() * 100 + "%";
+      m.style.top = Math.random() * 100 + "%";
+      m.style.width = size + "px";
+      m.style.height = size + "px";
+      m.style.background = `rgba(${hue},${alpha})`;
+      m.style.boxShadow = `0 0 ${size * 2}px rgba(${hue},${alpha})`;
+      m.style.setProperty("--dx", dx + "px");
+      m.style.setProperty("--dy", dy + "px");
+      m.style.animationDuration = dur + "s";
+      m.style.animationDelay = -(Math.random() * dur) + "s";
+      dustWrap.appendChild(m);
+    }
+    aurora.insertAdjacentElement("afterend", dustWrap);
+  })();
+
   const STEPS = [
     { text: "BUAM_OS v1.0 booting kernel" },
     { text: "mounting /home/operator", ok: true },
@@ -751,13 +975,19 @@
   gate.appendChild(btn);
   linesWrap.appendChild(gate);
 
+  const ignite = document.getElementById("bootIgnite");
+  const panel = document.getElementById("bootPanel");
+
   let started = false;
   function start(){
     if(started) return;
     started = true;
     gate.remove();
     if(hint) hint.style.display = "";
-    if(window.buamFx) buamFx.confirm();
+    if(window.buamFx){ buamFx.confirm(); buamFx.forceRestartMusic(); }
+    boot.classList.add("ignite-flash");
+    if(ignite) ignite.classList.add("ignite-active");
+    if(panel) panel.classList.add("ignite-kick");
     window.addEventListener("pointerdown", skip, { once: true });
     window.addEventListener("keydown", skip, { once: true });
     window.addEventListener("touchstart", skip, { once: true, passive: true });
@@ -775,6 +1005,8 @@ tasks.forEach(t => { if(!Array.isArray(t.doses)) t.doses = []; });
 let filter = "all";
 
 const catLabel = {homework:"Homework", work:"Work", personal:"Personal", other:"Other"};
+// matches the --cyan/--accent/--amber/--ink-dim border colors already used for .cat-* tags/rows
+const catRgb = {homework:"57,214,255", work:"0,255,102", personal:"255,210,63", other:"79,143,92"};
 
 function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
@@ -796,9 +1028,9 @@ function addTask(){
   const cat = document.getElementById("catInput").value;
   const pri = document.getElementById("priInput").value;
   const due = document.getElementById("dueInput").value;
+  const id = Date.now() + Math.random().toString(36).slice(2);
   tasks.unshift({
-    id: Date.now() + Math.random().toString(36).slice(2),
-    title, cat, pri, due,
+    id, title, cat, pri, due,
     done:false,
     doses:[],
     createdAt: Date.now()
@@ -807,6 +1039,7 @@ function addTask(){
   document.getElementById("dueInput").value = "";
   save();
   titleEl.focus();
+  celebrateTask(id, cat);
 }
 
 function toggleDone(id){
@@ -818,10 +1051,31 @@ function toggleDone(id){
     else { buamFx.blip(); }
   }
   save();
-  if(t.done){
-    const row = document.querySelector(`.task[data-id="${t.id}"]`);
-    if(row){ row.classList.add("celebrate"); setTimeout(()=>row.classList.remove("celebrate"), 600); }
+  if(t.done) celebrateTask(t.id, t.cat);
+}
+
+// shared reactive "moment" for adding/completing a task — glows the row,
+// the rain, and a soft screen-wide spark in the task's category color,
+// then eases back to normal (see catRgb above and buamRainPulse in the
+// rain IIFE for how the color is used downstream)
+function celebrateTask(id, cat){
+  const rgb = catRgb[cat] || catRgb.other;
+  const row = document.querySelector(`.task[data-id="${id}"]`);
+  if(row){
+    row.style.setProperty("--pulse-rgb", rgb);
+    row.classList.add("celebrate");
+    setTimeout(()=> row.classList.remove("celebrate"), 1300);
   }
+  if(window.buamRainPulse) buamRainPulse(rgb);
+  bgSpark(rgb);
+}
+
+function bgSpark(rgb){
+  const s = document.createElement("div");
+  s.className = "app-spark";
+  s.style.setProperty("--pulse-rgb", rgb || catRgb.other);
+  document.body.appendChild(s);
+  setTimeout(()=> s.remove(), 1400);
 }
 
 function deleteTask(id){
@@ -1346,10 +1600,19 @@ updateVolSlider();
   const FONT_SIZE = 16;
   const CHARS = "01{}[]()<>/;:=+-*#$%&_01010110";
   const HEAD_COLORS = ["#39d6ff","#ffd23f","#ff3fd6","#baffc9"];
+  const PULSE_MS = 1300; // matches the CSS row-glow/spark durations for one cohesive moment
 
   let dpr = 1, cols = 0, rowsVisible = 0;
-  let drops = [], speeds = [];
+  let drops = [], speeds = [], layer = [];
   let animId = null, lastT = 0;
+  let pulseStart = -Infinity, pulseRgb = "255,210,63";
+
+  // called from celebrateTask() when a task is added/completed — smoothly
+  // ramps a wash of "rgb" through the rain, then eases back out
+  window.buamRainPulse = function(rgb){
+    pulseRgb = rgb || "255,210,63";
+    pulseStart = performance.now();
+  };
 
   function randChar(){ return CHARS[Math.floor(Math.random()*CHARS.length)]; }
 
@@ -1367,7 +1630,9 @@ updateVolSlider();
     cols = Math.ceil(w/FONT_SIZE);
     rowsVisible = Math.ceil(h/FONT_SIZE);
     drops = new Array(cols).fill(0).map(()=> Math.random()*-rowsVisible);
-    speeds = new Array(cols).fill(0).map(()=> 0.35 + Math.random()*0.9);
+    // ~45% of columns sit in a slower, dimmer "back" layer for a bit of depth
+    layer = new Array(cols).fill(0).map(()=> Math.random() < 0.45 ? 0 : 1);
+    speeds = new Array(cols).fill(0).map((_, i)=> layer[i] === 0 ? 0.18 + Math.random()*0.35 : 0.45 + Math.random()*0.95);
 
     ctx.fillStyle = "#05070a";
     ctx.fillRect(0,0,w,h);
@@ -1381,13 +1646,27 @@ updateVolSlider();
     ctx.fillStyle = "rgba(5,7,10,0.11)";
     ctx.fillRect(0,0,w,h);
 
+    // smooth rise-then-fall bell curve over PULSE_MS, instead of an on/off cutoff
+    const pulseElapsed = now - pulseStart;
+    const intensity = (pulseElapsed >= 0 && pulseElapsed < PULSE_MS)
+      ? Math.sin(Math.PI * (pulseElapsed / PULSE_MS))
+      : 0;
+    if(intensity > 0.01){
+      ctx.fillStyle = `rgba(${pulseRgb}, ${(intensity * 0.05).toFixed(3)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
     for(let i=0;i<cols;i++){
+      const back = layer[i] === 0;
       const x = i*FONT_SIZE;
       const y = drops[i]*FONT_SIZE;
-      const isHead = Math.random() < 0.045;
+      const headChance = (0.045 + intensity * 0.06) * (back ? 0.5 : 1);
+      const isHead = Math.random() < headChance;
+      const usePulseColor = intensity > 0.15 && Math.random() < intensity;
+      ctx.globalAlpha = back ? 0.5 : 1;
       if(isHead){
-        ctx.shadowColor = HEAD_COLORS[Math.floor(Math.random()*HEAD_COLORS.length)];
-        ctx.shadowBlur = 8;
+        ctx.shadowColor = usePulseColor ? `rgb(${pulseRgb})` : HEAD_COLORS[Math.floor(Math.random()*HEAD_COLORS.length)];
+        ctx.shadowBlur = back ? 4 : 8;
         ctx.fillStyle = ctx.shadowColor;
       } else {
         ctx.shadowBlur = 0;
@@ -1395,11 +1674,12 @@ updateVolSlider();
       }
       ctx.fillText(randChar(), x, y);
       ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
 
       drops[i] += speeds[i];
       if(y > h && Math.random() > 0.975){
         drops[i] = Math.random()*-20;
-        speeds[i] = 0.35 + Math.random()*0.9;
+        speeds[i] = back ? 0.18 + Math.random()*0.35 : 0.45 + Math.random()*0.95;
       }
     }
   }
@@ -1428,6 +1708,35 @@ updateVolSlider();
 
   resize();
   start();
+})();
+
+/* ---------------- drifting dust motes, generated once (pure CSS animates them) ---------------- */
+(function(){
+  const wrap = document.getElementById("appDust");
+  if(!wrap) return;
+  const COLORS = ["0,255,102", "57,214,255", "186,255,201"];
+  const COUNT = 22;
+  for(let i = 0; i < COUNT; i++){
+    const m = document.createElement("span");
+    m.className = "app-dust-mote";
+    const size = 1 + Math.random() * 2;
+    const hue = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const alpha = 0.08 + Math.random() * 0.2;
+    const dur = 40 + Math.random() * 35;
+    const dx = (Math.random() - 0.5) * 70;
+    const dy = -(15 + Math.random() * 50);
+    m.style.left = Math.random() * 100 + "%";
+    m.style.top = Math.random() * 100 + "%";
+    m.style.width = size + "px";
+    m.style.height = size + "px";
+    m.style.background = `rgba(${hue},${alpha})`;
+    m.style.boxShadow = `0 0 ${size * 2}px rgba(${hue},${alpha})`;
+    m.style.setProperty("--dx", dx + "px");
+    m.style.setProperty("--dy", dy + "px");
+    m.style.animationDuration = dur + "s";
+    m.style.animationDelay = -(Math.random() * dur) + "s";
+    wrap.appendChild(m);
+  }
 })();
 
 render();

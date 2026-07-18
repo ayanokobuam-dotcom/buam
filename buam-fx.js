@@ -119,6 +119,20 @@
     playTrack();
   }
 
+  // tears down whatever's currently playing/resumed and starts bgm.mp3 fresh
+  // from BOOT_START_AT, wiping the saved resume position — used by the boot
+  // intro so every "press ENTER to boot" feels like a real fresh start
+  var BOOT_START_AT = 2.5;
+  function forceRestartMusic(){
+    var c = ensureCtx();
+    if(!c) return;
+    if(c.state === "suspended") c.resume();
+    if(activeStop) activeStop();
+    localStorage.setItem(POS_KEY, String(BOOT_START_AT));
+    musicStarted = true;
+    playTrack();
+  }
+
   function applyMute(){
     if(!ctx) return;
     var now = ctx.currentTime;
@@ -172,6 +186,7 @@
     toggleMuted: toggleMuted,
     getVolume: getVolume,
     setVolume: setVolume,
-    unlock: unlock
+    unlock: unlock,
+    forceRestartMusic: forceRestartMusic
   };
 })(window);
