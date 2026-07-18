@@ -23,42 +23,50 @@
     return ctx;
   }
 
+  // every public buamFx call is wrapped so a device-specific Web Audio
+  // failure (AudioContext limits, closed context, etc.) can never throw out
+  // into a caller's synchronous code — a boot sequence or a task save() must
+  // never get bricked just because the optional sound effect failed
   function tone(freq, dur, type, vol, delay){
-    var c = ensureCtx();
-    if(!c) return;
-    if(c.state === "suspended") c.resume();
-    dur = dur || 0.08; vol = vol == null ? 0.14 : vol;
-    var t0 = c.currentTime + (delay || 0);
-    var osc = c.createOscillator();
-    var g = c.createGain();
-    osc.type = type || "square";
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0001), t0 + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g).connect(sfxGain);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.03);
-    return osc;
+    try{
+      var c = ensureCtx();
+      if(!c) return null;
+      if(c.state === "suspended") c.resume();
+      dur = dur || 0.08; vol = vol == null ? 0.14 : vol;
+      var t0 = c.currentTime + (delay || 0);
+      var osc = c.createOscillator();
+      var g = c.createGain();
+      osc.type = type || "square";
+      osc.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0001), t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g).connect(sfxGain);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.03);
+      return osc;
+    }catch(e){ return null; }
   }
 
   function sweep(freqFrom, freqTo, dur, type, vol, delay){
-    var c = ensureCtx();
-    if(!c) return;
-    if(c.state === "suspended") c.resume();
-    dur = dur || 0.15; vol = vol == null ? 0.14 : vol;
-    var t0 = c.currentTime + (delay || 0);
-    var osc = c.createOscillator();
-    var g = c.createGain();
-    osc.type = type || "sawtooth";
-    osc.frequency.setValueAtTime(freqFrom, t0);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(freqTo, 1), t0 + dur);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g).connect(sfxGain);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.03);
+    try{
+      var c = ensureCtx();
+      if(!c) return;
+      if(c.state === "suspended") c.resume();
+      dur = dur || 0.15; vol = vol == null ? 0.14 : vol;
+      var t0 = c.currentTime + (delay || 0);
+      var osc = c.createOscillator();
+      var g = c.createGain();
+      osc.type = type || "sawtooth";
+      osc.frequency.setValueAtTime(freqFrom, t0);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(freqTo, 1), t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g).connect(sfxGain);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.03);
+    }catch(e){}
   }
 
   function blip(){ tone(680, 0.05, "square", 0.11); }
@@ -75,48 +83,52 @@
   var activeStop = null;
 
   function playTrack(){
-    var c = ctx;
-    var audioEl = new Audio(TRACK_URL);
-    audioEl.loop = true;
+    try{
+      var c = ctx;
+      var audioEl = new Audio(TRACK_URL);
+      audioEl.loop = true;
 
-    // resume where the last page left off, so navigating between buam's pages
-    // (a full document reload each time) feels continuous instead of restarting
-    var resumeAt = parseFloat(localStorage.getItem(POS_KEY) || "0") || 0;
-    if(resumeAt > 0){
-      audioEl.addEventListener("loadedmetadata", function(){
-        if(resumeAt < audioEl.duration) audioEl.currentTime = resumeAt;
-      }, { once: true });
-    }
+      // resume where the last page left off, so navigating between buam's pages
+      // (a full document reload each time) feels continuous instead of restarting
+      var resumeAt = parseFloat(localStorage.getItem(POS_KEY) || "0") || 0;
+      if(resumeAt > 0){
+        audioEl.addEventListener("loadedmetadata", function(){
+          if(resumeAt < audioEl.duration) audioEl.currentTime = resumeAt;
+        }, { once: true });
+      }
 
-    var src = c.createMediaElementSource(audioEl);
-    src.connect(musicGain);
-    audioEl.play().catch(function(){});
-    musicGain.gain.cancelScheduledValues(c.currentTime);
-    musicGain.gain.setTargetAtTime(muted ? 0 : musicVol, c.currentTime, 1.2);
+      var src = c.createMediaElementSource(audioEl);
+      src.connect(musicGain);
+      audioEl.play().catch(function(){});
+      musicGain.gain.cancelScheduledValues(c.currentTime);
+      musicGain.gain.setTargetAtTime(muted ? 0 : musicVol, c.currentTime, 1.2);
 
-    function savePos(){
-      try{ localStorage.setItem(POS_KEY, String(audioEl.currentTime)); }catch(e){}
-    }
-    function onVisibility(){ if(document.hidden) savePos(); }
-    var saveTimer = setInterval(function(){ if(!audioEl.paused) savePos(); }, 1500);
-    window.addEventListener("pagehide", savePos);
-    document.addEventListener("visibilitychange", onVisibility);
+      function savePos(){
+        try{ localStorage.setItem(POS_KEY, String(audioEl.currentTime)); }catch(e){}
+      }
+      function onVisibility(){ if(document.hidden) savePos(); }
+      var saveTimer = setInterval(function(){ if(!audioEl.paused) savePos(); }, 1500);
+      window.addEventListener("pagehide", savePos);
+      document.addEventListener("visibilitychange", onVisibility);
 
-    activeStop = function(){
-      clearInterval(saveTimer);
-      savePos();
-      window.removeEventListener("pagehide", savePos);
-      document.removeEventListener("visibilitychange", onVisibility);
-      audioEl.pause();
-      src.disconnect();
-    };
+      activeStop = function(){
+        clearInterval(saveTimer);
+        savePos();
+        window.removeEventListener("pagehide", savePos);
+        document.removeEventListener("visibilitychange", onVisibility);
+        audioEl.pause();
+        src.disconnect();
+      };
+    }catch(e){}
   }
 
   function startMusic(){
-    var c = ensureCtx();
-    if(!c || musicStarted) return;
-    musicStarted = true;
-    playTrack();
+    try{
+      var c = ensureCtx();
+      if(!c || musicStarted) return;
+      musicStarted = true;
+      playTrack();
+    }catch(e){}
   }
 
   // tears down whatever's currently playing/resumed and starts bgm.mp3 fresh
@@ -124,13 +136,15 @@
   // intro so every "press ENTER to boot" feels like a real fresh start
   var BOOT_START_AT = 2.5;
   function forceRestartMusic(){
-    var c = ensureCtx();
-    if(!c) return;
-    if(c.state === "suspended") c.resume();
-    if(activeStop) activeStop();
-    localStorage.setItem(POS_KEY, String(BOOT_START_AT));
-    musicStarted = true;
-    playTrack();
+    try{
+      var c = ensureCtx();
+      if(!c) return;
+      if(c.state === "suspended") c.resume();
+      if(activeStop) activeStop();
+      localStorage.setItem(POS_KEY, String(BOOT_START_AT));
+      musicStarted = true;
+      playTrack();
+    }catch(e){}
   }
 
   function applyMute(){
@@ -160,8 +174,7 @@
   function unlock(){
     if(unlocked) return;
     unlocked = true;
-    ensureCtx();
-    if(ctx && ctx.state === "suspended") ctx.resume();
+    try{ ensureCtx(); if(ctx && ctx.state === "suspended") ctx.resume(); }catch(e){}
     startMusic();
   }
   ["pointerdown", "keydown", "touchstart"].forEach(function(evt){
