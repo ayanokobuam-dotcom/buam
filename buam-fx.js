@@ -75,6 +75,11 @@
     tone(990, 0.09, "square", 0.12, 0.05);
   }
   function cancelTone(){ sweep(360, 140, 0.14, "sawtooth", 0.1); }
+  function chimeTone(){
+    tone(523, 0.09, "square", 0.1);
+    tone(659, 0.09, "square", 0.11, 0.09);
+    tone(784, 0.14, "square", 0.13, 0.18);
+  }
 
   /* ---- fixed background track, bundled alongside this script ---- */
   var scriptSrc = (document.currentScript && document.currentScript.src) || "";
@@ -194,6 +199,7 @@
     blip: blip,
     confirm: confirmTone,
     cancel: cancelTone,
+    chime: chimeTone,
     isMuted: isMuted,
     setMuted: setMuted,
     toggleMuted: toggleMuted,
