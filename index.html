@@ -123,16 +123,22 @@
     pointer-events:none;
     animation:dustDrift linear infinite;
   }
-  /* brief glow after adding or completing a task — color set per-instance via --pulse-rgb */
-  .app-spark{
-    position:fixed; inset:0; z-index:-1.6;
+  /* brief whole-page color wash after adding or completing a task — tints the
+     rain canvas AND every text element to the task's category color at once,
+     via mix-blend-mode:color so each element's own brightness is preserved
+     (text stays readable, it just takes on the hue) instead of flattening
+     everything to a flat overlay like a plain radial gradient would */
+  .page-tint{
+    position:fixed; inset:0; z-index:950;
     pointer-events:none;
-    background:radial-gradient(circle at 50% 8%, rgba(var(--pulse-rgb, 0,255,102), 0.18), transparent 55%);
+    background:rgb(var(--pulse-rgb, 0,255,102));
+    mix-blend-mode:color;
     opacity:0;
-    animation:appSparkFade 1.3s ease-out forwards;
   }
-  @keyframes appSparkFade{
-    0%{ opacity:1; }
+  .page-tint.active{ animation:pageTintPulse 1s ease-out; }
+  @keyframes pageTintPulse{
+    0%{ opacity:0; }
+    25%{ opacity:0.65; }
     100%{ opacity:0; }
   }
   #bgCanvas{
@@ -614,10 +620,10 @@
 
   @keyframes taskPulse{
     0%{ box-shadow:0 0 0 rgba(var(--pulse-rgb, 0,255,102), 0); }
-    30%{ box-shadow:0 0 20px rgba(var(--pulse-rgb, 0,255,102), 0.6); }
+    25%{ box-shadow:0 0 26px rgba(var(--pulse-rgb, 0,255,102), 0.75); }
     100%{ box-shadow:0 0 0 rgba(var(--pulse-rgb, 0,255,102), 0); }
   }
-  .task.celebrate{ animation:taskPulse 1.3s ease-out; }
+  .task.celebrate{ animation:taskPulse 1s ease-out; }
 
   .task-actions button.dose-btn{ color:var(--accent); }
   .task-actions button.dose-btn:hover{ border-color:var(--accent); }
@@ -917,6 +923,7 @@
 </div>
 <div class="app-dust" id="appDust" aria-hidden="true"></div>
 <canvas id="bgCanvas"></canvas>
+<div class="page-tint" id="pageTint" aria-hidden="true"></div>
 <div class="ambient-screen" id="ambientScreen" aria-hidden="true">
   <div class="ambient-clock" id="ambientClock">00:00:00</div>
 </div>
@@ -1525,27 +1532,28 @@ function showNextTaskToast(task){
 }
 
 // shared reactive "moment" for adding/completing a task — glows the row,
-// the rain, and a soft screen-wide spark in the task's category color,
-// then eases back to normal (see catRgb above and buamRainPulse in the
-// rain IIFE for how the color is used downstream)
+// washes the rain, and tints every bit of on-screen text to the task's
+// category color for one cohesive second, then eases back to normal (see
+// catRgb above and buamRainPulse in the rain IIFE for how the color is
+// used downstream)
 function celebrateTask(id, cat){
   const rgb = catRgb[cat] || catRgb.other;
   const row = document.querySelector(`.task[data-id="${id}"]`);
   if(row){
     row.style.setProperty("--pulse-rgb", rgb);
     row.classList.add("celebrate");
-    setTimeout(()=> row.classList.remove("celebrate"), 1300);
+    setTimeout(()=> row.classList.remove("celebrate"), 1000);
   }
   if(window.buamRainPulse) buamRainPulse(rgb);
-  bgSpark(rgb);
+  pulsePageTint(rgb);
 }
 
-function bgSpark(rgb){
-  const s = document.createElement("div");
-  s.className = "app-spark";
-  s.style.setProperty("--pulse-rgb", rgb || catRgb.other);
-  document.body.appendChild(s);
-  setTimeout(()=> s.remove(), 1400);
+const pageTintEl = document.getElementById("pageTint");
+function pulsePageTint(rgb){
+  pageTintEl.style.setProperty("--pulse-rgb", rgb || catRgb.other);
+  pageTintEl.classList.remove("active");
+  void pageTintEl.offsetWidth; // restart the CSS animation on repeat triggers
+  pageTintEl.classList.add("active");
 }
 
 function deleteTask(id){
@@ -2427,7 +2435,7 @@ updateVolSlider();
   const FONT_SIZE = 16;
   const CHARS = "01{}[]()<>/;:=+-*#$%&_01010110";
   const HEAD_COLORS = ["#39d6ff","#ffd23f","#ff3fd6","#baffc9"];
-  const PULSE_MS = 1300; // matches the CSS row-glow/spark durations for one cohesive moment
+  const PULSE_MS = 1000; // matches the CSS row-glow/page-tint durations for one cohesive moment
 
   let dpr = 1, cols = 0, rowsVisible = 0;
   let drops = [], speeds = [], layer = [];
