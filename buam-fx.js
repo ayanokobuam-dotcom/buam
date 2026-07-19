@@ -152,11 +152,55 @@
     }catch(e){}
   }
 
+  /* ---- Focus Mode ambient sound (rain/forest loops, played alongside bgm) ---- */
+  var ambientGain = null, ambientEl = null, ambientVol = 0.5;
+
+  function ensureAmbientGain(){
+    var c = ensureCtx();
+    if(!c) return null;
+    if(!ambientGain){
+      ambientGain = c.createGain();
+      ambientGain.gain.value = 0;
+      ambientGain.connect(c.destination);
+    }
+    return ambientGain;
+  }
+
+  function stopAmbient(){
+    if(ambientEl){
+      try{ ambientEl.pause(); }catch(e){}
+      ambientEl = null;
+    }
+  }
+
+  // gracefully does nothing if sounds/<name>.mp3 isn't present — Focus Mode's
+  // ambient row is optional plumbing until those assets are dropped in
+  function playAmbient(name){
+    stopAmbient();
+    if(!name) return;
+    try{
+      var c = ensureCtx();
+      var g = ensureAmbientGain();
+      if(!c || !g) return;
+      var base = scriptSrc ? scriptSrc.replace(/[^/]*$/, "") : "";
+      var audioEl = new Audio(base + "sounds/" + name + ".mp3");
+      audioEl.loop = true;
+      audioEl.addEventListener("error", function(){}, { once: true });
+      var src = c.createMediaElementSource(audioEl);
+      src.connect(g);
+      audioEl.play().catch(function(){});
+      g.gain.cancelScheduledValues(c.currentTime);
+      g.gain.setTargetAtTime(muted ? 0 : ambientVol, c.currentTime, 1.0);
+      ambientEl = audioEl;
+    }catch(e){}
+  }
+
   function applyMute(){
     if(!ctx) return;
     var now = ctx.currentTime;
     sfxGain.gain.setTargetAtTime(muted ? 0 : 0.5, now, 0.05);
     musicGain.gain.setTargetAtTime(muted ? 0 : musicVol, now, 0.4);
+    if(ambientGain) ambientGain.gain.setTargetAtTime(muted ? 0 : ambientVol, now, 0.4);
   }
 
   function setMuted(m){
@@ -206,6 +250,8 @@
     getVolume: getVolume,
     setVolume: setVolume,
     unlock: unlock,
-    forceRestartMusic: forceRestartMusic
+    forceRestartMusic: forceRestartMusic,
+    ambient: playAmbient,
+    stopAmbient: stopAmbient
   };
 })(window);

@@ -227,6 +227,17 @@
   }
   .boot-screen.boot-hide{ opacity:0; pointer-events:none; }
 
+  /* holds aurora/scanline/glyphs/dust as one group so the whole ambient
+     wash starts invisible (pure black behind the boot panel) and only
+     fades in once ENTER is pressed — a single wrapper opacity always wins
+     over any animated opacity on its descendants, so this can't be
+     fought by the aurora/scanline/glyph keyframes animating underneath it */
+  .boot-ambient{
+    position:absolute; inset:0; pointer-events:none;
+    opacity:0; transition:opacity 1.6s ease 0.2s;
+  }
+  .boot-screen.boot-ignited .boot-ambient{ opacity:1; }
+
   .boot-aurora{
     position:absolute; inset:0; z-index:0;
     overflow:hidden; pointer-events:none;
@@ -476,6 +487,9 @@
     box-shadow:0 0 0 2px rgba(0,255,102,0.22);
   }
   .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
+  .add-row3{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .quadrant-label{ color:var(--ink-dim); font-size:0.76rem; }
+  .qchip.active{ background:rgba(255,59,59,0.14); border-color:var(--red); color:var(--red); text-shadow:0 0 6px rgba(255,59,59,0.5); box-shadow:0 0 8px rgba(255,59,59,0.25); }
   select, input[type=date]{
     background:var(--panel-2);
     border:1px solid var(--border);
@@ -573,7 +587,13 @@
   .tag.cat-work{ color:var(--accent); border-color:rgba(0,255,102,0.3); }
   .tag.cat-personal{ color:var(--amber); border-color:rgba(255,210,63,0.3); }
   .tag.cat-other{ color:var(--ink-dim); }
-  .tag.pri-high{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
+  .tag.quad-q1{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
+  .tag.quad-q2{ background:rgba(255,210,63,0.08); color:var(--amber); border-color:rgba(255,210,63,0.25); }
+  .tag.quad-q3{ background:rgba(57,214,255,0.08); color:var(--cyan); border-color:rgba(57,214,255,0.25); }
+  .tag.quad-q4{ color:var(--ink-dim); }
+  .tag.energy-low{ color:var(--ink-dim); }
+  .tag.energy-medium{ color:var(--cyan); border-color:rgba(57,214,255,0.25); }
+  .tag.energy-high{ color:var(--amber); border-color:rgba(255,210,63,0.25); }
   .tag.due{ background:rgba(255,210,63,0.08); color:var(--amber); border-color:rgba(255,210,63,0.25); }
   .tag.due.late{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
   .tag.notes{ color:var(--magenta); border-color:rgba(255,63,214,0.3); }
@@ -678,8 +698,6 @@
   .dose-cancel-btn{ background:transparent; border:1px solid var(--border); color:var(--ink-dim); }
 
   /* ---------- calendar ---------- */
-  #calendarOverlay{ z-index:45; }
-  .cal-modal{ max-height:85vh; overflow-y:auto; }
   .cal-nav{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
   .cal-month-label{
     flex:1; text-align:center; font-weight:700; color:var(--accent);
@@ -708,6 +726,7 @@
   .cal-dot.cat-work{ background:var(--accent); }
   .cal-dot.cat-personal{ background:var(--amber); }
   .cal-dot.cat-other{ background:var(--ink-dim); }
+  .cal-dot.reflect-dot{ background:var(--magenta); border-radius:1px; }
   .cal-day-detail{
     margin-top:14px; border-top:1px dashed var(--border); padding-top:12px;
     max-height:260px; overflow-y:auto;
@@ -724,6 +743,18 @@
   .note-ts{ color:var(--ink-dim); font-size:0.72rem; margin-right:8px; font-variant-numeric:tabular-nums; }
   .note-text{ color:var(--ink); }
   .note-add-row{ display:flex; gap:8px; align-items:center; margin-top:12px; }
+
+  .goal-ring{ width:110px; height:110px; margin-bottom:10px; }
+  .goal-ring .dose-digits{ font-size:1.4rem; }
+  .goal-ring-label{ text-align:center; font-size:0.76rem; color:var(--ink-dim); margin-bottom:16px; }
+  .goal-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; margin-bottom:12px; }
+  .goal-row{ display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:3px; padding:8px 10px; }
+  .goal-row.done .goal-title{ text-decoration:line-through; color:var(--ink-dim); }
+  .goal-row.done .check{ background:var(--accent); border-color:var(--accent); }
+  .goal-title{ flex:1; font-size:0.85rem; word-break:break-word; }
+  .goal-add-row{ display:flex; gap:8px; align-items:center; }
+  .reflect-field{ margin-bottom:10px; }
+  .reflect-field label{ display:block; font-size:0.76rem; color:var(--ink-dim); margin-bottom:5px; }
 
   .dose-timer-task{ font-size:0.85rem; color:var(--ink-dim); margin-bottom:16px; text-align:center; }
   .dose-timer-task b{ color:var(--ink); }
@@ -882,6 +913,17 @@
   .timeline-node:last-child::after{ display:none; }
   .timeline-node-date{ font-size:0.72rem; color:var(--ink-dim); margin-bottom:4px; }
 
+  .matrix-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .matrix-quadrant{ background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:10px; min-width:0; }
+  .matrix-quadrant.matrix-q1{ border-left:2px solid var(--red); }
+  .matrix-quadrant.matrix-q2{ border-left:2px solid var(--amber); }
+  .matrix-quadrant.matrix-q3{ border-left:2px solid var(--cyan); }
+  .matrix-quadrant.matrix-q4{ border-left:2px solid var(--ink-dim); }
+  .matrix-quadrant-label{ font-size:0.74rem; color:var(--ink-dim); margin-bottom:8px; }
+  .matrix-quadrant-body{ display:flex; flex-direction:column; gap:6px; }
+  .matrix-quadrant .task{ margin-bottom:0; }
+  @media (max-width:520px){ .matrix-grid{ grid-template-columns:1fr; } }
+
   .work-area-tiles{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:14px 0; }
   .work-area-tile{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-tile);
@@ -902,13 +944,15 @@
 </head>
 <body>
 <div class="boot-screen" id="bootScreen">
-  <div class="boot-aurora" aria-hidden="true">
-    <span class="aurora-blob aurora-blob-a"></span>
-    <span class="aurora-blob aurora-blob-b"></span>
-    <span class="aurora-blob aurora-blob-c"></span>
+  <div class="boot-ambient" id="bootAmbient">
+    <div class="boot-aurora" aria-hidden="true">
+      <span class="aurora-blob aurora-blob-a"></span>
+      <span class="aurora-blob aurora-blob-b"></span>
+      <span class="aurora-blob aurora-blob-c"></span>
+    </div>
+    <div class="boot-scanline" aria-hidden="true"></div>
+    <div class="boot-glyphs" id="bootGlyphs" aria-hidden="true"></div>
   </div>
-  <div class="boot-scanline" aria-hidden="true"></div>
-  <div class="boot-glyphs" id="bootGlyphs" aria-hidden="true"></div>
   <div class="boot-ignite" id="bootIgnite" aria-hidden="true"></div>
   <div class="boot-panel" id="bootPanel">
     <div class="boot-panel-label">boot_log</div>
@@ -971,12 +1015,18 @@
           <option value="personal">Personal</option>
           <option value="other">Other</option>
         </select>
-        <select id="priInput">
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
+        <select id="energyInput">
+          <option value="low">⚡ Low energy</option>
+          <option value="medium" selected>⚡ Medium energy</option>
+          <option value="high">⚡ High energy</option>
         </select>
         <input type="date" id="dueInput">
         <button class="btn-add" id="addBtn">+ add_task</button>
+      </div>
+      <div class="add-row3" id="quadrantToggle">
+        <span class="quadrant-label">priority:</span>
+        <button type="button" class="chip qchip" id="urgentChip">urgent</button>
+        <button type="button" class="chip qchip" id="importantChip">important</button>
       </div>
     </div>
 
@@ -992,6 +1042,7 @@
       <div class="task-view-toggle" id="taskViewToggle">
         <button type="button" class="tvt-btn active" data-taskview="list">list</button>
         <button type="button" class="tvt-btn" data-taskview="timeline">timeline</button>
+        <button type="button" class="tvt-btn" data-taskview="matrix">matrix</button>
       </div>
     </div>
 
@@ -999,6 +1050,47 @@
 
     <div id="list"></div>
     <div id="timelineList" class="timeline-view" style="display:none;"></div>
+    <div id="matrixView" class="matrix-grid" style="display:none;"></div>
+  </div>
+
+  <div class="app-view" id="viewCalendar">
+    <div class="cal-nav">
+      <button type="button" id="calPrevBtn" class="icon-btn" data-fx-skip>‹</button>
+      <div class="cal-month-label" id="calMonthLabel"></div>
+      <button type="button" id="calNextBtn" class="icon-btn" data-fx-skip>›</button>
+      <button type="button" id="calTodayBtn" class="chip" data-fx-skip>today</button>
+    </div>
+
+    <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-day-detail" id="calDayDetail"></div>
+    <div class="goal-add-row" id="calQuickAddRow" style="display:none; margin-top:10px;">
+      <input type="text" id="calQuickAddInput" placeholder="เพิ่มงานสำหรับวันนี้...">
+      <button class="dose-start-btn" id="calQuickAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
+    </div>
+    <div class="cal-reflect-block" id="calReflectBlock" style="display:none;">
+      <div class="prompt-label" style="margin:14px 0 8px;">reflect</div>
+      <div class="reflect-field">
+        <label for="calReflectMood">รู้สึกอย่างไร</label>
+        <input type="text" id="calReflectMood" maxlength="140">
+      </div>
+      <div class="reflect-field">
+        <label for="calReflectWin">สิ่งที่ทำสำเร็จที่สุด</label>
+        <input type="text" id="calReflectWin" maxlength="140">
+      </div>
+      <button class="dose-start-btn" id="calReflectSaveBtn" type="button" style="padding:9px 16px;">บันทึก</button>
+    </div>
+
+    <div class="prompt-label" style="margin:24px 0 8px;">month_goals</div>
+    <div style="display:flex; flex-direction:column; align-items:center;">
+      <div class="dose-dial goal-ring" id="goalRing" style="--pct:0"><div class="dose-digits" id="goalRingPct">0%</div></div>
+      <div class="goal-ring-label" id="goalRingLabel">0 / 0 สำเร็จ</div>
+    </div>
+    <div class="goal-list" id="goalList"></div>
+    <div class="goal-add-row">
+      <input type="text" id="goalInput" placeholder="เป้าหมายเดือนนี้..." maxlength="160">
+      <button class="dose-start-btn" id="goalAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
+    </div>
   </div>
 
   <div class="app-view" id="viewAnalytics">
@@ -1008,7 +1100,6 @@
   <div class="app-view" id="viewMore">
     <div class="more-menu">
       <a href="./games/index.html" class="quick-link arcade"><span class="qsym">&gt;</span> arcade</a>
-      <button type="button" id="calendarBtn" class="quick-link calendar"><span class="qsym">&gt;</span> calendar</button>
       <button type="button" id="syncBtn" class="quick-link sync"><span class="qsym">&gt;</span> sync</button>
       <button type="button" id="timerBtn" class="quick-link timer"><span class="qsym">&gt;</span> timer</button>
     </div>
@@ -1020,6 +1111,7 @@
 <nav class="bottom-tabs" id="bottomTabs">
   <button type="button" class="bottom-tab active" data-view="home"><span class="bt-glyph">⌂</span><span class="bt-label">home</span></button>
   <button type="button" class="bottom-tab" data-view="tasks"><span class="bt-glyph">▤</span><span class="bt-label">tasks</span></button>
+  <button type="button" class="bottom-tab" data-view="calendar"><span class="bt-glyph">⊞</span><span class="bt-label">calendar</span></button>
   <button type="button" class="bottom-tab" data-view="analytics"><span class="bt-glyph">▦</span><span class="bt-label">stats</span></button>
   <button type="button" class="bottom-tab" data-view="more"><span class="bt-glyph">⋯</span><span class="bt-label">more</span></button>
 </nav>
@@ -1081,7 +1173,11 @@
 
 <div class="dose-overlay hidden" id="timerOverlay">
   <div class="dose-modal" id="timerSetup">
-    <div class="prompt-label">timer</div>
+    <div class="prompt-label">focus_mode</div>
+    <div class="dose-field">
+      <label>โฟกัสงานไหน (ไม่บังคับ)</label>
+      <select id="timerTaskSelect"><option value="">(ไม่เลือกงาน)</option></select>
+    </div>
     <div class="dose-field">
       <label>ตั้งเวลานับถอยหลัง (นาที)</label>
       <div class="dose-size-row" id="timerSizeRow">
@@ -1091,6 +1187,14 @@
         <button type="button" data-min="45">45</button>
       </div>
     </div>
+    <div class="dose-field">
+      <label>เสียงบรรยากาศ</label>
+      <div class="dose-size-row" id="timerAmbientRow">
+        <button type="button" data-ambient="" class="active">ไม่มี</button>
+        <button type="button" data-ambient="rain">🌧 ฝน</button>
+        <button type="button" data-ambient="forest">🌲 ป่า</button>
+      </div>
+    </div>
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="timerSetupCancel" type="button">ยกเลิก</button>
       <button class="dose-start-btn" id="timerSetupStart" type="button">▶ เริ่มจับเวลา</button>
@@ -1098,7 +1202,8 @@
   </div>
 
   <div class="dose-modal" id="timerRunning" style="display:none;">
-    <div class="prompt-label">timer</div>
+    <div class="prompt-label">focus_mode</div>
+    <div class="dose-timer-task" id="timerTaskLabel" style="display:none;"></div>
     <div class="dose-dial" id="timerDial" style="--pct:0">
       <div class="dose-digits" id="timerDigits">15:00</div>
     </div>
@@ -1133,24 +1238,6 @@
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="editCancelBtn" type="button">ยกเลิก</button>
       <button class="dose-start-btn" id="editSaveBtn" type="button">บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<div class="dose-overlay hidden" id="calendarOverlay">
-  <div class="dose-modal cal-modal" id="calendarModal" style="max-width:480px;">
-    <div class="prompt-label">calendar</div>
-    <div class="cal-nav">
-      <button type="button" id="calPrevBtn" class="icon-btn" data-fx-skip>‹</button>
-      <div class="cal-month-label" id="calMonthLabel"></div>
-      <button type="button" id="calNextBtn" class="icon-btn" data-fx-skip>›</button>
-      <button type="button" id="calTodayBtn" class="chip" data-fx-skip>today</button>
-    </div>
-    <div class="cal-weekdays">Su Mo Tu We Th Fr Sa</div>
-    <div class="cal-grid" id="calGrid"></div>
-    <div class="cal-day-detail" id="calDayDetail"></div>
-    <div class="dose-modal-actions" style="margin-top:14px;">
-      <button class="dose-cancel-btn" id="calendarCloseBtn" type="button" style="flex:none; padding:9px 18px;">ปิด</button>
     </div>
   </div>
 </div>
@@ -1334,6 +1421,7 @@
     if(hint) hint.style.display = "";
     if(window.buamFx){ buamFx.confirm(); buamFx.forceRestartMusic(); }
     boot.classList.add("ignite-flash");
+    boot.classList.add("boot-ignited");
     if(ignite) ignite.classList.add("ignite-active");
     if(panel) panel.classList.add("ignite-kick");
     window.addEventListener("pointerdown", skip, { once: true });
@@ -1362,7 +1450,16 @@ usernameEl.addEventListener("click", () => {
 
 const STORAGE_KEY = "buam-tasks-v1";
 let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-tasks.forEach(t => { if(!Array.isArray(t.doses)) t.doses = []; if(!Array.isArray(t.notes)) t.notes = []; });
+tasks.forEach(t => {
+  if(!Array.isArray(t.doses)) t.doses = [];
+  if(!Array.isArray(t.notes)) t.notes = [];
+  if(typeof t.urgent !== "boolean" || typeof t.important !== "boolean"){
+    const wasHigh = t.pri === "high";
+    t.urgent = wasHigh;
+    t.important = wasHigh;
+  }
+  if(!t.energy) t.energy = "medium";
+});
 let filter = "all";
 
 const catLabel = {homework:"Homework", work:"Work", personal:"Personal", other:"Other"};
@@ -1449,6 +1546,64 @@ async function mergeLocalWithRemote(){
   if(localChanged) save();
 }
 
+/* ---------------- generic cloud sync (goals, reflections) ---------------- */
+function makeCloudSync(collectionName, list, onChange){
+  let collection = null;
+  let unsubscribe = null;
+  function docRef(id){ return collection.doc(id); }
+  function pushUpsert(item){ if(!currentUser) return; docRef(item.id).set(item).catch(err => console.error(`[sync] ${collectionName} upsert failed`, err)); }
+  function pushDelete(id){ if(!currentUser) return; docRef(id).delete().catch(err => console.error(`[sync] ${collectionName} delete failed`, err)); }
+  function attach(){
+    if(unsubscribe) return;
+    unsubscribe = collection.onSnapshot(snapshot => {
+      let changed = false;
+      snapshot.docChanges().forEach(change => {
+        if(change.doc.metadata.hasPendingWrites) return;
+        const remote = change.doc.data();
+        const idx = list.findIndex(x => x.id === remote.id);
+        if(change.type === "removed"){
+          if(idx !== -1){ list.splice(idx, 1); changed = true; }
+        } else if(idx === -1){
+          list.push(remote); changed = true;
+        } else if(JSON.stringify(list[idx]) !== JSON.stringify(remote)){
+          list[idx] = remote; changed = true;
+        }
+      });
+      if(changed) onChange();
+    }, err => console.error(`[sync] ${collectionName} listener error`, err));
+  }
+  function detach(){ if(unsubscribe){ unsubscribe(); unsubscribe = null; } }
+  async function mergeLocalWithRemote(){
+    const snapshot = await collection.get();
+    const remoteById = new Map();
+    snapshot.forEach(doc => remoteById.set(doc.id, doc.data()));
+    const batch = db.batch();
+    let pendingWrites = 0;
+    list.forEach(item => { if(!remoteById.has(item.id)){ batch.set(docRef(item.id), item); pendingWrites++; } });
+    if(pendingWrites > 0) await batch.commit();
+    let localChanged = false;
+    const localIds = new Set(list.map(x => x.id));
+    remoteById.forEach((remoteItem, id) => { if(!localIds.has(id)){ list.push(remoteItem); localChanged = true; } });
+    if(localChanged) onChange();
+  }
+  function setUser(user){
+    detach();
+    collection = user ? db.collection("users").doc(user.uid).collection(collectionName) : null;
+  }
+  async function onSignIn(){ await mergeLocalWithRemote(); attach(); }
+  return { pushUpsert, pushDelete, setUser, onSignIn };
+}
+
+const GOALS_KEY = "buam-goals-v1";
+let goals = JSON.parse(localStorage.getItem(GOALS_KEY) || "[]");
+function saveGoals(){ localStorage.setItem(GOALS_KEY, JSON.stringify(goals)); renderGoals(); }
+const goalsSync = makeCloudSync("goals", goals, saveGoals);
+
+const REFLECTIONS_KEY = "buam-reflections-v1";
+let reflections = JSON.parse(localStorage.getItem(REFLECTIONS_KEY) || "[]");
+function saveReflections(){ localStorage.setItem(REFLECTIONS_KEY, JSON.stringify(reflections)); renderCalendar(); }
+const reflectionsSync = makeCloudSync("reflections", reflections, saveReflections);
+
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 function fmtDate(s){
@@ -1470,11 +1625,13 @@ function addTask(){
   const title = titleEl.value.trim();
   if(!title) return;
   const cat = document.getElementById("catInput").value;
-  const pri = document.getElementById("priInput").value;
+  const energy = document.getElementById("energyInput").value;
   const due = document.getElementById("dueInput").value;
+  const urgent = urgentChip.classList.contains("active");
+  const important = importantChip.classList.contains("active");
   const id = Date.now() + Math.random().toString(36).slice(2);
   const newTask = {
-    id, title, cat, pri, due,
+    id, title, cat, due, urgent, important, energy,
     done:false,
     doses:[],
     notes:[],
@@ -1483,11 +1640,18 @@ function addTask(){
   tasks.unshift(newTask);
   titleEl.value = "";
   document.getElementById("dueInput").value = "";
+  urgentChip.classList.remove("active");
+  importantChip.classList.remove("active");
   save();
   pushTaskUpsert(newTask);
   titleEl.focus();
   celebrateTask(id, cat);
 }
+
+const urgentChip = document.getElementById("urgentChip");
+const importantChip = document.getElementById("importantChip");
+urgentChip.addEventListener("click", ()=>{ urgentChip.classList.toggle("active"); if(window.buamFx) buamFx.blip(); });
+importantChip.addEventListener("click", ()=>{ importantChip.classList.toggle("active"); if(window.buamFx) buamFx.blip(); });
 
 function toggleDone(id){
   const t = tasks.find(t=>t.id===id);
@@ -1626,6 +1790,7 @@ function render(){
   if(filtered.length===0){
     list.innerHTML = `<div class="empty">no_tasks_found</div>`;
     renderTimelineView(filtered, today);
+    renderMatrixView(filtered, today);
     return;
   }
 
@@ -1638,6 +1803,21 @@ function render(){
 
   list.innerHTML = filtered.map(t=>taskRowHtml(t, today)).join("");
   renderTimelineView(filtered, today);
+  renderMatrixView(filtered, today);
+}
+
+function renderMatrixView(filtered, today){
+  const wrap = document.getElementById("matrixView");
+  const groups = { q1:[], q2:[], q3:[], q4:[] };
+  filtered.forEach(t => groups[quadrantKey(t)].push(t));
+  wrap.innerHTML = Object.keys(QUADRANT_LABEL).map(q => `
+    <div class="matrix-quadrant matrix-${q}">
+      <div class="matrix-quadrant-label">${QUADRANT_LABEL[q]}</div>
+      <div class="matrix-quadrant-body">
+        ${groups[q].length ? groups[q].map(t=>taskRowHtml(t, today)).join("") : `<div class="empty">no_tasks_found</div>`}
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderHomeRing(pct){
@@ -1726,7 +1906,9 @@ function taskRowHtml(t, today){
   if(t.due){
     dueTag = `<span class="tag due ${isLate?'late':''}">${isLate?'overdue ':'due '}${fmtDate(t.due)}</span>`;
   }
-  const priTag = t.pri==="high" ? `<span class="tag pri-high">high</span>` : "";
+  const quad = quadrantKey(t);
+  const quadTag = `<span class="tag quad-${quad}">${QUADRANT_LABEL[quad]}</span>`;
+  const energyTag = `<span class="tag energy-${t.energy||'medium'}">⚡ ${t.energy||'medium'}</span>`;
   const notesTag = (t.notes && t.notes.length) ? `<span class="tag notes">≡ ${t.notes.length}</span>` : "";
   return `
     <div class="task ${catClass} ${isOverdueClass} ${doneClass}" data-id="${t.id}">
@@ -1735,19 +1917,44 @@ function taskRowHtml(t, today){
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">
           <span class="tag cat-${t.cat}">${catLabel[t.cat]}</span>
-          ${priTag}
+          ${quadTag}
+          ${energyTag}
           ${dueTag}
           ${notesTag}
         </div>
       </div>
       <div class="task-actions">
         ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it">▶</button>`}
+        ${t.done ? "" : `<button class="icon-btn" data-fx-skip onclick="postponeToTomorrow('${t.id}')" title="Do tomorrow">⇥</button>`}
         <button class="icon-btn" onclick="openNotesModal('${t.id}')" title="Notes">≡</button>
         <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
         <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete">✕</button>
       </div>
     </div>
   `;
+}
+
+const QUADRANT_LABEL = { q1:"Q1 do now", q2:"Q2 plan", q3:"Q3 delegate", q4:"Q4 later" };
+function quadrantKey(t){
+  if(t.urgent && t.important) return "q1";
+  if(!t.urgent && t.important) return "q2";
+  if(t.urgent && !t.important) return "q3";
+  return "q4";
+}
+
+function tomorrowStr(){
+  const d = new Date();
+  d.setDate(d.getDate()+1);
+  return d.toISOString().slice(0,10);
+}
+
+function postponeToTomorrow(id){
+  const t = tasks.find(t=>t.id===id);
+  if(!t) return;
+  t.due = tomorrowStr();
+  save();
+  pushTaskFields(id, {due: t.due});
+  if(window.buamFx) buamFx.blip();
 }
 
 function escapeHtml(s){
@@ -1950,14 +2157,19 @@ doseTimerCancel.addEventListener("click", ()=>{
   closeDoseOverlay();
 });
 
-/* ---------------- standalone timer (independent from dose-it) ---------------- */
+/* ---------------- standalone timer / focus mode (independent from dose-it) ---------------- */
 let standaloneTimer = null;
 let timerMinutes = 15;
+let timerAmbient = "";
+let timerTaskId = "";
 
 const timerOverlay = document.getElementById("timerOverlay");
 const timerSetup = document.getElementById("timerSetup");
 const timerRunning = document.getElementById("timerRunning");
 const timerSizeRow = document.getElementById("timerSizeRow");
+const timerAmbientRow = document.getElementById("timerAmbientRow");
+const timerTaskSelect = document.getElementById("timerTaskSelect");
+const timerTaskLabel = document.getElementById("timerTaskLabel");
 const timerSetupStart = document.getElementById("timerSetupStart");
 const timerSetupCancel = document.getElementById("timerSetupCancel");
 const timerDial = document.getElementById("timerDial");
@@ -1967,6 +2179,9 @@ const timerCancelBtn = document.getElementById("timerCancelBtn");
 function openTimerSetup(){
   timerRunning.style.display = "none";
   timerSetup.style.display = "";
+  const activeTasks = tasks.filter(t=>!t.done);
+  timerTaskSelect.innerHTML = `<option value="">(ไม่เลือกงาน)</option>` +
+    activeTasks.map(t=>`<option value="${t.id}">${escapeHtml(t.title)}</option>`).join("");
   timerOverlay.classList.remove("hidden");
   if(window.buamFx) buamFx.blip();
 }
@@ -1982,18 +2197,37 @@ timerSizeRow.addEventListener("click", e=>{
   timerMinutes = parseInt(btn.dataset.min, 10);
 });
 
+timerAmbientRow.addEventListener("click", e=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  timerAmbientRow.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  timerAmbient = btn.dataset.ambient;
+});
+
 timerSetupCancel.addEventListener("click", closeTimerOverlay);
-timerSetupStart.addEventListener("click", ()=> startStandaloneTimer(timerMinutes));
+timerSetupStart.addEventListener("click", ()=>{
+  timerTaskId = timerTaskSelect.value;
+  startStandaloneTimer(timerMinutes);
+});
 
 function startStandaloneTimer(minutes){
   const totalSeconds = minutes*60;
   standaloneTimer = { totalSeconds, remaining: totalSeconds };
 
+  const focusTask = tasks.find(t=>t.id===timerTaskId);
+  if(focusTask){
+    timerTaskLabel.style.display = "";
+    timerTaskLabel.innerHTML = `โฟกัส: <b>${escapeHtml(focusTask.title)}</b>`;
+  } else {
+    timerTaskLabel.style.display = "none";
+  }
+
   timerSetup.style.display = "none";
   timerRunning.style.display = "";
   updateTimerDigits();
 
-  if(window.buamFx) buamFx.blip();
+  if(window.buamFx){ buamFx.blip(); if(timerAmbient) buamFx.ambient(timerAmbient); }
 
   standaloneTimer.intervalId = setInterval(()=>{
     standaloneTimer.remaining -= 1;
@@ -2014,14 +2248,14 @@ function completeStandaloneTimer(){
   if(!standaloneTimer) return;
   clearInterval(standaloneTimer.intervalId);
   standaloneTimer = null;
-  if(window.buamFx){ buamFx.chime(); if(navigator.vibrate) navigator.vibrate([10,30,10,30,10]); }
+  if(window.buamFx){ buamFx.chime(); buamFx.stopAmbient(); if(navigator.vibrate) navigator.vibrate([10,30,10,30,10]); }
   closeTimerOverlay();
 }
 
 timerCancelBtn.addEventListener("click", ()=>{
   if(standaloneTimer) clearInterval(standaloneTimer.intervalId);
   standaloneTimer = null;
-  if(window.buamFx) buamFx.cancel();
+  if(window.buamFx){ buamFx.cancel(); buamFx.stopAmbient(); }
   closeTimerOverlay();
 });
 
@@ -2222,20 +2456,22 @@ function renderAnalyticsView(){
   `;
 }
 
-/* ---------------- calendar ---------------- */
-const calendarOverlay = document.getElementById("calendarOverlay");
+/* ---------------- calendar (full page: month goals + day grid + quick-add) ---------------- */
 const calGrid = document.getElementById("calGrid");
 const calMonthLabel = document.getElementById("calMonthLabel");
 const calDayDetail = document.getElementById("calDayDetail");
+const calQuickAddRow = document.getElementById("calQuickAddRow");
+const calQuickAddInput = document.getElementById("calQuickAddInput");
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const initNow = new Date();
 let calYear = initNow.getFullYear();
 let calMonth = initNow.getMonth();
-let calSelected = null;
+let calSelected = todayStr();
 
 function daysInMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
 function ymd(y, m, d){ return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
+function currentCalYm(){ return `${calYear}-${String(calMonth+1).padStart(2,"0")}`; }
 
 function tasksByDate(){
   const map = {};
@@ -2262,7 +2498,8 @@ function renderCalendar(){
     const isSelected = dateStr === calSelected;
     const hasOverdue = dayTasks.some(t=>!t.done && dateStr<today);
     const cats = [...new Set(dayTasks.map(t=>t.cat))];
-    const dots = cats.map(c=>`<span class="cal-dot cat-${c}"></span>`).join("");
+    const hasReflection = reflections.some(r=>r.date===dateStr);
+    const dots = cats.map(c=>`<span class="cal-dot cat-${c}"></span>`).join("") + (hasReflection ? `<span class="cal-dot reflect-dot"></span>` : "");
     cells += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''} ${hasOverdue?'has-overdue':''}" data-date="${dateStr}">
       <span>${d}</span>
       <span class="cal-dots">${dots}</span>
@@ -2273,14 +2510,18 @@ function renderCalendar(){
   calGrid.innerHTML = cells;
 
   renderDayDetail(byDate);
+  renderGoals();
 }
 
 function renderDayDetail(byDate){
   byDate = byDate || tasksByDate();
+  renderReflectionForSelected();
   if(!calSelected){
     calDayDetail.innerHTML = `<div class="cal-day-detail-label">แตะวันที่ต้องการดู</div>`;
+    calQuickAddRow.style.display = "none";
     return;
   }
+  calQuickAddRow.style.display = "";
   const dayTasks = byDate[calSelected] || [];
   const label = `<div class="cal-day-detail-label">${fmtDate(calSelected)} — ${dayTasks.length} งาน</div>`;
   if(dayTasks.length === 0){
@@ -2288,6 +2529,22 @@ function renderDayDetail(byDate){
     return;
   }
   calDayDetail.innerHTML = label + dayTasks.map(t=>taskRowHtml(t, todayStr())).join("");
+}
+
+function addTaskForDate(date){
+  const title = calQuickAddInput.value.trim();
+  if(!title || !date) return;
+  const id = Date.now() + Math.random().toString(36).slice(2);
+  const newTask = {
+    id, title, cat:"other", due:date, urgent:false, important:false, energy:"medium",
+    done:false, doses:[], notes:[], createdAt: Date.now()
+  };
+  tasks.unshift(newTask);
+  calQuickAddInput.value = "";
+  save();
+  pushTaskUpsert(newTask);
+  if(window.buamFx) buamFx.blip();
+  calQuickAddInput.focus();
 }
 
 calGrid.addEventListener("click", e=>{
@@ -2316,18 +2573,100 @@ document.getElementById("calTodayBtn").addEventListener("click", ()=>{
   renderCalendar();
   if(window.buamFx) buamFx.blip();
 });
-document.getElementById("calendarBtn").addEventListener("click", ()=>{
-  const now = new Date();
-  calYear = now.getFullYear();
-  calMonth = now.getMonth();
-  calSelected = todayStr();
-  renderCalendar();
-  calendarOverlay.classList.remove("hidden");
+document.getElementById("calQuickAddBtn").addEventListener("click", ()=> addTaskForDate(calSelected));
+calQuickAddInput.addEventListener("keydown", e=>{ if(e.key==="Enter") addTaskForDate(calSelected); });
+
+/* ---------------- monthly goals (driven by the calendar's calYear/calMonth) ---------------- */
+const goalRing = document.getElementById("goalRing");
+const goalRingPct = document.getElementById("goalRingPct");
+const goalRingLabel = document.getElementById("goalRingLabel");
+const goalList = document.getElementById("goalList");
+const goalInput = document.getElementById("goalInput");
+
+function renderGoals(){
+  const ym = currentCalYm();
+  const monthGoals = goals.filter(g => g.month === ym);
+  const done = monthGoals.filter(g => g.done).length;
+  const total = monthGoals.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  goalRing.style.setProperty("--pct", pct);
+  goalRingPct.textContent = pct + "%";
+  goalRingLabel.textContent = `${done} / ${total} สำเร็จ`;
+  goalList.innerHTML = total ? monthGoals.map(g => `
+    <div class="goal-row ${g.done?'done':''}" data-id="${g.id}">
+      <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?"✓":""}</button>
+      <div class="goal-title">${escapeHtml(g.title)}</div>
+      <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete">✕</button>
+    </div>
+  `).join("") : `<div class="notes-log-empty">ยังไม่มีเป้าหมายเดือนนี้</div>`;
+}
+
+function addGoal(){
+  const title = goalInput.value.trim();
+  if(!title) return;
+  const newGoal = { id: Date.now()+Math.random().toString(36).slice(2), month: currentCalYm(), title, done:false, createdAt: Date.now() };
+  goals.unshift(newGoal);
+  goalInput.value = "";
+  saveGoals();
+  goalsSync.pushUpsert(newGoal);
   if(window.buamFx) buamFx.blip();
-});
-document.getElementById("calendarCloseBtn").addEventListener("click", ()=>{
-  calendarOverlay.classList.add("hidden");
-});
+}
+
+function toggleGoalDone(id){
+  const g = goals.find(g=>g.id===id);
+  if(!g) return;
+  g.done = !g.done;
+  saveGoals();
+  goalsSync.pushUpsert(g);
+  if(window.buamFx){ if(g.done){ buamFx.confirm(); } else { buamFx.blip(); } }
+}
+
+function deleteGoal(id){
+  const idx = goals.findIndex(g=>g.id===id);
+  if(idx !== -1) goals.splice(idx, 1);
+  saveGoals();
+  goalsSync.pushDelete(id);
+  if(window.buamFx) buamFx.cancel();
+}
+
+document.getElementById("goalAddBtn").addEventListener("click", addGoal);
+goalInput.addEventListener("keydown", e=>{ if(e.key==="Enter") addGoal(); });
+
+/* ---------------- daily reflection (bound to the selected calendar day) ---------------- */
+const calReflectBlock = document.getElementById("calReflectBlock");
+const calReflectMood = document.getElementById("calReflectMood");
+const calReflectWin = document.getElementById("calReflectWin");
+
+function renderReflectionForSelected(){
+  if(!calSelected){
+    calReflectBlock.style.display = "none";
+    return;
+  }
+  calReflectBlock.style.display = "";
+  const existing = reflections.find(r=>r.date===calSelected);
+  calReflectMood.value = existing ? existing.mood : "";
+  calReflectWin.value = existing ? existing.win : "";
+}
+
+function saveReflectionForSelected(){
+  if(!calSelected) return;
+  const mood = calReflectMood.value.trim();
+  const win = calReflectWin.value.trim();
+  if(!mood && !win) return;
+  let entry = reflections.find(r=>r.date===calSelected);
+  if(entry){
+    entry.mood = mood;
+    entry.win = win;
+  } else {
+    entry = { id: Date.now()+Math.random().toString(36).slice(2), date: calSelected, mood, win, createdAt: Date.now() };
+    reflections.unshift(entry);
+  }
+  saveReflections();
+  reflectionsSync.pushUpsert(entry);
+  if(window.buamFx) buamFx.confirm();
+}
+
+document.getElementById("calReflectSaveBtn").addEventListener("click", saveReflectionForSelected);
 
 /* ---------------- cloud sync: auth UI ---------------- */
 const syncOverlay = document.getElementById("syncOverlay");
@@ -2369,10 +2708,14 @@ syncBody.addEventListener("click", async e=>{
 auth.onAuthStateChanged(async user=>{
   detachTasksListener();
   currentUser = user;
+  goalsSync.setUser(user);
+  reflectionsSync.setUser(user);
   if(user){
     tasksCollection = db.collection("users").doc(user.uid).collection("tasks");
     try{ await mergeLocalWithRemote(); } catch(err){ console.error("[sync] initial merge failed", err); }
     attachTasksListener();
+    try{ await goalsSync.onSignIn(); } catch(err){ console.error("[sync] goals initial merge failed", err); }
+    try{ await reflectionsSync.onSignIn(); } catch(err){ console.error("[sync] reflections initial merge failed", err); }
   } else {
     tasksCollection = null;
   }
@@ -2603,7 +2946,7 @@ let idleTimerId = null;
 let ambientClockTimerId = null;
 
 function anyOverlayOpen(){
-  return [doseOverlay, calendarOverlay, syncOverlay, timerOverlay, notesOverlay, editOverlay]
+  return [doseOverlay, syncOverlay, timerOverlay, notesOverlay, editOverlay]
     .some(el => el && !el.classList.contains("hidden"));
 }
 
@@ -2664,7 +3007,7 @@ function armIdleWatch(){
 document.getElementById("ambientTriggerBtn").addEventListener("click", showAmbientScreen);
 
 /* ---------------- V3: bottom-tab view switching ---------------- */
-const VIEW_IDS = { home:"viewHome", tasks:"viewTasks", analytics:"viewAnalytics", more:"viewMore" };
+const VIEW_IDS = { home:"viewHome", tasks:"viewTasks", calendar:"viewCalendar", analytics:"viewAnalytics", more:"viewMore" };
 let currentView = "home";
 
 function switchView(name){
@@ -2677,6 +3020,7 @@ function switchView(name){
     el.classList.toggle("active", el.dataset.view === name);
   });
   if(name === "analytics") renderAnalyticsView();
+  if(name === "calendar") renderCalendar();
   if(window.buamFx) buamFx.blip();
 }
 
@@ -2693,6 +3037,7 @@ document.getElementById("taskViewToggle").addEventListener("click", e=>{
   document.querySelectorAll(".tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
   document.getElementById("list").style.display = taskViewMode==="list" ? "" : "none";
   document.getElementById("timelineList").style.display = taskViewMode==="timeline" ? "" : "none";
+  document.getElementById("matrixView").style.display = taskViewMode==="matrix" ? "" : "none";
 });
 
 render();
