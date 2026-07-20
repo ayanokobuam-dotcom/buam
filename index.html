@@ -808,7 +808,7 @@
   .quick-link.timer:hover{ border-color:var(--accent); color:var(--ink); box-shadow:0 0 10px rgba(0,255,102,0.3); }
 
   .next-task-toast{
-    position:fixed; right:16px; bottom:16px; z-index:60;
+    position:fixed; right:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:85;
     background:var(--panel); border:1px solid var(--border);
     border-left:2px solid var(--accent); border-radius:var(--radius-tile);
     box-shadow:0 0 20px rgba(0,255,102,0.12);
@@ -1250,6 +1250,19 @@
   </div>
 </div>
 
+<div class="dose-overlay hidden" id="deleteConfirmOverlay">
+  <div class="dose-modal" id="deleteConfirmModal" style="max-width:340px;">
+    <div class="prompt-label">delete_task</div>
+    <div style="font-size:0.85rem; color:var(--ink-dim); margin:4px 0 6px;">
+      Delete "<span id="deleteConfirmTitle" style="color:var(--ink);"></span>"? This can't be undone.
+    </div>
+    <div class="dose-modal-actions">
+      <button class="dose-cancel-btn" id="deleteConfirmCancelBtn" type="button">Cancel</button>
+      <button class="dose-start-btn" id="deleteConfirmOkBtn" type="button" style="background:var(--red); border-color:var(--red);">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div class="dose-overlay hidden" id="syncOverlay">
   <div class="dose-modal" id="syncModal" style="max-width:420px;">
     <div class="prompt-label">sync</div>
@@ -1658,7 +1671,7 @@ function toggleDone(id){
   pushTaskFields(id, {done: t.done});
   if(t.done){
     celebrateTask(t.id, t.cat);
-    const next = pickRandomTask();
+    const next = pickRandomTask(t.due || todayStr());
     if(next) showNextTaskToast(next);
   }
 }
@@ -1713,12 +1726,36 @@ function pulsePageTint(rgb){
   pageTintEl.classList.add("active");
 }
 
+let deleteTargetId = null;
+const deleteConfirmOverlay = document.getElementById("deleteConfirmOverlay");
+const deleteConfirmTitle = document.getElementById("deleteConfirmTitle");
+
 function deleteTask(id){
+  const t = tasks.find(t=>t.id===id);
+  if(!t) return;
+  deleteTargetId = id;
+  deleteConfirmTitle.textContent = t.title;
+  deleteConfirmOverlay.classList.remove("hidden");
+  if(window.buamFx) buamFx.blip();
+}
+
+function closeDeleteConfirm(){
+  deleteConfirmOverlay.classList.add("hidden");
+  deleteTargetId = null;
+}
+
+function confirmDeleteTask(){
+  const id = deleteTargetId;
+  if(!id) return;
   if(window.buamFx) buamFx.cancel();
   tasks = tasks.filter(t=>t.id!==id);
   save();
   pushTaskDelete(id);
+  closeDeleteConfirm();
 }
+
+document.getElementById("deleteConfirmOkBtn").addEventListener("click", confirmDeleteTask);
+document.getElementById("deleteConfirmCancelBtn").addEventListener("click", closeDeleteConfirm);
 
 let editTargetId = null;
 const editOverlay = document.getElementById("editOverlay");
@@ -2290,9 +2327,10 @@ noteInput.addEventListener("keydown", e=>{
 notesCloseBtn.addEventListener("click", closeNotesModal);
 
 /* ---------------- random pick ---------------- */
-function pickRandomTask(){
+function pickRandomTask(dayScope){
   const today = todayStr();
-  const candidates = tasks.filter(t=>!t.done);
+  let candidates = tasks.filter(t=>!t.done);
+  if(dayScope) candidates = candidates.filter(t=>t.due===dayScope);
   if(candidates.length===0) return null;
   const neverDosed = t => !t.doses || t.doses.length===0;
   const isOverdue = t => t.due && t.due<today;
