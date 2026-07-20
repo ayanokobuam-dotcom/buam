@@ -673,6 +673,14 @@
     background:var(--accent-dim); border-color:var(--accent); color:var(--accent);
     text-shadow:0 0 6px rgba(0,255,102,0.5);
   }
+  .dose-custom-min{
+    display:block; width:100%; margin-top:8px;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--ink);
+    border-radius:3px; padding:8px 10px; font-size:16px; font-family:inherit;
+    font-variant-numeric:tabular-nums;
+  }
+  .dose-custom-min:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,255,102,0.22); }
+  .dose-custom-min.hidden{ display:none; }
   .dose-reassure-note{ font-size:0.78rem; color:var(--accent); margin-bottom:14px; }
   .dose-plan{
     font-size:0.76rem; color:var(--ink); background:var(--panel-2); border:1px dashed var(--border);
@@ -1128,7 +1136,9 @@
         <button type="button" data-min="10" class="active">10</button>
         <button type="button" data-min="15">15</button>
         <button type="button" data-min="25">25</button>
+        <button type="button" data-min="custom" id="doseSizeCustomBtn">custom</button>
       </div>
+      <input type="number" id="doseCustomMinInput" class="dose-custom-min hidden" min="1" max="180" step="1" inputmode="numeric" placeholder="minutes (1-180)">
       <div class="dose-size-hint" id="doseSizeHint">For this task's first dose, start at 5 minutes — other sizes unlock after your first success.</div>
     </div>
 
@@ -2002,6 +2012,9 @@ const doseFeelingView = document.getElementById("doseFeelingView");
 const doseTaskName = document.getElementById("doseTaskName");
 const doseStepInput = document.getElementById("doseStepInput");
 const doseSizeRow = document.getElementById("doseSizeRow");
+const doseSizeCustomBtn = document.getElementById("doseSizeCustomBtn");
+const doseCustomMinInput = document.getElementById("doseCustomMinInput");
+const DOSE_PRESET_MINUTES = [5,10,15,25];
 const doseSizeHint = document.getElementById("doseSizeHint");
 const dosePlan = document.getElementById("dosePlan");
 const doseWizardStart = document.getElementById("doseWizardStart");
@@ -2029,11 +2042,18 @@ function openDoseWizard(taskId){
   const firstDose = !t.doses || t.doses.length===0;
   doseSizeHint.style.display = firstDose ? "" : "none";
   if(firstDose) doseMinutes = 5;
+  const isCustomValue = !firstDose && !DOSE_PRESET_MINUTES.includes(doseMinutes);
   doseSizeRow.querySelectorAll("button").forEach(b=>{
     const isFive = b.dataset.min === "5";
     b.disabled = firstDose && !isFive;
-    b.classList.toggle("active", firstDose ? isFive : parseInt(b.dataset.min,10)===doseMinutes);
+    if(b.dataset.min === "custom"){
+      b.classList.toggle("active", isCustomValue);
+    } else {
+      b.classList.toggle("active", firstDose ? isFive : (!isCustomValue && parseInt(b.dataset.min,10)===doseMinutes));
+    }
   });
+  doseCustomMinInput.classList.toggle("hidden", !isCustomValue);
+  doseCustomMinInput.value = isCustomValue ? doseMinutes : "";
 
   updateDosePlan();
   doseOverlay.classList.remove("hidden");
@@ -2045,12 +2065,27 @@ function closeDoseOverlay(){
   doseTargetId = null;
 }
 
+function clampDoseMinutes(v){
+  const n = parseInt(v, 10);
+  if(isNaN(n)) return null;
+  return Math.min(180, Math.max(1, n));
+}
+
 function updateDosePlan(){
   const step = doseStepInput.value.trim();
   const t = tasks.find(t=>t.id===doseTargetId);
-  if(!step || !t){
+  const customActive = !doseCustomMinInput.classList.contains("hidden");
+  let customValid = true;
+  if(customActive){
+    const n = clampDoseMinutes(doseCustomMinInput.value);
+    customValid = n !== null;
+    if(n !== null) doseMinutes = n;
+  }
+  if(!step || !t || !customValid){
     dosePlan.className = "dose-plan is-empty";
-    dosePlan.textContent = "exec plan will show up here once you fill in the first step above";
+    dosePlan.textContent = customActive && !customValid
+      ? "enter a dose size between 1 and 180 minutes"
+      : "exec plan will show up here once you fill in the first step above";
     doseWizardStart.disabled = true;
     return;
   }
@@ -2065,11 +2100,24 @@ doseStepInput.addEventListener("input", updateDosePlan);
 
 doseSizeRow.addEventListener("click", e=>{
   const btn = e.target.closest("button");
-  if(!btn) return;
+  if(!btn || btn.disabled) return;
   doseSizeRow.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
-  doseMinutes = parseInt(btn.dataset.min, 10);
+  if(btn.dataset.min === "custom"){
+    doseCustomMinInput.classList.remove("hidden");
+    if(!doseCustomMinInput.value) doseCustomMinInput.value = doseMinutes;
+    setTimeout(()=> doseCustomMinInput.focus(), 30);
+  } else {
+    doseCustomMinInput.classList.add("hidden");
+    doseMinutes = parseInt(btn.dataset.min, 10);
+  }
   updateDosePlan();
+});
+
+doseCustomMinInput.addEventListener("input", updateDosePlan);
+doseCustomMinInput.addEventListener("blur", ()=>{
+  const n = clampDoseMinutes(doseCustomMinInput.value);
+  if(n !== null) doseCustomMinInput.value = n;
 });
 
 doseWizardCancel.addEventListener("click", closeDoseOverlay);
