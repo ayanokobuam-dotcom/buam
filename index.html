@@ -487,9 +487,6 @@
     box-shadow:0 0 0 2px rgba(0,255,102,0.22);
   }
   .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
-  .add-row3{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .quadrant-label{ color:var(--ink-dim); font-size:0.76rem; }
-  .qchip.active{ background:rgba(255,59,59,0.14); border-color:var(--red); color:var(--red); text-shadow:0 0 6px rgba(255,59,59,0.5); box-shadow:0 0 8px rgba(255,59,59,0.25); }
   select, input[type=date]{
     background:var(--panel-2);
     border:1px solid var(--border);
@@ -587,13 +584,6 @@
   .tag.cat-work{ color:var(--accent); border-color:rgba(0,255,102,0.3); }
   .tag.cat-personal{ color:var(--amber); border-color:rgba(255,210,63,0.3); }
   .tag.cat-other{ color:var(--ink-dim); }
-  .tag.quad-q1{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
-  .tag.quad-q2{ background:rgba(255,210,63,0.08); color:var(--amber); border-color:rgba(255,210,63,0.25); }
-  .tag.quad-q3{ background:rgba(57,214,255,0.08); color:var(--cyan); border-color:rgba(57,214,255,0.25); }
-  .tag.quad-q4{ color:var(--ink-dim); }
-  .tag.energy-low{ color:var(--ink-dim); }
-  .tag.energy-medium{ color:var(--cyan); border-color:rgba(57,214,255,0.25); }
-  .tag.energy-high{ color:var(--amber); border-color:rgba(255,210,63,0.25); }
   .tag.due{ background:rgba(255,210,63,0.08); color:var(--amber); border-color:rgba(255,210,63,0.25); }
   .tag.due.late{ background:rgba(255,59,59,0.1); color:var(--red); border-color:rgba(255,59,59,0.3); }
   .tag.notes{ color:var(--magenta); border-color:rgba(255,63,214,0.3); }
@@ -927,17 +917,6 @@
   .timeline-node:last-child::after{ display:none; }
   .timeline-node-date{ font-size:0.72rem; color:var(--ink-dim); margin-bottom:4px; }
 
-  .matrix-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .matrix-quadrant{ background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:10px; min-width:0; }
-  .matrix-quadrant.matrix-q1{ border-left:2px solid var(--red); }
-  .matrix-quadrant.matrix-q2{ border-left:2px solid var(--amber); }
-  .matrix-quadrant.matrix-q3{ border-left:2px solid var(--cyan); }
-  .matrix-quadrant.matrix-q4{ border-left:2px solid var(--ink-dim); }
-  .matrix-quadrant-label{ font-size:0.74rem; color:var(--ink-dim); margin-bottom:8px; }
-  .matrix-quadrant-body{ display:flex; flex-direction:column; gap:6px; }
-  .matrix-quadrant .task{ margin-bottom:0; }
-  @media (max-width:520px){ .matrix-grid{ grid-template-columns:1fr; } }
-
   .work-area-tiles{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:14px 0; }
   .work-area-tile{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-tile);
@@ -988,7 +967,7 @@
 <script src="./buam-fx.js"></script>
 <div class="wrap">
   <header>
-    <div class="logo"><span id="usernameText" class="username-edit" title="คลิกเพื่อแก้ไขชื่อ">CheeraBuam.exe</span><span class="cursor">_</span></div>
+    <div class="logo"><span id="usernameText" class="username-edit" title="Click to edit name">CheeraBuam.exe</span><span class="cursor">_</span></div>
     <div class="audio-controls">
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
@@ -1001,15 +980,15 @@
       <div class="dose-dial home-ring" id="homeRing" style="--pct:0">
         <div class="dose-digits" id="homeRingPct">0%</div>
       </div>
-      <div class="home-ring-label">งานเสร็จวันนี้</div>
+      <div class="home-ring-label">tasks done today</div>
     </div>
 
     <div class="stat-tiles" id="statTiles"></div>
 
     <div class="home-today">
       <div class="home-today-head">
-        <span>งานวันนี้</span>
-        <button type="button" id="homeViewAllBtn" class="home-view-all">ดูทั้งหมด &gt;</button>
+        <span>Today's tasks</span>
+        <button type="button" id="homeViewAllBtn" class="home-view-all">view all &gt;</button>
       </div>
       <div id="homeTodayList"></div>
     </div>
@@ -1029,18 +1008,8 @@
           <option value="personal">Personal</option>
           <option value="other">Other</option>
         </select>
-        <select id="energyInput">
-          <option value="low">⚡ Low energy</option>
-          <option value="medium" selected>⚡ Medium energy</option>
-          <option value="high">⚡ High energy</option>
-        </select>
         <input type="date" id="dueInput">
         <button class="btn-add" id="addBtn">+ add_task</button>
-      </div>
-      <div class="add-row3" id="quadrantToggle">
-        <span class="quadrant-label">priority:</span>
-        <button type="button" class="chip qchip" id="urgentChip">urgent</button>
-        <button type="button" class="chip qchip" id="importantChip">important</button>
       </div>
     </div>
 
@@ -1056,7 +1025,6 @@
       <div class="task-view-toggle" id="taskViewToggle">
         <button type="button" class="tvt-btn active" data-taskview="list">list</button>
         <button type="button" class="tvt-btn" data-taskview="timeline">timeline</button>
-        <button type="button" class="tvt-btn" data-taskview="matrix">matrix</button>
       </div>
     </div>
 
@@ -1064,7 +1032,6 @@
 
     <div id="list"></div>
     <div id="timelineList" class="timeline-view" style="display:none;"></div>
-    <div id="matrixView" class="matrix-grid" style="display:none;"></div>
   </div>
 
   <div class="app-view" id="viewCalendar">
@@ -1076,9 +1043,9 @@
     </div>
 
     <div class="cal-subtabs task-view-toggle" id="calSubtabs">
-      <button type="button" class="tvt-btn active" data-calview="grid">ปฏิทิน</button>
+      <button type="button" class="tvt-btn active" data-calview="grid">calendar</button>
       <button type="button" class="tvt-btn" data-calview="reflect">reflect</button>
-      <button type="button" class="tvt-btn" data-calview="goals">เป้าหมาย</button>
+      <button type="button" class="tvt-btn" data-calview="goals">goals</button>
     </div>
 
     <div class="cal-subview" id="calViewGrid">
@@ -1086,24 +1053,24 @@
       <div class="cal-grid" id="calGrid"></div>
       <div class="cal-day-detail" id="calDayDetail"></div>
       <div class="goal-add-row" id="calQuickAddRow" style="display:none; margin-top:10px;">
-        <input type="text" id="calQuickAddInput" placeholder="เพิ่มงานสำหรับวันนี้...">
+        <input type="text" id="calQuickAddInput" placeholder="add a task for today...">
         <button class="dose-start-btn" id="calQuickAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
       </div>
     </div>
 
     <div class="cal-subview" id="calViewReflect" style="display:none;">
-      <div class="cal-day-detail-label" id="calReflectEmpty" style="display:none;">เลือกวันที่จากแท็บปฏิทินก่อน</div>
+      <div class="cal-day-detail-label" id="calReflectEmpty" style="display:none;">select a date from the calendar tab first</div>
       <div class="cal-reflect-block" id="calReflectBlock">
         <div class="cal-day-detail-label" id="calReflectDateLabel"></div>
         <div class="reflect-field">
-          <label for="calReflectMood">รู้สึกอย่างไร</label>
+          <label for="calReflectMood">how are you feeling</label>
           <input type="text" id="calReflectMood" maxlength="140">
         </div>
         <div class="reflect-field">
-          <label for="calReflectWin">สิ่งที่ทำสำเร็จที่สุด</label>
+          <label for="calReflectWin">your biggest win</label>
           <input type="text" id="calReflectWin" maxlength="140">
         </div>
-        <button class="dose-start-btn" id="calReflectSaveBtn" type="button" style="padding:9px 16px;">บันทึก</button>
+        <button class="dose-start-btn" id="calReflectSaveBtn" type="button" style="padding:9px 16px;">Save</button>
       </div>
     </div>
 
@@ -1111,11 +1078,11 @@
       <div class="prompt-label" style="margin-bottom:8px;">month_goals</div>
       <div style="display:flex; flex-direction:column; align-items:center;">
         <div class="dose-dial goal-ring" id="goalRing" style="--pct:0"><div class="dose-digits" id="goalRingPct">0%</div></div>
-        <div class="goal-ring-label" id="goalRingLabel">0 / 0 สำเร็จ</div>
+        <div class="goal-ring-label" id="goalRingLabel">0 / 0 done</div>
       </div>
       <div class="goal-list" id="goalList"></div>
       <div class="goal-add-row">
-        <input type="text" id="goalInput" placeholder="เป้าหมายเดือนนี้..." maxlength="160">
+        <input type="text" id="goalInput" placeholder="this month's goal..." maxlength="160">
         <button class="dose-start-btn" id="goalAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
       </div>
     </div>
@@ -1147,43 +1114,43 @@
 <div class="dose-overlay hidden" id="doseOverlay">
   <div class="dose-modal" id="doseWizard">
     <div class="prompt-label">dose_it</div>
-    <div class="dose-task-name">งาน: <b id="doseTaskName"></b></div>
+    <div class="dose-task-name">Task: <b id="doseTaskName"></b></div>
 
     <div class="dose-field">
-      <label for="doseStepInput">ชิ้นแรกที่เล็กที่สุดที่กล้าทำ</label>
-      <input type="text" id="doseStepInput" placeholder="เช่น อ่านแค่หัวข้อย่อยแรก" maxlength="120">
+      <label for="doseStepInput">smallest first step you're willing to try</label>
+      <input type="text" id="doseStepInput" placeholder="e.g. just read the first subheading" maxlength="120">
     </div>
 
     <div class="dose-field">
-      <label>ขนาดโดส (นาที)</label>
+      <label>dose size (minutes)</label>
       <div class="dose-size-row" id="doseSizeRow">
         <button type="button" data-min="5">5</button>
         <button type="button" data-min="10" class="active">10</button>
         <button type="button" data-min="15">15</button>
         <button type="button" data-min="25">25</button>
       </div>
-      <div class="dose-size-hint" id="doseSizeHint">โดสแรกของงานนี้ ให้เริ่มที่ 5 นาทีก่อน ปลดล็อกขนาดอื่นหลังทำสำเร็จอันแรก</div>
+      <div class="dose-size-hint" id="doseSizeHint">For this task's first dose, start at 5 minutes — other sizes unlock after your first success.</div>
     </div>
 
-    <div class="dose-reassure-note">รอบนี้แค่เข้าใจสัก 60% ก็พอ ไม่ต้องเป๊ะ</div>
+    <div class="dose-reassure-note">Just aim for ~60% understanding this round — it doesn't have to be perfect.</div>
 
-    <div class="dose-plan is-empty" id="dosePlan">exec plan จะขึ้นตรงนี้ เมื่อกรอกชิ้นแรกด้านบน</div>
+    <div class="dose-plan is-empty" id="dosePlan">exec plan will show up here once you fill in the first step above</div>
 
     <div class="dose-modal-actions">
-      <button class="dose-cancel-btn" id="doseWizardCancel" type="button">ยกเลิก</button>
-      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled>▶ เริ่มโดสนี้</button>
+      <button class="dose-cancel-btn" id="doseWizardCancel" type="button">Cancel</button>
+      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled>▶ start this dose</button>
     </div>
   </div>
 
   <div class="dose-modal" id="doseTimerView" style="display:none;">
-    <div class="dose-timer-task">กำลังกิน: <b id="doseTimerTaskName"></b></div>
+    <div class="dose-timer-task">In progress: <b id="doseTimerTaskName"></b></div>
     <div class="dose-dial" id="doseDial" style="--pct:0">
       <div class="dose-digits" id="doseDigits">10:00</div>
     </div>
     <div class="dose-timer-reassure" id="doseTimerReassure"></div>
     <div class="dose-modal-actions">
-      <button class="dose-cancel-btn" id="doseTimerCancel" type="button">ยกเลิกโดสนี้</button>
-      <button class="dose-start-btn" id="doseTimerStop" type="button">พอแค่นี้ก่อน</button>
+      <button class="dose-cancel-btn" id="doseTimerCancel" type="button">Cancel this dose</button>
+      <button class="dose-start-btn" id="doseTimerStop" type="button">Stop here for now</button>
     </div>
   </div>
 
@@ -1191,11 +1158,11 @@
     <div class="prompt-label">how_was_it</div>
     <div class="dose-task-name" id="doseFeelingTaskName" style="margin-bottom:16px;"></div>
     <div class="dose-feeling-row" id="doseFeelingRow">
-      <button type="button" class="dose-feeling-btn" data-feeling="easy">😌<br>เบากว่าที่คิด</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="asExpected">😐<br>พอๆ กับที่คิด</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="hard">😣<br>หนักกว่าที่คิด</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="easy">😌<br>lighter than expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="asExpected">😐<br>about as expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="hard">😣<br>harder than expected</button>
     </div>
-    <button type="button" class="dose-feeling-skip" id="doseFeelingSkip">ข้าม</button>
+    <button type="button" class="dose-feeling-skip" id="doseFeelingSkip">Skip</button>
   </div>
 </div>
 
@@ -1203,11 +1170,11 @@
   <div class="dose-modal" id="timerSetup">
     <div class="prompt-label">focus_mode</div>
     <div class="dose-field">
-      <label>โฟกัสงานไหน (ไม่บังคับ)</label>
-      <select id="timerTaskSelect"><option value="">(ไม่เลือกงาน)</option></select>
+      <label>focus on which task (optional)</label>
+      <select id="timerTaskSelect"><option value="">(no task selected)</option></select>
     </div>
     <div class="dose-field">
-      <label>ตั้งเวลานับถอยหลัง (นาที)</label>
+      <label>countdown timer (minutes)</label>
       <div class="dose-size-row" id="timerSizeRow">
         <button type="button" data-min="5">5</button>
         <button type="button" data-min="15" class="active">15</button>
@@ -1216,16 +1183,16 @@
       </div>
     </div>
     <div class="dose-field">
-      <label>เสียงบรรยากาศ</label>
+      <label>ambient sound</label>
       <div class="dose-size-row" id="timerAmbientRow">
-        <button type="button" data-ambient="" class="active">ไม่มี</button>
-        <button type="button" data-ambient="rain">🌧 ฝน</button>
-        <button type="button" data-ambient="forest">🌲 ป่า</button>
+        <button type="button" data-ambient="" class="active">none</button>
+        <button type="button" data-ambient="rain">🌧 rain</button>
+        <button type="button" data-ambient="forest">🌲 forest</button>
       </div>
     </div>
     <div class="dose-modal-actions">
-      <button class="dose-cancel-btn" id="timerSetupCancel" type="button">ยกเลิก</button>
-      <button class="dose-start-btn" id="timerSetupStart" type="button">▶ เริ่มจับเวลา</button>
+      <button class="dose-cancel-btn" id="timerSetupCancel" type="button">Cancel</button>
+      <button class="dose-start-btn" id="timerSetupStart" type="button">▶ start timer</button>
     </div>
   </div>
 
@@ -1236,7 +1203,7 @@
       <div class="dose-digits" id="timerDigits">15:00</div>
     </div>
     <div class="dose-modal-actions">
-      <button class="dose-cancel-btn" id="timerCancelBtn" type="button">ยกเลิก</button>
+      <button class="dose-cancel-btn" id="timerCancelBtn" type="button">Cancel</button>
     </div>
   </div>
 </div>
@@ -1244,14 +1211,14 @@
 <div class="dose-overlay hidden" id="notesOverlay">
   <div class="dose-modal" id="notesModal" style="max-width:420px;">
     <div class="prompt-label">notes</div>
-    <div class="dose-task-name">งาน: <b id="notesTaskName"></b></div>
+    <div class="dose-task-name">Task: <b id="notesTaskName"></b></div>
     <div class="notes-log" id="notesLog"></div>
     <div class="note-add-row">
-      <input type="text" id="noteInput" placeholder="เพิ่มบันทึกย่อ..." maxlength="240">
+      <input type="text" id="noteInput" placeholder="add a note..." maxlength="240">
       <button class="dose-start-btn" id="noteAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
     </div>
     <div class="dose-modal-actions" style="margin-top:14px;">
-      <button class="dose-cancel-btn" id="notesCloseBtn" type="button" style="flex:none; padding:9px 18px;">ปิด</button>
+      <button class="dose-cancel-btn" id="notesCloseBtn" type="button" style="flex:none; padding:9px 18px;">Close</button>
     </div>
   </div>
 </div>
@@ -1260,12 +1227,25 @@
   <div class="dose-modal" id="editModal" style="max-width:380px;">
     <div class="prompt-label">edit_task</div>
     <div class="dose-field">
-      <label for="editTitleInput">ชื่องาน</label>
+      <label for="editTitleInput">task title</label>
       <input type="text" id="editTitleInput" maxlength="200">
     </div>
+    <div class="dose-field">
+      <label for="editCatInput">category</label>
+      <select id="editCatInput">
+        <option value="homework">Homework</option>
+        <option value="work">Work</option>
+        <option value="personal">Personal</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="dose-field">
+      <label for="editDueInput">due date</label>
+      <input type="date" id="editDueInput">
+    </div>
     <div class="dose-modal-actions">
-      <button class="dose-cancel-btn" id="editCancelBtn" type="button">ยกเลิก</button>
-      <button class="dose-start-btn" id="editSaveBtn" type="button">บันทึก</button>
+      <button class="dose-cancel-btn" id="editCancelBtn" type="button">Cancel</button>
+      <button class="dose-start-btn" id="editSaveBtn" type="button">Save</button>
     </div>
   </div>
 </div>
@@ -1275,7 +1255,7 @@
     <div class="prompt-label">sync</div>
     <div id="syncBody"></div>
     <div class="dose-modal-actions" style="margin-top:14px;">
-      <button class="dose-cancel-btn" id="syncCloseBtn" type="button" style="flex:none; padding:9px 18px;">ปิด</button>
+      <button class="dose-cancel-btn" id="syncCloseBtn" type="button" style="flex:none; padding:9px 18px;">Close</button>
     </div>
   </div>
 </div>
@@ -1481,12 +1461,6 @@ let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 tasks.forEach(t => {
   if(!Array.isArray(t.doses)) t.doses = [];
   if(!Array.isArray(t.notes)) t.notes = [];
-  if(typeof t.urgent !== "boolean" || typeof t.important !== "boolean"){
-    const wasHigh = t.pri === "high";
-    t.urgent = wasHigh;
-    t.important = wasHigh;
-  }
-  if(!t.energy) t.energy = "medium";
 });
 let filter = "all";
 
@@ -1654,13 +1628,10 @@ function addTask(){
   const title = titleEl.value.trim();
   if(!title) return;
   const cat = document.getElementById("catInput").value;
-  const energy = document.getElementById("energyInput").value;
   const due = document.getElementById("dueInput").value;
-  const urgent = urgentChip.classList.contains("active");
-  const important = importantChip.classList.contains("active");
   const id = Date.now() + Math.random().toString(36).slice(2);
   const newTask = {
-    id, title, cat, due, urgent, important, energy,
+    id, title, cat, due,
     done:false,
     doses:[],
     notes:[],
@@ -1669,18 +1640,11 @@ function addTask(){
   tasks.unshift(newTask);
   titleEl.value = "";
   document.getElementById("dueInput").value = "";
-  urgentChip.classList.remove("active");
-  importantChip.classList.remove("active");
   save();
   pushTaskUpsert(newTask);
   titleEl.focus();
   celebrateTask(id, cat);
 }
-
-const urgentChip = document.getElementById("urgentChip");
-const importantChip = document.getElementById("importantChip");
-urgentChip.addEventListener("click", ()=>{ urgentChip.classList.toggle("active"); if(window.buamFx) buamFx.blip(); });
-importantChip.addEventListener("click", ()=>{ importantChip.classList.toggle("active"); if(window.buamFx) buamFx.blip(); });
 
 function toggleDone(id){
   const t = tasks.find(t=>t.id===id);
@@ -1704,7 +1668,7 @@ function showNextTaskToast(task){
   const toast = document.createElement("div");
   toast.className = "next-task-toast";
   toast.innerHTML = `
-    <div>ทำเสร็จแล้ว ต่อกันเลยไหม</div>
+    <div>Done! Keep going with this next?</div>
     <div class="ntt-title">${escapeHtml(task.title)}</div>
     <div class="ntt-row">
       <button type="button" class="ntt-go">▶ dose_it</button>
@@ -1759,12 +1723,16 @@ function deleteTask(id){
 let editTargetId = null;
 const editOverlay = document.getElementById("editOverlay");
 const editTitleInput = document.getElementById("editTitleInput");
+const editCatInput = document.getElementById("editCatInput");
+const editDueInput = document.getElementById("editDueInput");
 
 function editTask(id){
   const t = tasks.find(t=>t.id===id);
   if(!t) return;
   editTargetId = id;
   editTitleInput.value = t.title;
+  editCatInput.value = t.cat;
+  editDueInput.value = t.due || "";
   editOverlay.classList.remove("hidden");
   if(window.buamFx) buamFx.blip();
   setTimeout(()=> editTitleInput.focus(), 30);
@@ -1780,9 +1748,11 @@ function saveEditTask(){
   if(!t) return;
   const trimmed = editTitleInput.value.trim();
   if(trimmed) t.title = trimmed;
+  t.cat = editCatInput.value;
+  t.due = editDueInput.value;
   closeEditModal();
   save();
-  pushTaskFields(t.id, {title: t.title});
+  pushTaskFields(t.id, {title: t.title, cat: t.cat, due: t.due});
 }
 
 document.getElementById("editSaveBtn").addEventListener("click", saveEditTask);
@@ -1819,7 +1789,6 @@ function render(){
   if(filtered.length===0){
     list.innerHTML = `<div class="empty">no_tasks_found</div>`;
     renderTimelineView(filtered, today);
-    renderMatrixView(filtered, today);
     return;
   }
 
@@ -1832,21 +1801,6 @@ function render(){
 
   list.innerHTML = filtered.map(t=>taskRowHtml(t, today)).join("");
   renderTimelineView(filtered, today);
-  renderMatrixView(filtered, today);
-}
-
-function renderMatrixView(filtered, today){
-  const wrap = document.getElementById("matrixView");
-  const groups = { q1:[], q2:[], q3:[], q4:[] };
-  filtered.forEach(t => groups[quadrantKey(t)].push(t));
-  wrap.innerHTML = Object.keys(QUADRANT_LABEL).map(q => `
-    <div class="matrix-quadrant matrix-${q}">
-      <div class="matrix-quadrant-label">${QUADRANT_LABEL[q]}</div>
-      <div class="matrix-quadrant-body">
-        ${groups[q].length ? groups[q].map(t=>taskRowHtml(t, today)).join("") : `<div class="empty">no_tasks_found</div>`}
-      </div>
-    </div>
-  `).join("");
 }
 
 function renderHomeRing(pct){
@@ -1858,11 +1812,11 @@ function renderHomeToday(today){
   const wrap = document.getElementById("homeTodayList");
   const todayTasks = tasks.filter(t=>t.due===today);
   if(todayTasks.length===0){
-    wrap.innerHTML = `<div class="home-today-empty">ไม่มีงานครบกำหนดวันนี้</div>`;
+    wrap.innerHTML = `<div class="home-today-empty">no tasks due today</div>`;
     return;
   }
   const sorted = todayTasks.slice().sort((a,b)=> (a.done===b.done ? 0 : a.done ? 1 : -1) || (b.createdAt - a.createdAt));
-  wrap.innerHTML = sorted.slice(0,4).map(t=>taskRowHtml(t, today)).join("");
+  wrap.innerHTML = sorted.map(t=>taskRowHtml(t, today)).join("");
 }
 
 function renderTimelineView(filtered, today){
@@ -1878,7 +1832,7 @@ function renderTimelineView(filtered, today){
   });
   wrap.innerHTML = sorted.map(t=>{
     const rgb = t.done ? "0,255,102" : (t.due && t.due<today ? "255,59,59" : catRgb[t.cat]);
-    const dateLabel = t.due ? fmtDate(t.due) : "ไม่กำหนดวัน";
+    const dateLabel = t.due ? fmtDate(t.due) : "no date set";
     return `<div class="timeline-node" style="--dot-rgb:${rgb}">
       <div class="timeline-node-date">${dateLabel}</div>
       ${taskRowHtml(t, today)}
@@ -1935,9 +1889,6 @@ function taskRowHtml(t, today){
   if(t.due){
     dueTag = `<span class="tag due ${isLate?'late':''}">${isLate?'overdue ':'due '}${fmtDate(t.due)}</span>`;
   }
-  const quad = quadrantKey(t);
-  const quadTag = `<span class="tag quad-${quad}">${QUADRANT_LABEL[quad]}</span>`;
-  const energyTag = `<span class="tag energy-${t.energy||'medium'}">⚡ ${t.energy||'medium'}</span>`;
   const notesTag = (t.notes && t.notes.length) ? `<span class="tag notes">≡ ${t.notes.length}</span>` : "";
   return `
     <div class="task ${catClass} ${isOverdueClass} ${doneClass}" data-id="${t.id}">
@@ -1946,8 +1897,6 @@ function taskRowHtml(t, today){
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">
           <span class="tag cat-${t.cat}">${catLabel[t.cat]}</span>
-          ${quadTag}
-          ${energyTag}
           ${dueTag}
           ${notesTag}
         </div>
@@ -1961,14 +1910,6 @@ function taskRowHtml(t, today){
       </div>
     </div>
   `;
-}
-
-const QUADRANT_LABEL = { q1:"Q1 do now", q2:"Q2 plan", q3:"Q3 delegate", q4:"Q4 later" };
-function quadrantKey(t){
-  if(t.urgent && t.important) return "q1";
-  if(!t.urgent && t.important) return "q2";
-  if(t.urgent && !t.important) return "q3";
-  return "q4";
 }
 
 function tomorrowStr(){
@@ -2072,7 +2013,7 @@ function updateDosePlan(){
   const t = tasks.find(t=>t.id===doseTargetId);
   if(!step || !t){
     dosePlan.className = "dose-plan is-empty";
-    dosePlan.textContent = "exec plan จะขึ้นตรงนี้ เมื่อกรอกชิ้นแรกด้านบน";
+    dosePlan.textContent = "exec plan will show up here once you fill in the first step above";
     doseWizardStart.disabled = true;
     return;
   }
@@ -2108,7 +2049,7 @@ function startDoseTimer(task, step, minutes){
   activeDose = { taskId: task.id, step, minutes, totalSeconds, remaining: totalSeconds };
 
   doseTimerTaskName.textContent = task.title + " — " + step;
-  doseTimerReassure.textContent = "แค่เริ่ม ไม่ต้องเข้าใจทั้งหมดตอนนี้";
+  doseTimerReassure.textContent = "just start — you don't need to understand it all right now";
   doseWizard.style.display = "none";
   doseTimerView.style.display = "";
   updateDoseDigits();
@@ -2209,7 +2150,7 @@ function openTimerSetup(){
   timerRunning.style.display = "none";
   timerSetup.style.display = "";
   const activeTasks = tasks.filter(t=>!t.done);
-  timerTaskSelect.innerHTML = `<option value="">(ไม่เลือกงาน)</option>` +
+  timerTaskSelect.innerHTML = `<option value="">(no task selected)</option>` +
     activeTasks.map(t=>`<option value="${t.id}">${escapeHtml(t.title)}</option>`).join("");
   timerOverlay.classList.remove("hidden");
   if(window.buamFx) buamFx.blip();
@@ -2247,7 +2188,7 @@ function startStandaloneTimer(minutes){
   const focusTask = tasks.find(t=>t.id===timerTaskId);
   if(focusTask){
     timerTaskLabel.style.display = "";
-    timerTaskLabel.innerHTML = `โฟกัส: <b>${escapeHtml(focusTask.title)}</b>`;
+    timerTaskLabel.innerHTML = `Focus: <b>${escapeHtml(focusTask.title)}</b>`;
   } else {
     timerTaskLabel.style.display = "none";
   }
@@ -2318,7 +2259,7 @@ function closeNotesModal(){
 
 function renderNotesLog(task){
   if(!task.notes || task.notes.length===0){
-    notesLog.innerHTML = `<div class="notes-log-empty">ยังไม่มีบันทึกย่อสำหรับงานนี้</div>`;
+    notesLog.innerHTML = `<div class="notes-log-empty">no notes yet for this task</div>`;
     return;
   }
   const ordered = task.notes.slice().sort((a,b)=> b.ts - a.ts);
@@ -2368,7 +2309,7 @@ function pickRandomTask(){
 }
 document.getElementById("randomPickBtn").addEventListener("click", ()=>{
   const t = pickRandomTask();
-  if(!t){ alert("ยังไม่มีงานให้เลือกเลย ลองเพิ่ม task ก่อน"); return; }
+  if(!t){ alert("No tasks to pick from yet — try adding a task first."); return; }
   openDoseWizard(t.id);
 });
 
@@ -2404,21 +2345,21 @@ function reportRow(label, count, total){
 }
 function renderReportHtml(s){
   if(s.total===0){
-    return `<div style="color:var(--ink-dim);font-size:0.82rem;padding:10px 0;">ยังไม่มีโดสในรอบ 7 วันนี้ — เริ่มโดสแรกแล้วค่อยกลับมาดูสรุปนะ</div>`;
+    return `<div style="color:var(--ink-dim);font-size:0.82rem;padding:10px 0;">No doses in the last 7 days yet — start your first dose and check back here.</div>`;
   }
-  let html = `<div style="font-size:0.85rem;margin-bottom:14px;">โดสทั้งหมด <b style="color:var(--accent)">${s.total}</b> ครั้ง ในรอบ 7 วัน</div>`;
+  let html = `<div style="font-size:0.85rem;margin-bottom:14px;"><b style="color:var(--accent)">${s.total}</b> total doses in the last 7 days</div>`;
   if(s.rated>0){
-    html += `<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:6px;">ความรู้สึกหลังโดส (${s.rated} ครั้งที่ให้คะแนน)</div>`;
-    html += reportRow("😌 เบากว่าที่คิด", s.feel.easy, s.rated);
-    html += reportRow("😐 พอๆ กับที่คิด", s.feel.asExpected, s.rated);
-    html += reportRow("😣 หนักกว่าที่คิด", s.feel.hard, s.rated);
+    html += `<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:6px;">feeling after doses (${s.rated} rated)</div>`;
+    html += reportRow("😌 lighter than expected", s.feel.easy, s.rated);
+    html += reportRow("😐 about as expected", s.feel.asExpected, s.rated);
+    html += reportRow("😣 harder than expected", s.feel.hard, s.rated);
     if(s.notAsBadPct!==null){
       html += `<div style="margin-top:12px;padding:10px 12px;background:var(--panel-2);border:1px dashed var(--border);border-radius:3px;font-size:0.8rem;color:var(--ink);">
-        <b style="color:var(--accent);">${s.notAsBadPct}%</b> ของโดสที่ให้คะแนน ไม่ได้แย่อย่างที่กลัวไว้ก่อนเริ่ม
+        <b style="color:var(--accent);">${s.notAsBadPct}%</b> of rated doses weren't as bad as feared going in
       </div>`;
     }
   } else {
-    html += `<div style="font-size:0.78rem;color:var(--ink-dim);">ยังไม่มีการให้คะแนนความรู้สึกเลย ลองกดให้คะแนนหลังจบโดสครั้งหน้าดูนะ</div>`;
+    html += `<div style="font-size:0.78rem;color:var(--ink-dim);">No feeling ratings yet — try rating one after your next dose.</div>`;
   }
   return html;
 }
@@ -2429,7 +2370,7 @@ function dailyBreakdown(){
     const d = new Date(today);
     d.setDate(d.getDate()-i);
     d.setHours(0,0,0,0);
-    days.push({ date:d, label: "วันที่ " + d.getDate(), count:0 });
+    days.push({ date:d, label: String(d.getDate()), count:0 });
   }
   tasks.forEach(t=> (t.doses||[]).forEach(dose=>{
     const dd = new Date(dose.takenAt);
@@ -2457,21 +2398,21 @@ function renderAnalyticsView(){
   const maxCount = Math.max(1, ...days.map(d=>d.count));
   const chartHtml = days.map(d=>{
     const h = Math.round((d.count/maxCount)*70) || 2;
-    return `<div class="daily-chart-col"><div class="daily-chart-bar" style="height:${h}px" title="${d.count} doses"></div><div class="daily-chart-label">${d.label.replace('วันที่ ','')}</div></div>`;
+    return `<div class="daily-chart-col"><div class="daily-chart-bar" style="height:${h}px" title="${d.count} doses"></div><div class="daily-chart-label">${d.label}</div></div>`;
   }).join("");
 
   const areas = workAreaStats();
   const areasHtml = areas.map(a=>
     `<div class="work-area-tile" style="--tile-rgb:${catRgb[a.cat]}">
       <div class="work-area-tile-label">${a.label}</div>
-      <div class="work-area-tile-count">${a.done}/${a.total} เสร็จ</div>
+      <div class="work-area-tile-count">${a.done}/${a.total} done</div>
     </div>`
   ).join("");
 
   body.innerHTML = `
     <div class="analytics-ring-wrap">
       <div class="dose-dial home-ring" style="--pct:${pct}"><div class="dose-digits">${pct}%</div></div>
-      <div class="home-ring-label">งานเสร็จทั้งหมด</div>
+      <div class="home-ring-label">tasks completed overall</div>
     </div>
 
     <div class="prompt-label" style="margin-bottom:8px;">daily_doses (7d)</div>
@@ -2545,13 +2486,13 @@ function renderDayDetail(byDate){
   byDate = byDate || tasksByDate();
   renderReflectionForSelected();
   if(!calSelected){
-    calDayDetail.innerHTML = `<div class="cal-day-detail-label">แตะวันที่ต้องการดู</div>`;
+    calDayDetail.innerHTML = `<div class="cal-day-detail-label">tap a date to view</div>`;
     calQuickAddRow.style.display = "none";
     return;
   }
   calQuickAddRow.style.display = "";
   const dayTasks = byDate[calSelected] || [];
-  const label = `<div class="cal-day-detail-label">${fmtDate(calSelected)} — ${dayTasks.length} งาน</div>`;
+  const label = `<div class="cal-day-detail-label">${fmtDate(calSelected)} — ${dayTasks.length} tasks</div>`;
   if(dayTasks.length === 0){
     calDayDetail.innerHTML = label + `<div class="empty">no_tasks_found</div>`;
     return;
@@ -2567,6 +2508,7 @@ function calTaskRowHtml(t, today){
       <span class="cal-task-catbar cat-${t.cat}"></span>
       <span class="cal-task-title">${escapeHtml(t.title)}</span>
       ${isLate ? `<span class="cal-task-overdue">overdue</span>` : ""}
+      <button class="icon-btn" data-fx-skip onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Delete">✕</button>
     </div>
   `;
 }
@@ -2576,7 +2518,7 @@ function addTaskForDate(date){
   if(!title || !date) return;
   const id = Date.now() + Math.random().toString(36).slice(2);
   const newTask = {
-    id, title, cat:"other", due:date, urgent:false, important:false, energy:"medium",
+    id, title, cat:"other", due:date,
     done:false, doses:[], notes:[], createdAt: Date.now()
   };
   tasks.unshift(newTask);
@@ -2631,14 +2573,14 @@ function renderGoals(){
   const pct = total ? Math.round(done/total*100) : 0;
   goalRing.style.setProperty("--pct", pct);
   goalRingPct.textContent = pct + "%";
-  goalRingLabel.textContent = `${done} / ${total} สำเร็จ`;
+  goalRingLabel.textContent = `${done} / ${total} done`;
   goalList.innerHTML = total ? monthGoals.map(g => `
     <div class="goal-row ${g.done?'done':''}" data-id="${g.id}">
       <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?"✓":""}</button>
       <div class="goal-title">${escapeHtml(g.title)}</div>
       <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete">✕</button>
     </div>
-  `).join("") : `<div class="notes-log-empty">ยังไม่มีเป้าหมายเดือนนี้</div>`;
+  `).join("") : `<div class="notes-log-empty">no goals for this month yet</div>`;
 }
 
 function addGoal(){
@@ -3083,7 +3025,6 @@ taskViewToggle.addEventListener("click", e=>{
   taskViewToggle.querySelectorAll(".tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
   document.getElementById("list").style.display = taskViewMode==="list" ? "" : "none";
   document.getElementById("timelineList").style.display = taskViewMode==="timeline" ? "" : "none";
-  document.getElementById("matrixView").style.display = taskViewMode==="matrix" ? "" : "none";
 });
 
 let calViewMode = "grid";
