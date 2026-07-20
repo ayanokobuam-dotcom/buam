@@ -703,13 +703,14 @@
     flex:1; text-align:center; font-weight:700; color:var(--accent);
     letter-spacing:0.03em; font-size:0.88rem;
   }
+  .cal-subtabs{ display:flex; gap:4px; margin-bottom:16px; }
   .cal-weekdays{
     display:grid; grid-template-columns:repeat(7,1fr); gap:4px;
     font-size:0.68rem; color:var(--ink-dim); text-align:center; margin-bottom:4px;
   }
   .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal-day{
-    min-height:36px; border:1px solid var(--border); border-radius:3px;
+    min-height:36px; border:1px solid transparent; border-radius:3px;
     background:var(--panel-2); padding:5px 2px 4px;
     font-size:0.7rem; color:var(--ink-dim);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
@@ -720,18 +721,31 @@
   .cal-day.today{ border-color:var(--border-bright); box-shadow:0 0 8px rgba(0,255,102,0.3); color:var(--ink); }
   .cal-day.selected{ background:var(--accent-dim); border-color:var(--accent); color:var(--ink); }
   .cal-day.has-overdue{ border-color:var(--red); }
-  .cal-dots{ display:flex; gap:2px; flex-wrap:wrap; justify-content:center; min-height:5px; }
-  .cal-dot{ width:5px; height:5px; border-radius:50%; flex:none; }
-  .cal-dot.cat-homework{ background:var(--cyan); }
-  .cal-dot.cat-work{ background:var(--accent); }
-  .cal-dot.cat-personal{ background:var(--amber); }
-  .cal-dot.cat-other{ background:var(--ink-dim); }
+  .cal-dots{ display:flex; align-items:center; gap:3px; justify-content:center; min-height:5px; }
+  .cal-dot{ width:5px; height:5px; border-radius:50%; flex:none; background:var(--accent); }
   .cal-dot.reflect-dot{ background:var(--magenta); border-radius:1px; }
+  .cal-day-count{ font-size:0.62rem; color:var(--ink-dim); line-height:1; }
   .cal-day-detail{
     margin-top:14px; border-top:1px dashed var(--border); padding-top:12px;
     max-height:260px; overflow-y:auto;
   }
   .cal-day-detail-label{ font-size:0.74rem; color:var(--ink-dim); margin-bottom:8px; }
+
+  .cal-task-row{
+    display:flex; align-items:center; gap:8px; padding:7px 8px; margin-bottom:5px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:3px; cursor:pointer;
+  }
+  .cal-task-row:hover{ border-color:var(--accent); }
+  .cal-task-row.done{ opacity:0.5; }
+  .cal-task-row.done .check{ background:var(--accent); border-color:var(--accent); }
+  .cal-task-catbar{ flex:none; width:3px; align-self:stretch; border-radius:2px; }
+  .cal-task-catbar.cat-homework{ background:var(--cyan); }
+  .cal-task-catbar.cat-work{ background:var(--accent); }
+  .cal-task-catbar.cat-personal{ background:var(--amber); }
+  .cal-task-catbar.cat-other{ background:var(--ink-dim); }
+  .cal-task-title{ flex:1; min-width:0; font-size:0.8rem; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cal-task-row.done .cal-task-title{ text-decoration:line-through; color:var(--ink-dim); }
+  .cal-task-overdue{ flex:none; font-size:0.64rem; color:var(--red); }
 
   .notes-log{
     margin-top:4px; border-top:1px dashed var(--border); padding-top:10px;
@@ -1061,35 +1075,49 @@
       <button type="button" id="calTodayBtn" class="chip" data-fx-skip>today</button>
     </div>
 
-    <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
-    <div class="cal-grid" id="calGrid"></div>
-    <div class="cal-day-detail" id="calDayDetail"></div>
-    <div class="goal-add-row" id="calQuickAddRow" style="display:none; margin-top:10px;">
-      <input type="text" id="calQuickAddInput" placeholder="เพิ่มงานสำหรับวันนี้...">
-      <button class="dose-start-btn" id="calQuickAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
-    </div>
-    <div class="cal-reflect-block" id="calReflectBlock" style="display:none;">
-      <div class="prompt-label" style="margin:14px 0 8px;">reflect</div>
-      <div class="reflect-field">
-        <label for="calReflectMood">รู้สึกอย่างไร</label>
-        <input type="text" id="calReflectMood" maxlength="140">
-      </div>
-      <div class="reflect-field">
-        <label for="calReflectWin">สิ่งที่ทำสำเร็จที่สุด</label>
-        <input type="text" id="calReflectWin" maxlength="140">
-      </div>
-      <button class="dose-start-btn" id="calReflectSaveBtn" type="button" style="padding:9px 16px;">บันทึก</button>
+    <div class="cal-subtabs task-view-toggle" id="calSubtabs">
+      <button type="button" class="tvt-btn active" data-calview="grid">ปฏิทิน</button>
+      <button type="button" class="tvt-btn" data-calview="reflect">reflect</button>
+      <button type="button" class="tvt-btn" data-calview="goals">เป้าหมาย</button>
     </div>
 
-    <div class="prompt-label" style="margin:24px 0 8px;">month_goals</div>
-    <div style="display:flex; flex-direction:column; align-items:center;">
-      <div class="dose-dial goal-ring" id="goalRing" style="--pct:0"><div class="dose-digits" id="goalRingPct">0%</div></div>
-      <div class="goal-ring-label" id="goalRingLabel">0 / 0 สำเร็จ</div>
+    <div class="cal-subview" id="calViewGrid">
+      <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-day-detail" id="calDayDetail"></div>
+      <div class="goal-add-row" id="calQuickAddRow" style="display:none; margin-top:10px;">
+        <input type="text" id="calQuickAddInput" placeholder="เพิ่มงานสำหรับวันนี้...">
+        <button class="dose-start-btn" id="calQuickAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
+      </div>
     </div>
-    <div class="goal-list" id="goalList"></div>
-    <div class="goal-add-row">
-      <input type="text" id="goalInput" placeholder="เป้าหมายเดือนนี้..." maxlength="160">
-      <button class="dose-start-btn" id="goalAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
+
+    <div class="cal-subview" id="calViewReflect" style="display:none;">
+      <div class="cal-day-detail-label" id="calReflectEmpty" style="display:none;">เลือกวันที่จากแท็บปฏิทินก่อน</div>
+      <div class="cal-reflect-block" id="calReflectBlock">
+        <div class="cal-day-detail-label" id="calReflectDateLabel"></div>
+        <div class="reflect-field">
+          <label for="calReflectMood">รู้สึกอย่างไร</label>
+          <input type="text" id="calReflectMood" maxlength="140">
+        </div>
+        <div class="reflect-field">
+          <label for="calReflectWin">สิ่งที่ทำสำเร็จที่สุด</label>
+          <input type="text" id="calReflectWin" maxlength="140">
+        </div>
+        <button class="dose-start-btn" id="calReflectSaveBtn" type="button" style="padding:9px 16px;">บันทึก</button>
+      </div>
+    </div>
+
+    <div class="cal-subview" id="calViewGoals" style="display:none;">
+      <div class="prompt-label" style="margin-bottom:8px;">month_goals</div>
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <div class="dose-dial goal-ring" id="goalRing" style="--pct:0"><div class="dose-digits" id="goalRingPct">0%</div></div>
+        <div class="goal-ring-label" id="goalRingLabel">0 / 0 สำเร็จ</div>
+      </div>
+      <div class="goal-list" id="goalList"></div>
+      <div class="goal-add-row">
+        <input type="text" id="goalInput" placeholder="เป้าหมายเดือนนี้..." maxlength="160">
+        <button class="dose-start-btn" id="goalAddBtn" type="button" style="flex:none; padding:9px 16px;">+ add</button>
+      </div>
     </div>
   </div>
 
@@ -1604,7 +1632,8 @@ let reflections = JSON.parse(localStorage.getItem(REFLECTIONS_KEY) || "[]");
 function saveReflections(){ localStorage.setItem(REFLECTIONS_KEY, JSON.stringify(reflections)); renderCalendar(); }
 const reflectionsSync = makeCloudSync("reflections", reflections, saveReflections);
 
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function localDateStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function todayStr(){ return localDateStr(new Date()); }
 
 function fmtDate(s){
   const [y,m,d] = s.split("-");
@@ -1945,7 +1974,7 @@ function quadrantKey(t){
 function tomorrowStr(){
   const d = new Date();
   d.setDate(d.getDate()+1);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 
 function postponeToTomorrow(id){
@@ -2497,9 +2526,8 @@ function renderCalendar(){
     const isToday = dateStr === today;
     const isSelected = dateStr === calSelected;
     const hasOverdue = dayTasks.some(t=>!t.done && dateStr<today);
-    const cats = [...new Set(dayTasks.map(t=>t.cat))];
     const hasReflection = reflections.some(r=>r.date===dateStr);
-    const dots = cats.map(c=>`<span class="cal-dot cat-${c}"></span>`).join("") + (hasReflection ? `<span class="cal-dot reflect-dot"></span>` : "");
+    const dots = (dayTasks.length ? `<span class="cal-dot"></span><span class="cal-day-count">${dayTasks.length}</span>` : "") + (hasReflection ? `<span class="cal-dot reflect-dot"></span>` : "");
     cells += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''} ${hasOverdue?'has-overdue':''}" data-date="${dateStr}">
       <span>${d}</span>
       <span class="cal-dots">${dots}</span>
@@ -2528,7 +2556,19 @@ function renderDayDetail(byDate){
     calDayDetail.innerHTML = label + `<div class="empty">no_tasks_found</div>`;
     return;
   }
-  calDayDetail.innerHTML = label + dayTasks.map(t=>taskRowHtml(t, todayStr())).join("");
+  calDayDetail.innerHTML = label + dayTasks.map(t=>calTaskRowHtml(t, todayStr())).join("");
+}
+
+function calTaskRowHtml(t, today){
+  const isLate = !t.done && t.due && t.due<today;
+  return `
+    <div class="cal-task-row ${t.done?'done':''}" data-id="${t.id}" onclick="editTask('${t.id}')">
+      <button class="check" data-fx-skip onclick="event.stopPropagation(); toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <span class="cal-task-catbar cat-${t.cat}"></span>
+      <span class="cal-task-title">${escapeHtml(t.title)}</span>
+      ${isLate ? `<span class="cal-task-overdue">overdue</span>` : ""}
+    </div>
+  `;
 }
 
 function addTaskForDate(date){
@@ -2634,15 +2674,20 @@ goalInput.addEventListener("keydown", e=>{ if(e.key==="Enter") addGoal(); });
 
 /* ---------------- daily reflection (bound to the selected calendar day) ---------------- */
 const calReflectBlock = document.getElementById("calReflectBlock");
+const calReflectEmpty = document.getElementById("calReflectEmpty");
+const calReflectDateLabel = document.getElementById("calReflectDateLabel");
 const calReflectMood = document.getElementById("calReflectMood");
 const calReflectWin = document.getElementById("calReflectWin");
 
 function renderReflectionForSelected(){
   if(!calSelected){
     calReflectBlock.style.display = "none";
+    calReflectEmpty.style.display = "";
     return;
   }
   calReflectBlock.style.display = "";
+  calReflectEmpty.style.display = "none";
+  calReflectDateLabel.textContent = fmtDate(calSelected);
   const existing = reflections.find(r=>r.date===calSelected);
   calReflectMood.value = existing ? existing.mood : "";
   calReflectWin.value = existing ? existing.win : "";
@@ -3030,15 +3075,47 @@ document.querySelectorAll(".bottom-tab").forEach(btn=>{
 document.getElementById("homeViewAllBtn").addEventListener("click", ()=> switchView("tasks"));
 
 let taskViewMode = "list";
-document.getElementById("taskViewToggle").addEventListener("click", e=>{
+const taskViewToggle = document.getElementById("taskViewToggle");
+taskViewToggle.addEventListener("click", e=>{
   const btn = e.target.closest(".tvt-btn");
   if(!btn) return;
   taskViewMode = btn.dataset.taskview;
-  document.querySelectorAll(".tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
+  taskViewToggle.querySelectorAll(".tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
   document.getElementById("list").style.display = taskViewMode==="list" ? "" : "none";
   document.getElementById("timelineList").style.display = taskViewMode==="timeline" ? "" : "none";
   document.getElementById("matrixView").style.display = taskViewMode==="matrix" ? "" : "none";
 });
+
+let calViewMode = "grid";
+const calSubtabs = document.getElementById("calSubtabs");
+calSubtabs.addEventListener("click", e=>{
+  const btn = e.target.closest(".tvt-btn");
+  if(!btn) return;
+  calViewMode = btn.dataset.calview;
+  calSubtabs.querySelectorAll(".tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
+  document.getElementById("calViewGrid").style.display = calViewMode==="grid" ? "" : "none";
+  document.getElementById("calViewReflect").style.display = calViewMode==="reflect" ? "" : "none";
+  document.getElementById("calViewGoals").style.display = calViewMode==="goals" ? "" : "none";
+  if(window.buamFx) buamFx.blip();
+});
+
+/* ---------------- day-rollover watch: keep "today" fresh if the app is left open past local midnight ---------------- */
+let lastKnownToday = todayStr();
+function checkDateRollover(){
+  const now = todayStr();
+  if(now === lastKnownToday) return;
+  lastKnownToday = now;
+  render();
+  if(document.getElementById("viewCalendar").classList.contains("active")) renderCalendar();
+}
+function scheduleMidnightRefresh(){
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0, 0, 5);
+  setTimeout(()=>{ checkDateRollover(); scheduleMidnightRefresh(); }, next - now);
+}
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) checkDateRollover(); });
+window.addEventListener("focus", checkDateRollover);
+scheduleMidnightRefresh();
 
 render();
 renderCalendar();
