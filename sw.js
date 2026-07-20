@@ -1,4 +1,4 @@
-const CACHE = "buam-v22";
+const CACHE = "buam-v23";
 const ASSETS = [
   "./",
   "./index.html",
@@ -39,6 +39,18 @@ self.addEventListener("fetch", (e) => {
         })
         .catch(() => cached);
       return cached || network;
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow("./");
     })
   );
 });

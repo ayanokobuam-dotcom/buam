@@ -1968,7 +1968,24 @@ function escapeHtml(s){
 const DOSE_SCALE = 6;
 let doseTargetId = null;
 let doseMinutes = 10;
-let activeDose = null; // { taskId, step, minutes, totalSeconds, remaining, intervalId }
+function ensureNotifyPermission(){
+  if(!("Notification" in window)) return;
+  if(Notification.permission === "default") Notification.requestPermission().catch(()=>{});
+}
+
+function notifyTimerDone(title, body, tag){
+  if(!("Notification" in window) || Notification.permission !== "granted") return;
+  const opts = { body, tag, renotify: true, icon: "./icon-192.png", badge: "./icon-192.png" };
+  if(navigator.serviceWorker && navigator.serviceWorker.ready){
+    navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(()=>{
+      try{ new Notification(title, opts); }catch(e){}
+    });
+  } else {
+    try{ new Notification(title, opts); }catch(e){}
+  }
+}
+
+let activeDose = null; // { taskId, step, minutes, totalSeconds, endTime, intervalId }
 
 function isSameDay(ts, d2){
   const d1 = new Date(ts);
@@ -2113,27 +2130,45 @@ doseWizardStart.addEventListener("click", ()=>{
   startDoseTimer(t, step, doseMinutes);
 });
 
-function startDoseTimer(task, step, minutes){
-  const totalSeconds = minutes*60;
-  activeDose = { taskId: task.id, step, minutes, totalSeconds, remaining: totalSeconds };
+const ACTIVE_DOSE_KEY = "buam-active-dose-v1";
+function saveActiveDose(){
+  if(!activeDose){ localStorage.removeItem(ACTIVE_DOSE_KEY); return; }
+  localStorage.setItem(ACTIVE_DOSE_KEY, JSON.stringify({
+    taskId: activeDose.taskId, step: activeDose.step, minutes: activeDose.minutes,
+    totalSeconds: activeDose.totalSeconds, endTime: activeDose.endTime
+  }));
+}
 
-  doseTimerTaskName.textContent = task.title + " — " + step;
+function renderActiveDoseUI(title, step){
+  doseTimerTaskName.textContent = title + " — " + step;
   doseTimerReassure.textContent = "just start — you don't need to understand it all right now";
+  doseOverlay.classList.remove("hidden");
   doseWizard.style.display = "none";
   doseTimerView.style.display = "";
   updateDoseDigits();
+}
 
-  if(window.buamFx) buamFx.blip();
-
+function runDoseCountdown(){
   activeDose.intervalId = setInterval(()=>{
-    activeDose.remaining -= 1;
     updateDoseDigits();
-    if(activeDose.remaining <= 0) completeActiveDose();
+    if(Date.now() >= activeDose.endTime) completeActiveDose();
   }, 1000);
 }
 
+function startDoseTimer(task, step, minutes){
+  const totalSeconds = minutes*60;
+  activeDose = { taskId: task.id, step, minutes, totalSeconds, endTime: Date.now() + totalSeconds*1000 };
+  saveActiveDose();
+  ensureNotifyPermission();
+  renderActiveDoseUI(task.title, step);
+
+  if(window.buamFx) buamFx.blip();
+
+  runDoseCountdown();
+}
+
 function updateDoseDigits(){
-  const r = Math.max(activeDose.remaining, 0);
+  const r = Math.max(Math.round((activeDose.endTime - Date.now())/1000), 0);
   const mm = Math.floor(r/60), ss = r%60;
   doseDigits.textContent = (mm<10?"0"+mm:mm) + ":" + (ss<10?"0"+ss:ss);
   const pct = (1 - r/activeDose.totalSeconds) * 100;
@@ -2148,11 +2183,14 @@ function completeActiveDose(){
   const t = tasks.find(t=>t.id===activeDose.taskId);
   pendingDoseRecord = { taskId: activeDose.taskId, step: activeDose.step, minutes: activeDose.minutes, takenAt: Date.now() };
   activeDose = null;
+  saveActiveDose();
   if(window.buamFx){ buamFx.confirm(); if(navigator.vibrate) navigator.vibrate([10,30,10]); }
+  if(document.hidden) notifyTimerDone("Dose complete", t ? t.title : "Task done", "buam-dose");
   showFeelingView(t);
 }
 
 function showFeelingView(t){
+  doseOverlay.classList.remove("hidden");
   doseWizard.style.display = "none";
   doseTimerView.style.display = "none";
   doseFeelingTaskName.textContent = t ? t.title : "";
@@ -2192,6 +2230,7 @@ doseTimerStop.addEventListener("click", completeActiveDose);
 doseTimerCancel.addEventListener("click", ()=>{
   if(activeDose) clearInterval(activeDose.intervalId);
   activeDose = null;
+  saveActiveDose();
   if(window.buamFx) buamFx.cancel();
   closeDoseOverlay();
 });
@@ -2250,11 +2289,18 @@ timerSetupStart.addEventListener("click", ()=>{
   startStandaloneTimer(timerMinutes);
 });
 
-function startStandaloneTimer(minutes){
-  const totalSeconds = minutes*60;
-  standaloneTimer = { totalSeconds, remaining: totalSeconds };
+const ACTIVE_TIMER_KEY = "buam-active-timer-v1";
+function saveActiveTimer(){
+  if(!standaloneTimer){ localStorage.removeItem(ACTIVE_TIMER_KEY); return; }
+  localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify({
+    taskId: standaloneTimer.taskId, minutes: standaloneTimer.minutes,
+    totalSeconds: standaloneTimer.totalSeconds, endTime: standaloneTimer.endTime,
+    ambient: standaloneTimer.ambient
+  }));
+}
 
-  const focusTask = tasks.find(t=>t.id===timerTaskId);
+function renderActiveTimerUI(taskId){
+  const focusTask = tasks.find(t=>t.id===taskId);
   if(focusTask){
     timerTaskLabel.style.display = "";
     timerTaskLabel.innerHTML = `Focus: <b>${escapeHtml(focusTask.title)}</b>`;
@@ -2262,21 +2308,34 @@ function startStandaloneTimer(minutes){
     timerTaskLabel.style.display = "none";
   }
 
+  timerOverlay.classList.remove("hidden");
   timerSetup.style.display = "none";
   timerRunning.style.display = "";
   updateTimerDigits();
+}
 
-  if(window.buamFx){ buamFx.blip(); if(timerAmbient) buamFx.ambient(timerAmbient); }
-
+function runTimerCountdown(){
   standaloneTimer.intervalId = setInterval(()=>{
-    standaloneTimer.remaining -= 1;
     updateTimerDigits();
-    if(standaloneTimer.remaining <= 0) completeStandaloneTimer();
+    if(Date.now() >= standaloneTimer.endTime) completeStandaloneTimer();
   }, 1000);
 }
 
+function startStandaloneTimer(minutes){
+  const totalSeconds = minutes*60;
+  standaloneTimer = { taskId: timerTaskId, minutes, totalSeconds, endTime: Date.now() + totalSeconds*1000, ambient: timerAmbient };
+  saveActiveTimer();
+  ensureNotifyPermission();
+
+  renderActiveTimerUI(timerTaskId);
+
+  if(window.buamFx){ buamFx.blip(); if(timerAmbient) buamFx.ambient(timerAmbient); }
+
+  runTimerCountdown();
+}
+
 function updateTimerDigits(){
-  const r = Math.max(standaloneTimer.remaining, 0);
+  const r = Math.max(Math.round((standaloneTimer.endTime - Date.now())/1000), 0);
   const mm = Math.floor(r/60), ss = r%60;
   timerDigits.textContent = (mm<10?"0"+mm:mm) + ":" + (ss<10?"0"+ss:ss);
   const pct = (1 - r/standaloneTimer.totalSeconds) * 100;
@@ -2286,14 +2345,18 @@ function updateTimerDigits(){
 function completeStandaloneTimer(){
   if(!standaloneTimer) return;
   clearInterval(standaloneTimer.intervalId);
+  const focusTask = tasks.find(t=>t.id===standaloneTimer.taskId);
   standaloneTimer = null;
+  saveActiveTimer();
   if(window.buamFx){ buamFx.chime(); buamFx.stopAmbient(); if(navigator.vibrate) navigator.vibrate([10,30,10,30,10]); }
+  if(document.hidden) notifyTimerDone("Focus session complete", focusTask ? focusTask.title : "Timer done", "buam-timer");
   closeTimerOverlay();
 }
 
 timerCancelBtn.addEventListener("click", ()=>{
   if(standaloneTimer) clearInterval(standaloneTimer.intervalId);
   standaloneTimer = null;
+  saveActiveTimer();
   if(window.buamFx){ buamFx.cancel(); buamFx.stopAmbient(); }
   closeTimerOverlay();
 });
@@ -3130,6 +3193,41 @@ scheduleMidnightRefresh();
 
 render();
 renderCalendar();
+
+/* ---------------- resume dose/timer countdowns left running when the app was closed ---------------- */
+function restoreActiveTimers(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACTIVE_DOSE_KEY) || "null");
+    if(saved){
+      const t = tasks.find(t=>t.id===saved.taskId);
+      if(!t){
+        localStorage.removeItem(ACTIVE_DOSE_KEY);
+      } else if(Date.now() >= saved.endTime){
+        activeDose = { ...saved };
+        completeActiveDose();
+      } else {
+        activeDose = { ...saved };
+        renderActiveDoseUI(t.title, saved.step);
+        runDoseCountdown();
+      }
+    }
+  } catch(e){}
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACTIVE_TIMER_KEY) || "null");
+    if(saved){
+      if(Date.now() >= saved.endTime){
+        standaloneTimer = { ...saved };
+        completeStandaloneTimer();
+      } else {
+        standaloneTimer = { ...saved };
+        renderActiveTimerUI(saved.taskId);
+        runTimerCountdown();
+      }
+    }
+  } catch(e){}
+}
+restoreActiveTimers();
 </script>
 </body>
 </html>
