@@ -1950,28 +1950,12 @@ function taskRowHtml(t, today){
       </div>
       <div class="task-actions">
         ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it">▶</button>`}
-        ${t.done ? "" : `<button class="icon-btn" data-fx-skip onclick="postponeToTomorrow('${t.id}')" title="Do tomorrow">⇥</button>`}
         <button class="icon-btn" onclick="openNotesModal('${t.id}')" title="Notes">≡</button>
         <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
         <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete">✕</button>
       </div>
     </div>
   `;
-}
-
-function tomorrowStr(){
-  const d = new Date();
-  d.setDate(d.getDate()+1);
-  return localDateStr(d);
-}
-
-function postponeToTomorrow(id){
-  const t = tasks.find(t=>t.id===id);
-  if(!t) return;
-  t.due = tomorrowStr();
-  save();
-  pushTaskFields(id, {due: t.due});
-  if(window.buamFx) buamFx.blip();
 }
 
 function escapeHtml(s){
