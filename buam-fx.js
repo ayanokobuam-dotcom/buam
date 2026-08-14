@@ -250,8 +250,13 @@
     var voices = synth.getVoices() || [];
     if(!voices.length) return null;
     jarvisVoicesReady = true;
-    var byName = /daniel|david|google uk english male|microsoft (guy|ryan)|alex|fred/i;
-    var v = voices.find(function(v){ return byName.test(v.name); });
+    // prefer the smooth "Natural"/"Online" neural voices modern browsers ship
+    // (Edge/Chrome) — these sound far more human than the classic robotic
+    // system voices, so a warm male one is tried first before falling back
+    var byQuality = /(guy|ryan|davis|christopher).*(natural|online)|(natural|online).*(guy|ryan|davis|christopher)/i;
+    var byName = /daniel|alex|fred|david|google uk english male|microsoft (guy|ryan|david)/i;
+    var v = voices.find(function(v){ return byQuality.test(v.name); });
+    if(!v) v = voices.find(function(v){ return byName.test(v.name); });
     if(!v) v = voices.find(function(v){ return /^en/i.test(v.lang) && /male/i.test(v.name); });
     if(!v) v = voices.find(function(v){ return /^en/i.test(v.lang); });
     return v || voices[0];
@@ -265,19 +270,23 @@
 
   var JARVIS_LINES = {
     taskAdded: [
-      "Task added.", "Noted. Added to your queue.", "Right away — task logged.",
-      "New objective registered.", "Got it. On the list."
+      "Alright, that's added to your list.", "Got it, noted down for you.",
+      "Task's in the queue now.", "Consider it noted, I've got it covered.",
+      "Done, that one's added in."
     ],
     taskDone: [
-      "Task complete. Well done.", "Objective achieved.", "Marked complete, sir.",
-      "Nicely done. Task closed out.", "Another one down."
+      "Nicely done, that one's complete.", "Great work, task complete.",
+      "That's marked off the list.", "Well done, objective achieved.",
+      "Another one down, nice work."
     ],
     moneyAdded: [
-      "Transaction logged.", "Recorded. Ledger updated.", "Noted. Budget updated accordingly.",
-      "Expense logged, sir.", "Entry saved."
+      "Got it, that's logged in your ledger.", "Alright, your budget's updated.",
+      "Noted, I've recorded that for you.", "That expense is saved.",
+      "All set, entry recorded."
     ],
     online: [
-      "Jarvis online.", "At your service.", "Voice feedback enabled."
+      "Hey there, voice feedback is on.", "I'm here, at your service.",
+      "Voice feedback is on now."
     ]
   };
 
@@ -292,9 +301,12 @@
       var u = new SpeechSynthesisUtterance(text);
       if(!jarvisVoice) jarvisVoice = pickJarvisVoice();
       if(jarvisVoice) u.voice = jarvisVoice;
-      u.rate = 0.98;
-      u.pitch = 0.82;
-      u.volume = 0.85;
+      // stay close to the voice's natural pitch — aggressive pitch-shifting is
+      // what makes browser TTS sound robotic — and vary rate/pitch a touch per
+      // line so repeated lines don't sound like the exact same clip on loop
+      u.rate = 0.9 + Math.random() * 0.06;
+      u.pitch = 0.92 + Math.random() * 0.08;
+      u.volume = 0.9;
       synth.speak(u);
     }catch(e){}
   }
