@@ -848,29 +848,6 @@
   .quick-link.timer .qsym{ color:var(--accent); }
   .quick-link.timer:hover, .quick-link.timer:active{ border-color:var(--accent); color:var(--ink); box-shadow:0 0 10px rgba(0,255,102,0.3); }
 
-  .next-task-toast{
-    position:fixed; right:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:85;
-    background:var(--panel); border:1px solid var(--border);
-    border-left:2px solid var(--accent); border-radius:var(--radius-tile);
-    box-shadow:0 0 20px rgba(0,255,102,0.12);
-    padding:12px 14px; max-width:280px;
-    font-size:0.78rem; color:var(--ink-dim);
-    display:flex; flex-direction:column; gap:8px;
-    animation:toastIn 0.25s ease;
-  }
-  .next-task-toast .ntt-title{ color:var(--ink); font-size:0.82rem; }
-  .next-task-toast .ntt-row{ display:flex; gap:8px; }
-  .next-task-toast button{
-    font-family:inherit; font-size:0.72rem; border-radius:3px; padding:6px 10px;
-    cursor:pointer; border:1px solid var(--border);
-  }
-  .next-task-toast .ntt-go{ background:var(--accent); color:#00170a; border-color:var(--accent); flex:1; }
-  .next-task-toast .ntt-dismiss{ background:transparent; color:var(--ink-dim); }
-  @keyframes toastIn{
-    from{ opacity:0; transform:translateY(8px); }
-    to{ opacity:1; transform:translateY(0); }
-  }
-
   /* ---- Jarvis dialogue box: VN-style avatar + text bubble that appears
      while a voice line is speaking, text typed in sync with the speech ---- */
   .jarvis-box{
@@ -885,6 +862,7 @@
     background:var(--panel); border:1px solid var(--accent);
     box-shadow:0 0 14px rgba(0,255,102,0.35);
     display:flex; align-items:center; justify-content:center; gap:3px;
+    transform-origin:center;
   }
   .jarvis-avatar .jb-bar{
     width:3px; height:5px; border-radius:2px; background:var(--accent); opacity:0.85;
@@ -898,7 +876,10 @@
   .jarvis-box:not(.talking) .jb-bar{ animation-play-state:paused; height:4px; }
   @keyframes jarvisBar{
     0%,100%{ height:5px; }
-    50%{ height:16px; }
+    /* --jb-peak is nudged per spoken word from JS (see the jarvis dialogue
+       box script) as a stand-in for per-word volume/frequency, since the
+       Web Speech API gives no access to the actual synthesized audio */
+    50%{ height:var(--jb-peak, 16px); }
   }
   .jarvis-bubble{
     background:var(--panel); border:1px solid var(--border); border-left:2px solid var(--accent);
@@ -2256,34 +2237,7 @@ function toggleDone(id){
   pushTaskFields(id, {done: t.done});
   if(t.done){
     celebrateTask(t.id, t.cat);
-    const next = pickRandomTask(t.due || todayStr());
-    if(next) showNextTaskToast(next);
   }
-}
-
-function showNextTaskToast(task){
-  document.querySelectorAll(".next-task-toast").forEach(el=>el.remove());
-  const toast = document.createElement("div");
-  toast.className = "next-task-toast";
-  toast.innerHTML = `
-    <div>Done! Keep going with this next?</div>
-    <div class="ntt-title">${escapeHtml(task.title)}</div>
-    <div class="ntt-row">
-      <button type="button" class="ntt-go">▶ dose_it</button>
-      <button type="button" class="ntt-dismiss">skip</button>
-    </div>
-  `;
-  document.body.appendChild(toast);
-  const dismissTimer = setTimeout(()=> toast.remove(), 8000);
-  toast.querySelector(".ntt-go").addEventListener("click", ()=>{
-    clearTimeout(dismissTimer);
-    toast.remove();
-    openDoseWizard(task.id);
-  });
-  toast.querySelector(".ntt-dismiss").addEventListener("click", ()=>{
-    clearTimeout(dismissTimer);
-    toast.remove();
-  });
 }
 
 // shared reactive "moment" for adding/completing a task — glows the row,
@@ -3596,7 +3550,7 @@ updateJarvisBtn();
 /* ---------------- Jarvis dialogue box (VN-style avatar + typed text,
    synced to the spoken line via buam-fx's "buam-jarvis-speak" event) ---- */
 (function(){
-  let box, bubble, hideTimer, revealTimer;
+  let box, bubble, avatar, bars, hideTimer, revealTimer;
 
   function ensureBox(){
     if(box) return box;
@@ -3608,7 +3562,43 @@ updateJarvisBtn();
     `;
     document.body.appendChild(box);
     bubble = box.querySelector(".jb-text");
+    avatar = box.querySelector(".jarvis-avatar");
+    bars = Array.from(box.querySelectorAll(".jb-bar"));
     return box;
+  }
+
+  // The Web Speech API gives no access to the actual synthesized audio (no
+  // waveform/frequency data), so there's no real amplitude to react to.
+  // This fakes that reactivity from the one real signal we do get — each
+  // word boundary — using word length as a stand-in for loudness/pitch:
+  // longer words land a bigger, slightly slower pop; short ones a quick flick.
+  function pulseAvatar(wordLen){
+    if(!avatar) return;
+    const intensity = Math.min(1, Math.max(0.2, wordLen / 9));
+    const scale = 1 + intensity * 0.24;
+    const dur = 140 + intensity * 120;
+    try{
+      avatar.animate([
+        { transform: "scale(1)" },
+        { transform: `scale(${scale.toFixed(3)})`, offset: 0.4 },
+        { transform: "scale(1)" }
+      ], { duration: dur, easing: "cubic-bezier(.34,1.56,.64,1)" });
+    }catch(e){}
+    bars.forEach(b=>{
+      const peak = 10 + intensity * 12 + Math.random() * 5;
+      b.style.setProperty("--jb-peak", peak.toFixed(1) + "px");
+    });
+  }
+
+  function wordBoundaries(text){
+    const bounds = [];
+    let idx = 0;
+    text.split(" ").forEach(w=>{
+      idx += w.length;
+      bounds.push({ end: idx, len: w.length });
+      idx += 1;
+    });
+    return bounds;
   }
 
   window.addEventListener("buam-jarvis-speak", e=>{
@@ -3618,6 +3608,15 @@ updateJarvisBtn();
     clearInterval(revealTimer);
     bubble.textContent = "";
     box.classList.add("show", "talking");
+
+    const bounds = wordBoundaries(text);
+    let nextWord = 0;
+    function checkWordPulses(shown){
+      while(nextWord < bounds.length && shown >= bounds[nextWord].end){
+        pulseAvatar(bounds[nextWord].len);
+        nextWord++;
+      }
+    }
 
     // reveal characters at a pace estimated from speech rate, but let actual
     // word-boundary events (when the browser fires them) pull the reveal
@@ -3630,12 +3629,14 @@ updateJarvisBtn();
       elapsed += 40;
       shown = Math.max(shown, Math.min(text.length, Math.round(elapsed / msPerChar)));
       bubble.textContent = text.slice(0, shown);
+      checkWordPulses(shown);
     }, 40);
 
     utterance.addEventListener("boundary", ev=>{
       if(ev.charIndex == null) return;
       shown = Math.max(shown, Math.min(text.length, ev.charIndex));
       bubble.textContent = text.slice(0, shown);
+      checkWordPulses(shown);
     });
 
     function finish(){
