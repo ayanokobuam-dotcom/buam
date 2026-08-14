@@ -307,6 +307,10 @@
       u.rate = 0.9 + Math.random() * 0.06;
       u.pitch = 0.92 + Math.random() * 0.08;
       u.volume = 0.9;
+      // let the page render a synced dialogue box — it can listen for
+      // "boundary"/"end" on the same utterance instance to time a typewriter
+      // reveal against the actual speech, without this module knowing about DOM
+      global.dispatchEvent(new CustomEvent("buam-jarvis-speak", { detail: { text: text, utterance: u } }));
       synth.speak(u);
     }catch(e){}
   }

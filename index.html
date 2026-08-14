@@ -871,6 +871,46 @@
     to{ opacity:1; transform:translateY(0); }
   }
 
+  /* ---- Jarvis dialogue box: VN-style avatar + text bubble that appears
+     while a voice line is speaking, text typed in sync with the speech ---- */
+  .jarvis-box{
+    position:fixed; left:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:90;
+    display:flex; align-items:flex-end; gap:10px; max-width:min(320px, calc(100vw - 32px));
+    opacity:0; transform:translateY(10px) scale(0.97); pointer-events:none;
+    transition:opacity 0.22s ease, transform 0.22s ease;
+  }
+  .jarvis-box.show{ opacity:1; transform:translateY(0) scale(1); }
+  .jarvis-avatar{
+    flex-shrink:0; width:42px; height:42px; border-radius:50%;
+    background:var(--panel); border:1px solid var(--accent);
+    box-shadow:0 0 14px rgba(0,255,102,0.35);
+    display:flex; align-items:center; justify-content:center; gap:3px;
+  }
+  .jarvis-avatar .jb-bar{
+    width:3px; height:5px; border-radius:2px; background:var(--accent); opacity:0.85;
+    animation:jarvisBar 0.9s ease-in-out infinite;
+  }
+  .jarvis-avatar .jb-bar:nth-child(1){ animation-delay:0.3s; }
+  .jarvis-avatar .jb-bar:nth-child(2){ animation-delay:0.15s; }
+  .jarvis-avatar .jb-bar:nth-child(3){ animation-delay:0s; }
+  .jarvis-avatar .jb-bar:nth-child(4){ animation-delay:0.15s; }
+  .jarvis-avatar .jb-bar:nth-child(5){ animation-delay:0.3s; }
+  .jarvis-box:not(.talking) .jb-bar{ animation-play-state:paused; height:4px; }
+  @keyframes jarvisBar{
+    0%,100%{ height:5px; }
+    50%{ height:16px; }
+  }
+  .jarvis-bubble{
+    background:var(--panel); border:1px solid var(--border); border-left:2px solid var(--accent);
+    border-radius:var(--radius-tile); padding:9px 12px; min-height:1.3em;
+    font-size:0.78rem; line-height:1.35; color:var(--ink);
+    box-shadow:0 0 20px rgba(0,255,102,0.12);
+  }
+  .jarvis-bubble .jb-cursor{
+    display:inline-block; width:0.5em; background:var(--accent); margin-left:1px;
+    animation:blink 1s steps(1) infinite;
+  }
+
   .dose-size-row button:disabled{ opacity:0.3; cursor:not-allowed; }
   .dose-size-hint{ font-size:0.72rem; color:var(--amber); margin-top:6px; }
 
@@ -3552,6 +3592,62 @@ jarvisBtn.addEventListener("click", ()=>{
   if(on) buamFx.jarvisOnline();
 });
 updateJarvisBtn();
+
+/* ---------------- Jarvis dialogue box (VN-style avatar + typed text,
+   synced to the spoken line via buam-fx's "buam-jarvis-speak" event) ---- */
+(function(){
+  let box, bubble, hideTimer, revealTimer;
+
+  function ensureBox(){
+    if(box) return box;
+    box = document.createElement("div");
+    box.className = "jarvis-box";
+    box.innerHTML = `
+      <div class="jarvis-avatar"><span class="jb-bar"></span><span class="jb-bar"></span><span class="jb-bar"></span><span class="jb-bar"></span><span class="jb-bar"></span></div>
+      <div class="jarvis-bubble"><span class="jb-text"></span><span class="jb-cursor"></span></div>
+    `;
+    document.body.appendChild(box);
+    bubble = box.querySelector(".jb-text");
+    return box;
+  }
+
+  window.addEventListener("buam-jarvis-speak", e=>{
+    const { text, utterance } = e.detail;
+    ensureBox();
+    clearTimeout(hideTimer);
+    clearInterval(revealTimer);
+    bubble.textContent = "";
+    box.classList.add("show", "talking");
+
+    // reveal characters at a pace estimated from speech rate, but let actual
+    // word-boundary events (when the browser fires them) pull the reveal
+    // forward so typing tracks the real audio instead of a rough guess
+    const words = Math.max(text.trim().split(/\s+/).length, 1);
+    const estMs = Math.max((words / (2.4 * utterance.rate)) * 1000, 400);
+    const msPerChar = estMs / text.length;
+    let shown = 0, elapsed = 0;
+    revealTimer = setInterval(()=>{
+      elapsed += 40;
+      shown = Math.max(shown, Math.min(text.length, Math.round(elapsed / msPerChar)));
+      bubble.textContent = text.slice(0, shown);
+    }, 40);
+
+    utterance.addEventListener("boundary", ev=>{
+      if(ev.charIndex == null) return;
+      shown = Math.max(shown, Math.min(text.length, ev.charIndex));
+      bubble.textContent = text.slice(0, shown);
+    });
+
+    function finish(){
+      clearInterval(revealTimer);
+      bubble.textContent = text;
+      box.classList.remove("talking");
+      hideTimer = setTimeout(()=> box.classList.remove("show"), 1600);
+    }
+    utterance.addEventListener("end", finish);
+    utterance.addEventListener("error", finish);
+  });
+})();
 
 /* ---------------- falling code rain background ---------------- */
 (function(){
