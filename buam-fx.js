@@ -4,7 +4,9 @@
   var MUTE_KEY = "buam-muted";
   var POS_KEY = "buam-track-pos";
   var VOL_KEY = "buam-music-vol";
+  var JARVIS_KEY = "buam-jarvis-enabled";
   var muted = localStorage.getItem(MUTE_KEY) === "1";
+  var jarvisEnabled = localStorage.getItem(JARVIS_KEY) !== "0";
 
   var ctx = null, sfxGain = null, musicGain = null, musicStarted = false, unlocked = false;
   var storedVol = parseFloat(localStorage.getItem(VOL_KEY));
@@ -237,6 +239,80 @@
     if(navigator.vibrate) navigator.vibrate(8);
   });
 
+  /* ---- Jarvis-style spoken feedback (Web Speech API, original butler-AI
+     lines — not sampled audio, so it works on any device/browser without
+     shipping copyrighted movie clips) ---- */
+  var synth = global.speechSynthesis || null;
+  var jarvisVoice = null, jarvisVoicesReady = false;
+
+  function pickJarvisVoice(){
+    if(!synth) return null;
+    var voices = synth.getVoices() || [];
+    if(!voices.length) return null;
+    jarvisVoicesReady = true;
+    var byName = /daniel|david|google uk english male|microsoft (guy|ryan)|alex|fred/i;
+    var v = voices.find(function(v){ return byName.test(v.name); });
+    if(!v) v = voices.find(function(v){ return /^en/i.test(v.lang) && /male/i.test(v.name); });
+    if(!v) v = voices.find(function(v){ return /^en/i.test(v.lang); });
+    return v || voices[0];
+  }
+  if(synth){
+    jarvisVoice = pickJarvisVoice();
+    synth.addEventListener && synth.addEventListener("voiceschanged", function(){
+      jarvisVoice = pickJarvisVoice();
+    });
+  }
+
+  var JARVIS_LINES = {
+    taskAdded: [
+      "Task added.", "Noted. Added to your queue.", "Right away — task logged.",
+      "New objective registered.", "Got it. On the list."
+    ],
+    taskDone: [
+      "Task complete. Well done.", "Objective achieved.", "Marked complete, sir.",
+      "Nicely done. Task closed out.", "Another one down."
+    ],
+    moneyAdded: [
+      "Transaction logged.", "Recorded. Ledger updated.", "Noted. Budget updated accordingly.",
+      "Expense logged, sir.", "Entry saved."
+    ],
+    online: [
+      "Jarvis online.", "At your service.", "Voice feedback enabled."
+    ]
+  };
+
+  function pickLine(pool){
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function speak(text){
+    try{
+      if(!synth || !jarvisEnabled || muted || !text) return;
+      synth.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      if(!jarvisVoice) jarvisVoice = pickJarvisVoice();
+      if(jarvisVoice) u.voice = jarvisVoice;
+      u.rate = 0.98;
+      u.pitch = 0.82;
+      u.volume = 0.85;
+      synth.speak(u);
+    }catch(e){}
+  }
+
+  function jarvisSay(kind){ speak(pickLine(JARVIS_LINES[kind] || [])); }
+  function jarvisTaskAdded(){ jarvisSay("taskAdded"); }
+  function jarvisTaskDone(){ jarvisSay("taskDone"); }
+  function jarvisMoneyAdded(){ jarvisSay("moneyAdded"); }
+  function jarvisOnline(){ jarvisSay("online"); }
+
+  function isJarvisEnabled(){ return jarvisEnabled; }
+  function setJarvisEnabled(v){
+    jarvisEnabled = !!v;
+    localStorage.setItem(JARVIS_KEY, jarvisEnabled ? "1" : "0");
+    if(!jarvisEnabled && synth) synth.cancel();
+  }
+  function toggleJarvisEnabled(){ setJarvisEnabled(!jarvisEnabled); return jarvisEnabled; }
+
   global.buamFx = {
     tone: tone,
     sweep: sweep,
@@ -252,6 +328,13 @@
     unlock: unlock,
     forceRestartMusic: forceRestartMusic,
     ambient: playAmbient,
-    stopAmbient: stopAmbient
+    stopAmbient: stopAmbient,
+    jarvisTaskAdded: jarvisTaskAdded,
+    jarvisTaskDone: jarvisTaskDone,
+    jarvisMoneyAdded: jarvisMoneyAdded,
+    jarvisOnline: jarvisOnline,
+    isJarvisEnabled: isJarvisEnabled,
+    setJarvisEnabled: setJarvisEnabled,
+    toggleJarvisEnabled: toggleJarvisEnabled
   };
 })(window);
