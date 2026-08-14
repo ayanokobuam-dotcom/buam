@@ -284,6 +284,16 @@
       "Noted, I've recorded that for you.", "That expense is saved.",
       "All set, entry recorded."
     ],
+    taskDeleted: [
+      "Alright, that task is gone.", "Removed it for you.",
+      "That one's deleted.", "Cleared it from your list.",
+      "Done, it's been removed."
+    ],
+    moneyDeleted: [
+      "That entry's been removed.", "Deleted, your ledger's updated.",
+      "Alright, that transaction's gone.", "Removed it from your records.",
+      "Done, that entry's cleared."
+    ],
     online: [
       "Hey there, voice feedback is on.", "I'm here, at your service.",
       "Voice feedback is on now."
@@ -319,6 +329,8 @@
   function jarvisTaskAdded(){ jarvisSay("taskAdded"); }
   function jarvisTaskDone(){ jarvisSay("taskDone"); }
   function jarvisMoneyAdded(){ jarvisSay("moneyAdded"); }
+  function jarvisTaskDeleted(){ jarvisSay("taskDeleted"); }
+  function jarvisMoneyDeleted(){ jarvisSay("moneyDeleted"); }
   function jarvisOnline(){ jarvisSay("online"); }
 
   function isJarvisEnabled(){ return jarvisEnabled; }
@@ -348,6 +360,8 @@
     jarvisTaskAdded: jarvisTaskAdded,
     jarvisTaskDone: jarvisTaskDone,
     jarvisMoneyAdded: jarvisMoneyAdded,
+    jarvisTaskDeleted: jarvisTaskDeleted,
+    jarvisMoneyDeleted: jarvisMoneyDeleted,
     jarvisOnline: jarvisOnline,
     isJarvisEnabled: isJarvisEnabled,
     setJarvisEnabled: setJarvisEnabled,
