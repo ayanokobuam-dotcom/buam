@@ -1158,6 +1158,7 @@
     <div class="audio-controls">
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="Jarvis voice feedback">🤖 jarvis</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
@@ -2200,6 +2201,7 @@ function addTask(){
   pushTaskUpsert(newTask);
   titleEl.focus();
   celebrateTask(id, cat);
+  if(window.buamFx) buamFx.jarvisTaskAdded();
 }
 
 function toggleDone(id){
@@ -2207,7 +2209,7 @@ function toggleDone(id){
   if(!t) return;
   t.done = !t.done;
   if(window.buamFx){
-    if(t.done){ buamFx.confirm(); if(navigator.vibrate) navigator.vibrate([10,30,10]); }
+    if(t.done){ buamFx.confirm(); buamFx.jarvisTaskDone(); if(navigator.vibrate) navigator.vibrate([10,30,10]); }
     else { buamFx.blip(); }
   }
   save();
@@ -3538,6 +3540,19 @@ sndBtn.addEventListener("click", ()=>{
 updateSndBtn();
 updateVolSlider();
 
+const jarvisBtn = document.getElementById("jarvisToggle");
+function updateJarvisBtn(){
+  const on = window.buamFx ? buamFx.isJarvisEnabled() : false;
+  jarvisBtn.classList.toggle("muted", !on);
+}
+jarvisBtn.addEventListener("click", ()=>{
+  if(!window.buamFx) return;
+  const on = buamFx.toggleJarvisEnabled();
+  updateJarvisBtn();
+  if(on) buamFx.jarvisOnline();
+});
+updateJarvisBtn();
+
 /* ---------------- falling code rain background ---------------- */
 (function(){
   const canvas = document.getElementById("bgCanvas");
@@ -4765,7 +4780,7 @@ function setupMoneyEventListeners(){
     document.getElementById("moneyAssetInput").value = "";
     renderMoneyTransactionsView();
     if(moneyState.currentSubview==="dashboard") renderMoneyDashboard();
-    if(window.buamFx) buamFx.blip();
+    if(window.buamFx){ buamFx.blip(); buamFx.jarvisMoneyAdded(); }
   });
   document.getElementById("moneyFilters").addEventListener("click", e=>{
     const btn = e.target.closest(".chip");
