@@ -681,11 +681,11 @@
     content:""; position:absolute; inset:-8%; z-index:0;
     border-radius:50%; pointer-events:none;
     background:radial-gradient(circle,
-      rgba(0,255,106,0.06) 0%,
-      rgba(0,255,106,0.13) 40%,
-      rgba(0,255,106,0.06) 58%,
+      rgba(0,255,106,0.02) 0%,
+      rgba(0,255,106,0.05) 42%,
+      rgba(0,255,106,0.02) 60%,
       transparent 74%);
-    filter:blur(12px);
+    filter:blur(14px);
   }
 
   /* ---- the Core is the primary voice control. the orb box is deliberately
@@ -4927,7 +4927,7 @@ window.buamAICore = (function(){
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.55 });
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.8 });
     return new THREE.LineLoop(geo, mat);
   }
 
@@ -4946,10 +4946,12 @@ window.buamAICore = (function(){
     // out to white. Every layer stays saturated green and lets the *density* of
     // overlapping particles create the hot centre instead of a pale colour.
     const coreColor = 0x00ff6a;     // saturated green — the core itself
-    const lineColor = 0x00ff66;     // orbit-path guide, matches the app accent exactly
+    const lineColor = 0x1aff77;     // orbit-path guide, a touch above the app accent so the rings read
     const hotColor  = 0x6effa8;     // hottest point: bright, still unmistakably green
-    const shellColor = 0x4dff96;    // surface shell
-    const electronColor = 0x7dffb4; // the travelling electrons
+    const particleColor = 0x2bff85; // nucleus points — brighter than the core wash
+    const shellColor = 0x66ffa8;    // surface shell
+    const dustColor  = 0x33ff8a;    // orbiting halo points
+    const electronColor = 0x9dffca; // the travelling electrons
 
     // particle budget scales down on small/low-core devices so the core stays
     // smooth on phones; the visual reads the same, just less dense
@@ -4963,17 +4965,17 @@ window.buamAICore = (function(){
     // doesn't fight the canvas's transparency the way EffectComposer does
     // broad outer bloom — carries the "energy field" read without brightening
     // the particles themselves
-    coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.36, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreHalo.scale.setScalar(5.6);
+    coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.15, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHalo.scale.setScalar(5.0);
     scene.add(coreHalo);
 
-    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.55, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreGlow.scale.setScalar(3.15);
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.22, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(2.75);
     scene.add(coreGlow);
 
     // tight inner bloom, so the very centre reads as the hottest point
-    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:hotColor, transparent:true, opacity:0.46, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreHot.scale.setScalar(1.15);
+    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:hotColor, transparent:true, opacity:0.20, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHot.scale.setScalar(0.95);
     scene.add(coreHot);
 
     // core = three stacked layers: a dense volumetric nucleus, a crisp surface
@@ -4982,17 +4984,17 @@ window.buamAICore = (function(){
     scene.add(core);
 
     nucleus = pointsLayer(volumeCloud(N_NUCLEUS, 0.05, 1.02, 1.7), {
-      size:0.105, map:glowTex, color:coreColor, opacity:1
+      size:0.125, map:glowTex, color:particleColor, opacity:1
     });
     core.add(nucleus);
 
     shell = pointsLayer(fibonacciSphere(N_SHELL, 1.12, 0.06), {
-      size:0.062, map:glowTex, color:shellColor, opacity:0.9
+      size:0.076, map:glowTex, color:shellColor, opacity:1
     });
     core.add(shell);
 
     dust = pointsLayer(volumeCloud(N_DUST, 1.45, 2.65, 0.85), {
-      size:0.052, map:glowTex, color:lineColor, opacity:0.7
+      size:0.063, map:glowTex, color:dustColor, opacity:1
     });
     scene.add(dust);
 
@@ -5015,7 +5017,7 @@ window.buamAICore = (function(){
       pivot.add(electronPivot);
 
       const electron = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:electronColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
-      electron.scale.setScalar(0.4);
+      electron.scale.setScalar(0.46);
       electron.position.set(def.radius, 0, 0);
       electronPivot.add(electron);
 
@@ -5076,14 +5078,14 @@ window.buamAICore = (function(){
       core.scale.setScalar(breathe);
       dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
-      coreHalo.scale.setScalar(5.6 * (1 + (breathe - 1) * 0.6));
-      coreHalo.material.opacity = 0.36 + energy * 0.18 + hover * 0.09 + press * 0.2;
-      coreGlow.scale.setScalar(3.15 * breathe);
-      coreGlow.material.opacity = 0.55 + energy * 0.18 + hover * 0.1 + press * 0.2;
-      coreHot.scale.setScalar(1.15 * breathe * (1 + press * 0.5));
-      coreHot.material.opacity = 0.46 + Math.sin(t * 1.9) * 0.05 + activity * 0.2 + hover * 0.15 + press * 0.3;
+      coreHalo.scale.setScalar(5.0 * (1 + (breathe - 1) * 0.6));
+      coreHalo.material.opacity = 0.15 + energy * 0.1 + hover * 0.05 + press * 0.12;
+      coreGlow.scale.setScalar(2.75 * breathe);
+      coreGlow.material.opacity = 0.22 + energy * 0.12 + hover * 0.06 + press * 0.14;
+      coreHot.scale.setScalar(0.95 * breathe * (1 + press * 0.5));
+      coreHot.material.opacity = 0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22;
       nucleus.material.opacity = 1;
-      shell.material.opacity = 0.85 + hover * 0.15 + press * 0.15;
+      shell.material.opacity = 1;
 
       electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5); });
       if(controls) controls.update();
