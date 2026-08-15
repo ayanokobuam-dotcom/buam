@@ -34,27 +34,32 @@
     --red:#ff3b3b;
     --magenta:#ff3fd6;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
-    --radius-tile:14px;
+    --radius-tile:18px;
 
     /* neumorphic base-elevation shadow system — sits underneath the neon glows above,
        never replaces them. tint pair derived from --panel/--bg. */
-    --neu-hi-rgb: 46,78,56;
+    --neu-hi-rgb: 90,150,115;
     --neu-lo-rgb: 0,0,0;
-    --neu-hi-a1: 0.05;  --neu-hi-a2: 0.09;
-    --neu-lo-a1: 0.35;  --neu-lo-a2: 0.5;   --neu-lo-a3: 0.62;
+    --neu-hi-a1: 0.12;  --neu-hi-a2: 0.2;
+    --neu-lo-a1: 0.55;  --neu-lo-a2: 0.7;   --neu-lo-a3: 0.82;
 
-    --neu-shadow-sm: -1px -1px 2px rgba(var(--neu-hi-rgb),var(--neu-hi-a1)), 1px 1px 3px rgba(var(--neu-lo-rgb),var(--neu-lo-a1));
-    --neu-shadow-md: -2px -2px 6px rgba(var(--neu-hi-rgb),var(--neu-hi-a2)), 3px 3px 9px rgba(var(--neu-lo-rgb),var(--neu-lo-a2));
-    --neu-shadow-lg: -3px -3px 9px rgba(var(--neu-hi-rgb),var(--neu-hi-a2)), 5px 5px 16px rgba(var(--neu-lo-rgb),var(--neu-lo-a3));
+    --neu-shadow-sm: -3px -3px 7px rgba(var(--neu-hi-rgb),var(--neu-hi-a1)), 4px 4px 10px rgba(var(--neu-lo-rgb),var(--neu-lo-a1));
+    --neu-shadow-md: -5px -5px 13px rgba(var(--neu-hi-rgb),var(--neu-hi-a2)), 7px 7px 18px rgba(var(--neu-lo-rgb),var(--neu-lo-a2));
+    --neu-shadow-lg: -7px -7px 18px rgba(var(--neu-hi-rgb),var(--neu-hi-a2)), 10px 10px 28px rgba(var(--neu-lo-rgb),var(--neu-lo-a3));
 
-    --neu-inset-sm: inset 1px 1px 2px rgba(var(--neu-lo-rgb),var(--neu-lo-a1)), inset -1px -1px 2px rgba(var(--neu-hi-rgb),var(--neu-hi-a1));
-    --neu-inset-md: inset 2px 2px 5px rgba(var(--neu-lo-rgb),var(--neu-lo-a2)), inset -2px -2px 5px rgba(var(--neu-hi-rgb),var(--neu-hi-a2));
+    --neu-inset-sm: inset 3px 3px 7px rgba(var(--neu-lo-rgb),var(--neu-lo-a1)), inset -3px -3px 7px rgba(var(--neu-hi-rgb),var(--neu-hi-a1));
+    --neu-inset-md: inset 5px 5px 11px rgba(var(--neu-lo-rgb),var(--neu-lo-a2)), inset -5px -5px 11px rgba(var(--neu-hi-rgb),var(--neu-hi-a2));
 
-    --neu-radius-sm:4px;
-    --neu-radius-md:6px;
+    --neu-radius-sm:10px;
+    --neu-radius-md:14px;
 
     --header-scrim: rgba(5,7,10,0.86);
     --accent-ink: #00170a;
+
+    /* gradient stops for the "physically extruded" surface look on hero cards */
+    --panel-dk: #060d08;
+    --neu-grad-raised: linear-gradient(145deg, var(--panel-2), var(--panel-dk));
+    --neu-grad-inset: linear-gradient(145deg, var(--panel-dk), var(--panel-2));
   }
   [data-theme="light"]{
     --panel:#f4f7f4; --panel-2:#e9efe9;
@@ -64,12 +69,14 @@
     --cyan:#0077a8; --amber:#8a6300; --red:#c92a2a; --magenta:#a3168a;
 
     --neu-hi-rgb: 255,255,255;
-    --neu-lo-rgb: 140,150,145;
-    --neu-hi-a1: 0.7;  --neu-hi-a2: 0.85;
-    --neu-lo-a1: 0.18; --neu-lo-a2: 0.28; --neu-lo-a3: 0.36;
+    --neu-lo-rgb: 130,140,135;
+    --neu-hi-a1: 0.85; --neu-hi-a2: 0.95;
+    --neu-lo-a1: 0.25; --neu-lo-a2: 0.38; --neu-lo-a3: 0.48;
 
     --header-scrim: rgba(244,247,244,0.86);
     --accent-ink: #ffffff;
+
+    --panel-dk: #dbe6dc;
   }
   [data-theme="light"] input[type=text],
   [data-theme="light"] select,
@@ -560,7 +567,7 @@
     .cc-card.cc-span2{ grid-column:span 2; }
   }
   .cc-card{
-    background:var(--panel); border:1px solid var(--border);
+    background:var(--neu-grad-raised); border:1px solid var(--border);
     border-radius:var(--radius-tile); padding:14px;
     box-shadow:var(--neu-shadow-md);
   }
@@ -631,9 +638,9 @@
 
   .cc-jarvis-bar{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--panel); border:1px solid var(--border); border-radius:24px;
+    background:var(--neu-grad-raised); border:1px solid var(--border); border-radius:24px;
     padding:8px 14px; font-size:0.7rem; color:var(--ink-dim);
-    box-shadow:var(--neu-shadow-sm);
+    box-shadow:var(--neu-shadow-md);
   }
   .cc-jarvis-chip{ white-space:nowrap; }
   .cc-jarvis-chip b{ color:var(--ink); }
@@ -658,7 +665,7 @@
   @keyframes ccWave{ 0%,100%{ height:5px; } 50%{ height:13px; } }
 
   .add-card{
-    background:var(--panel);
+    background:var(--neu-grad-raised);
     border:1px solid var(--border);
     border-radius:var(--neu-radius-md);
     padding:14px;
@@ -666,7 +673,7 @@
     display:flex;
     flex-direction:column;
     gap:10px;
-    box-shadow: var(--neu-shadow-sm), 0 0 0 1px rgba(0,255,102,0.04) inset;
+    box-shadow: var(--neu-shadow-md), 0 0 0 1px rgba(0,255,102,0.04) inset;
   }
   .prompt-label{
     font-size:0.72rem;
@@ -678,24 +685,24 @@
   .add-row1 .glyph{ color:var(--accent); font-weight:700; }
   input[type=text]{
     flex:1;
-    background:var(--panel-2);
+    background:var(--neu-grad-inset);
     border:1px solid var(--border);
     color:var(--ink);
     border-radius:var(--neu-radius-sm);
     padding:10px 12px;
     font-size:16px;
     font-family:inherit;
-    box-shadow:var(--neu-inset-sm);
+    box-shadow:var(--neu-inset-md);
   }
   input[type=text]::placeholder{ color:var(--ink-dim); }
   input[type=text]:focus, select:focus, input[type=date]:focus{
     outline:none;
     border-color:var(--accent);
-    box-shadow:var(--neu-inset-sm), 0 0 0 2px rgba(0,255,102,0.22);
+    box-shadow:var(--neu-inset-md), 0 0 0 2px rgba(0,255,102,0.22);
   }
   .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
   select, input[type=date]{
-    background:var(--panel-2);
+    background:var(--neu-grad-inset);
     border:1px solid var(--border);
     color:var(--ink);
     border-radius:var(--neu-radius-sm);
@@ -703,7 +710,7 @@
     font-size:16px;
     font-family:inherit;
     color-scheme:dark;
-    box-shadow:var(--neu-inset-sm);
+    box-shadow:var(--neu-inset-md);
   }
   button{ font-family:inherit; cursor:pointer; border:none; }
   .btn-add{
@@ -715,14 +722,14 @@
     font-weight:700;
     margin-left:auto;
     letter-spacing:0.03em;
-    box-shadow:var(--neu-shadow-sm), 0 0 8px rgba(0,255,102,0.35);
+    box-shadow:var(--neu-shadow-md), 0 0 8px rgba(0,255,102,0.35);
   }
-  .btn-add:hover{ box-shadow:var(--neu-shadow-sm), 0 0 12px rgba(0,255,102,0.6); }
-  .btn-add:active{ box-shadow:var(--neu-inset-sm), 0 0 12px rgba(0,255,102,0.6); }
+  .btn-add:hover{ box-shadow:var(--neu-shadow-md), 0 0 12px rgba(0,255,102,0.6); }
+  .btn-add:active{ box-shadow:var(--neu-inset-md), 0 0 12px rgba(0,255,102,0.6); }
 
   .filters{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
   .chip{
-    background:var(--panel);
+    background:var(--neu-grad-raised);
     border:1px solid var(--border);
     color:var(--ink-dim);
     border-radius:var(--neu-radius-sm);
@@ -754,7 +761,7 @@
     display:flex;
     align-items:flex-start;
     gap:10px;
-    background:var(--panel);
+    background:var(--neu-grad-raised);
     border:1px solid var(--border);
     border-left:2px solid var(--border-bright);
     border-radius:var(--neu-radius-sm);
@@ -803,25 +810,26 @@
   .task-actions{ display:flex; gap:4px; flex-shrink:0; }
   .icon-btn{
     position:relative;
-    background:transparent; color:var(--ink-dim);
+    background:var(--neu-grad-raised); color:var(--ink-dim);
     width:26px; height:26px; border-radius:var(--neu-radius-sm);
     font-size:0.85rem;
     border:1px solid transparent;
+    box-shadow:var(--neu-shadow-sm);
   }
   .icon-btn::before{ content:""; position:absolute; inset:-9px; }
-  .icon-btn:hover{ border-color:var(--border); color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); box-shadow:var(--neu-shadow-sm); }
-  .icon-btn:active{ color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); box-shadow:var(--neu-inset-sm); }
+  .icon-btn:hover{ border-color:var(--border); color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); box-shadow:var(--neu-shadow-md); }
+  .icon-btn:active{ color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
 
   .audio-controls{ display:flex; gap:6px; align-items:center; flex-shrink:0; }
   .snd-toggle{
-    background:transparent; color:var(--ink-dim);
+    background:var(--neu-grad-raised); color:var(--ink-dim);
     border:1px solid var(--border); border-radius:var(--neu-radius-sm);
     padding:6px 10px; font-size:0.72rem; letter-spacing:0.03em;
     display:flex; align-items:center; gap:5px; flex-shrink:0;
     box-shadow:var(--neu-shadow-sm);
   }
   .snd-toggle:hover{ border-color:var(--accent); color:var(--accent); }
-  .snd-toggle:active{ box-shadow:var(--neu-inset-sm); }
+  .snd-toggle:active{ box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
   .snd-toggle.muted{ opacity:0.55; }
 
   .vol-slider{
@@ -864,7 +872,7 @@
   }
   .dose-overlay.hidden{ display:none; }
   .dose-modal{
-    background:var(--panel);
+    background:var(--neu-grad-raised);
     border:1px solid var(--border);
     border-left:2px solid var(--accent);
     border-radius:var(--neu-radius-md);
@@ -907,8 +915,8 @@
   .dose-plan.is-empty{ color:var(--ink-dim); font-style:italic; }
   .dose-modal-actions{ display:flex; gap:8px; }
   .dose-modal-actions button{ flex:1; padding:9px; border-radius:var(--neu-radius-sm); font-size:0.82rem; font-family:inherit; cursor:pointer; }
-  .dose-start-btn{ background:var(--accent); color:var(--accent-ink); font-weight:700; box-shadow:var(--neu-shadow-sm), 0 0 12px rgba(0,255,102,0.5); transition:box-shadow 0.15s ease, transform 0.1s ease; }
-  .dose-start-btn:active{ box-shadow:var(--neu-inset-sm), 0 0 18px rgba(0,255,102,0.7); transform:scale(0.98); }
+  .dose-start-btn{ background:var(--accent); color:var(--accent-ink); font-weight:700; box-shadow:var(--neu-shadow-md), 0 0 12px rgba(0,255,102,0.5); transition:box-shadow 0.15s ease, transform 0.1s ease; }
+  .dose-start-btn:active{ box-shadow:var(--neu-inset-md), 0 0 18px rgba(0,255,102,0.7); transform:scale(0.98); }
   .dose-start-btn:disabled{ opacity:0.35; cursor:not-allowed; box-shadow:none; }
   .dose-cancel-btn{ background:transparent; border:1px solid var(--border); color:var(--ink-dim); box-shadow:var(--neu-shadow-sm); }
   .dose-cancel-btn:active{ box-shadow:var(--neu-inset-sm); }
@@ -949,7 +957,7 @@
 
   .cal-task-row{
     display:flex; align-items:center; gap:8px; padding:7px 8px; margin-bottom:5px;
-    background:var(--panel-2); border:1px solid var(--border); border-radius:var(--neu-radius-sm); cursor:pointer;
+    background:var(--neu-grad-raised); border:1px solid var(--border); border-radius:var(--neu-radius-sm); cursor:pointer;
     box-shadow:var(--neu-shadow-sm);
   }
   .cal-task-row:hover{ border-color:var(--accent); }
@@ -1152,7 +1160,7 @@
   .tasks-toolbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
   .task-view-toggle{ display:flex; gap:4px; }
   .tvt-btn{
-    background:var(--panel-2); border:1px solid var(--border); color:var(--ink-dim);
+    background:var(--neu-grad-raised); border:1px solid var(--border); color:var(--ink-dim);
     font-family:inherit; font-size:0.72rem; padding:6px 10px; border-radius:var(--neu-radius-sm); cursor:pointer;
     box-shadow:var(--neu-shadow-sm);
   }
@@ -1200,7 +1208,7 @@
   /* boxed section — app-wide "one box per topic" primitive. Introduced for Money,
      now reused everywhere (.app-section is the general-purpose name; .money-section
      stays as an alias so none of the existing Money markup needs to change). */
-  .app-section, .money-section{ background:var(--panel); border:1px solid var(--border); border-radius:var(--neu-radius-md); padding:14px; margin-bottom:14px; box-shadow:var(--neu-shadow-sm); }
+  .app-section, .money-section{ background:var(--neu-grad-raised); border:1px solid var(--border); border-radius:var(--neu-radius-md); padding:14px; margin-bottom:14px; box-shadow:var(--neu-shadow-md); }
   .app-section-title, .money-section-title{
     display:flex; align-items:center; justify-content:space-between; gap:8px;
     font-size:0.72rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;
@@ -1283,7 +1291,7 @@
 
   .txn-row{
     display:flex; align-items:flex-start; gap:10px;
-    background:var(--panel); border:1px solid var(--border); border-left:2px solid var(--border-bright);
+    background:var(--neu-grad-raised); border:1px solid var(--border); border-left:2px solid var(--border-bright);
     border-radius:var(--neu-radius-sm); padding:12px; margin-bottom:8px;
     box-shadow:var(--neu-shadow-sm);
   }
