@@ -1,4 +1,4 @@
-const CACHE = "buam-v35";
+const CACHE = "buam-v36";
 const ASSETS = [
   "./",
   "./index.html",
