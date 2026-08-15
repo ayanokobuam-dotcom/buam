@@ -453,18 +453,9 @@
     50%{ box-shadow:0 0 16px rgba(0,255,102,0.6); }
   }
 
-  /* ---- Command Center (Home tab) — its own cyan/blue HUD palette, scoped
-     so the rest of the app (Tasks/Calendar/Money) keeps the green terminal
-     look untouched. Component classes below (.task, .chip, .icon-btn, etc.)
-     are reused as-is inside this view and pick up these overrides purely
-     through CSS custom-property cascade — no duplicate component CSS. ---- */
-  #viewHome.cc{
-    --bg:#040a12; --panel:#0a1622; --panel-2:#0d1e30;
-    --border:#123049; --border-bright:#22d3ee;
-    --ink:#d6f0ff; --ink-dim:#5c8aa8;
-    --accent:#22d3ee; --accent-dim:rgba(34,211,238,0.14);
-    --cyan:#6ea8ff; --amber:#ffd23f; --red:#ff5470; --magenta:#a78bfa;
-  }
+  /* ---- Command Center (Home tab) — uses the same green terminal palette
+     as the rest of the app (:root vars, no override), so component classes
+     below (.task, .chip, .icon-btn, etc.) just work as reused as-is. ---- */
   .cc-statusbar{
     display:flex; align-items:center; justify-content:space-between;
     margin-bottom:16px; font-size:0.72rem;
@@ -483,26 +474,22 @@
 
   .cc-hero{ display:flex; flex-direction:column; align-items:center; margin-bottom:20px; }
   .cc-hero-orb{
-    position:relative; width:130px; height:130px;
+    position:relative; width:200px; height:200px;
     display:flex; align-items:center; justify-content:center;
   }
-  .cc-hero-ring{
-    position:absolute; inset:0; border-radius:50%;
-    border:1px solid var(--border-bright); opacity:0.5;
-  }
-  .cc-hero-ring-1{ animation:ccSpin 14s linear infinite; border-style:dashed; }
-  .cc-hero-ring-2{ inset:16px; animation:ccSpin 10s linear infinite reverse; opacity:0.35; }
-  @keyframes ccSpin{ to{ transform:rotate(360deg); } }
-  .cc-hero-core{
-    width:64px; height:64px; border-radius:50%;
+  #aiCoreCanvas{ width:100%; height:100%; display:block; touch-action:none; }
+  /* shown only if three.js/WebGL isn't available — same glow-orb fallback
+     look the old CSS-only version used, so the hero never renders empty */
+  .cc-hero-orb.cc-hero-fallback{
+    border-radius:50%;
     background:radial-gradient(circle at 35% 30%, var(--ink), var(--accent) 55%, transparent 75%);
-    box-shadow:0 0 30px 6px rgba(34,211,238,0.5);
+    box-shadow:0 0 30px 6px rgba(0,255,102,0.5);
     animation:ccBreathe 3.2s ease-in-out infinite;
   }
   @keyframes ccBreathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.08); } }
   .cc-hero-label{
     margin-top:12px; font-weight:700; letter-spacing:0.25em; font-size:0.95rem;
-    color:var(--ink); text-shadow:0 0 14px rgba(34,211,238,0.5);
+    color:var(--ink); text-shadow:0 0 14px rgba(0,255,102,0.5);
   }
   .cc-hero-label span{ color:var(--accent); margin-left:6px; }
 
@@ -1294,7 +1281,7 @@
     <div class="audio-controls">
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
-      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="Jarvis voice feedback">🤖 jarvis</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback">🤖 B.U.A.M.</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
@@ -1306,18 +1293,16 @@
     </div>
 
     <div class="cc-hero">
-      <div class="cc-hero-orb">
-        <div class="cc-hero-ring cc-hero-ring-1"></div>
-        <div class="cc-hero-ring cc-hero-ring-2"></div>
-        <div class="cc-hero-core"></div>
+      <div class="cc-hero-orb" id="aiCoreOrb">
+        <canvas id="aiCoreCanvas"></canvas>
       </div>
-      <div class="cc-hero-label">JARVIS<span>CORE</span></div>
+      <div class="cc-hero-label">B.U.A.M.<span>CORE</span></div>
     </div>
 
     <div class="cc-grid">
       <div class="cc-card cc-overview">
         <div class="cc-card-title">core_overview</div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#127908;</span><span class="cc-stat-name">Jarvis</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#127908;</span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
         <div class="cc-stat-row"><span class="cc-stat-glyph">&#9636;</span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
         <div class="cc-stat-row"><span class="cc-stat-glyph">&#9888;</span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
         <div class="cc-stat-row"><span class="cc-stat-glyph">&#3647;</span><span class="cc-stat-name">Budget used</span><span class="cc-stat-val" id="ccBudgetStat">&mdash;</span></div>
@@ -1381,7 +1366,7 @@
       <span class="cc-jarvis-chip" id="ccNetChip">&#127760; <b id="ccNetStat">online</b></span>
       <button type="button" class="cc-jarvis-talk" id="ccBriefingBtn">
         <span class="cc-jarvis-wave"><span></span><span></span><span></span><span></span><span></span></span>
-        <span id="ccJarvisState">JARVIS READY</span>
+        <span id="ccJarvisState">B.U.A.M. READY</span>
       </button>
       <span class="cc-jarvis-chip">Briefing</span>
     </div>
@@ -4414,6 +4399,162 @@ window.buamAmbientShip = (function(){
   return { start, stop };
 })();
 
+/* ---------------- B.U.A.M. Core — small 3D particle "atom" visualization
+   for the Command Center hero: a glowing sphere core with tilted orbiting
+   rings of particles (electron shells), draggable/zoomable like the ambient
+   ship. Runs only while the Home tab is the active view — started/stopped
+   from switchView() below and paused on visibilitychange. Same
+   additive-only fallback contract as the other three.js scenes: if
+   THREE/WebGL isn't available, the CSS glow-orb fallback is shown instead. */
+window.buamAICore = (function(){
+  const canvas = document.getElementById("aiCoreCanvas");
+  const orbEl = document.getElementById("aiCoreOrb");
+  if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
+
+  let renderer, scene, camera, composer, controls, core, rings = [], animId = null, frame;
+  let ready = false;
+
+  function makeGlowTexture(){
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const cx = c.getContext("2d");
+    const g = cx.createRadialGradient(32,32,0, 32,32,32);
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    cx.fillStyle = g;
+    cx.fillRect(0,0,64,64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+  }
+
+  // evenly-spaced sphere surface — used for the core so it reads as a solid
+  // glowing ball of particles rather than a random scatter
+  function fibonacciSphere(n, radius){
+    const positions = new Float32Array(n*3);
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for(let i=0;i<n;i++){
+      const y = 1 - (i/(n-1))*2;
+      const r = Math.sqrt(Math.max(0, 1 - y*y));
+      const theta = golden * i;
+      positions[i*3] = Math.cos(theta) * r * radius;
+      positions[i*3+1] = y * radius;
+      positions[i*3+2] = Math.sin(theta) * r * radius;
+    }
+    return positions;
+  }
+
+  function ringPositions(n, radius){
+    const positions = new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const a = (i/n) * Math.PI * 2;
+      positions[i*3] = Math.cos(a) * radius;
+      positions[i*3+1] = 0;
+      positions[i*3+2] = Math.sin(a) * radius;
+    }
+    return positions;
+  }
+
+  function init(){
+    if(ready) return true;
+    try{ renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true }); }
+    catch(e){ orbEl.classList.add("cc-hero-fallback"); return false; }
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0, 1.2, 6);
+
+    const glowTex = makeGlowTexture();
+    const green = 0x00ff66;
+
+    const coreGeo = new THREE.BufferGeometry();
+    coreGeo.setAttribute("position", new THREE.BufferAttribute(fibonacciSphere(280, 1.05), 3));
+    const coreMat = new THREE.PointsMaterial({ size:0.11, map:glowTex, color:green, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    core = new THREE.Points(coreGeo, coreMat);
+    scene.add(core);
+
+    // three "electron shell" rings at different tilts/speeds — a whole-object
+    // rotation per frame is enough (no per-particle recompute needed since
+    // the ring shape itself is static, unlike the ambient ship's morphing)
+    const ringDefs = [
+      { count:130, radius:1.9,  tiltX:0,             tiltZ:0,    speed:0.28 },
+      { count:110, radius:2.3,  tiltX:Math.PI/2.6,   tiltZ:0.4,  speed:-0.19 },
+      { count:110, radius:2.55, tiltX:-Math.PI/2.3,  tiltZ:-0.5, speed:0.15 }
+    ];
+    rings = ringDefs.map(def=>{
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(ringPositions(def.count, def.radius), 3));
+      const mat = new THREE.PointsMaterial({ size:0.075, map:glowTex, color:green, transparent:true, opacity:0.85, depthWrite:false, blending:THREE.AdditiveBlending });
+      const pts = new THREE.Points(geo, mat);
+      pts.rotation.x = def.tiltX;
+      pts.rotation.z = def.tiltZ;
+      pts.userData.speed = def.speed;
+      scene.add(pts);
+      return pts;
+    });
+
+    if(typeof THREE.EffectComposer === "function" && typeof THREE.RenderPass === "function" && typeof THREE.UnrealBloomPass === "function"){
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(200, 200), 1.1, 0.5, 0.15));
+    }
+
+    if(typeof THREE.OrbitControls === "function"){
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 3.5;
+      controls.maxDistance = 10;
+      controls.enablePan = false;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.1;
+    }
+
+    function resize(){
+      const size = Math.max(1, Math.round(canvas.getBoundingClientRect().width));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.setSize(size, size, false);
+      if(composer) composer.setSize(size, size);
+      camera.aspect = 1;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    let resizeTimer;
+    window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 150); });
+
+    const clock = new THREE.Clock();
+    frame = function(){
+      animId = requestAnimationFrame(frame);
+      const dt = clock.getDelta();
+      const t = clock.getElapsedTime();
+      core.rotation.y += dt * 0.15;
+      core.scale.setScalar(1 + Math.sin(t * 1.3) * 0.04);
+      rings.forEach(r=>{ r.rotation.y += dt * r.userData.speed; });
+      if(controls) controls.update();
+      if(composer) composer.render(); else renderer.render(scene, camera);
+    };
+
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.hidden) stop();
+      else if(document.getElementById("viewHome").classList.contains("active")) start();
+    });
+
+    ready = true;
+    return true;
+  }
+
+  function start(){
+    if(!init()) return;
+    if(!animId) frame();
+  }
+  function stop(){
+    if(animId){ cancelAnimationFrame(animId); animId = null; }
+  }
+
+  return { start, stop };
+})();
+
 /* ---------------- ambient/idle showcase screen ---------------- */
 const ambientScreen = document.getElementById("ambientScreen");
 const ambientClock = document.getElementById("ambientClock");
@@ -4526,6 +4667,7 @@ function switchView(name){
   if(name === "analytics") renderAnalyticsView();
   if(name === "calendar") renderCalendar();
   if(name === "money") initMoneyView();
+  if(window.buamAICore){ if(name === "home") buamAICore.start(); else buamAICore.stop(); }
   if(window.buamFx) buamFx.blip();
 }
 
@@ -4556,7 +4698,7 @@ function updateCcJarvisBar(){
   const stateEl = document.getElementById("ccJarvisState");
   const bar = document.getElementById("ccJarvisBar");
   if(!stateEl || !bar || bar.classList.contains("talking")) return;
-  stateEl.textContent = (window.buamFx && buamFx.isJarvisEnabled()) ? "JARVIS READY" : "JARVIS MUTED";
+  stateEl.textContent = (window.buamFx && buamFx.isJarvisEnabled()) ? "B.U.A.M. READY" : "B.U.A.M. MUTED";
 }
 updateCcJarvisBar();
 window.addEventListener("buam-jarvis-speak", e=>{
@@ -4564,7 +4706,7 @@ window.addEventListener("buam-jarvis-speak", e=>{
   const stateEl = document.getElementById("ccJarvisState");
   if(!bar || !stateEl) return;
   bar.classList.add("talking");
-  stateEl.textContent = "SPEAKING…";
+  stateEl.textContent = "B.U.A.M. SPEAKING…";
   e.detail.utterance.addEventListener("end", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
   e.detail.utterance.addEventListener("error", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
 });
@@ -4788,6 +4930,7 @@ auth.onAuthStateChanged(async user=>{
 // renderCommandCenter() reads moneyState, which isn't ready any earlier
 render();
 renderCalendar();
+if(window.buamAICore && currentView === "home") buamAICore.start();
 
 function initMoneyView(){
   if(!window.BuamMoney){ console.error("[money] BuamMoney failed to load"); return; }
