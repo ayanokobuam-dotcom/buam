@@ -63,7 +63,9 @@
     --radius-tile:26px;     /* cards */
     --neu-radius-lg:30px;   /* large panels */
 
-    --header-scrim: rgba(7,11,9,0.88);
+    /* translucent twin of --neu-grad-raised: the header is a floating panel,
+       so content blurs through it instead of hitting an opaque slab */
+    --header-surface: linear-gradient(145deg, rgba(37,49,40,0.88), rgba(22,31,26,0.88));
     --accent-ink: #06170d;
     --boot-blue:#39d6ff;   /* electric-blue secondary accent (boot HUD, core rim) */
     /* used by .task.overdue::after via mask(), so the marker still takes --red */
@@ -100,7 +102,7 @@
     --neu-inset-sm: inset 4px 4px 10px rgba(var(--shadow-dark),0.45), inset -3px -3px  8px rgba(var(--shadow-light),0.85);
     --neu-inset-md: inset 7px 7px 17px rgba(var(--shadow-dark),0.52), inset -5px -5px 12px rgba(var(--shadow-light),0.92);
 
-    --header-scrim: rgba(232,236,234,0.88);
+    --header-surface: linear-gradient(145deg, rgba(251,253,252,0.90), rgba(207,216,211,0.90));
     --accent-ink: #ffffff;
   }
   [data-theme="light"] input[type=text],
@@ -291,21 +293,31 @@
   }
   ::selection{ background:var(--accent); color:var(--accent-ink); }
 
+  /* Floating command bar. It used to negative-margin itself outward hoping to
+     go full-bleed, but it lives inside .wrap (max-width:720px) so that only
+     cancelled the body padding — on a wide screen it read as a hard-cornered
+     slab stranded mid-page. It now sits in the content column like every other
+     panel and uses the same raised-surface language (no border; the shape comes
+     from elevation), matching .cc-card / .cc-jarvis-bar. */
   header{
-    position:sticky; top:0; z-index:40;
+    position:sticky;
+    top:calc(10px + env(safe-area-inset-top));
+    z-index:40;
     display:flex;
-    align-items:baseline;
+    align-items:center;
     justify-content:space-between;
-    margin:calc(-22px - env(safe-area-inset-top)) calc(-14px - env(safe-area-inset-right)) 16px calc(-14px - env(safe-area-inset-left));
-    padding:calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 12px calc(14px + env(safe-area-inset-left));
     flex-wrap:wrap;
-    gap:8px;
-    border-bottom:1px dashed var(--border);
-    background:var(--header-scrim);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
+    gap:8px 10px;
+    margin-bottom:18px;
+    padding:10px 12px;
+    border:none;
+    border-radius:var(--radius-tile);
+    background:var(--header-surface);
+    box-shadow:var(--neu-shadow-md);
+    backdrop-filter:blur(14px) saturate(1.2);
+    -webkit-backdrop-filter:blur(14px) saturate(1.2);
   }
-  .header-left{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .header-left{ display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto; }
   .menu-toggle-btn{ font-size:1rem; flex-shrink:0; }
   .logo{
     font-size:1.3rem;
@@ -580,6 +592,16 @@
   }
 
 
+  /* On a phone the full-width pills pushed the bar to three stacked rows
+     (110px tall). Icon-only keeps every control present and tappable while
+     the bar stays compact — the labels live on title/aria-label. Sizing the
+     text to 0 works because .ico is sized in px, not em. */
+  @media (max-width:430px){
+    #sndToggle, #jarvisToggle{ font-size:0; padding:9px 11px; gap:0; }
+    .logo{ font-size:1.1rem; }
+    header{ padding:9px 10px; }
+  }
+
   /* ---- mobile contrast lift ----
      Phones are used in brighter surroundings and pack the UI denser, so the
      dark theme gets a small extra push on panel lightness, text and icon
@@ -594,6 +616,7 @@
       --border:rgba(150,235,190,0.14);
       --ink:#f1fcf4;
       --ink-dim:#b2cfbe;
+      --header-surface: linear-gradient(145deg, rgba(44,58,48,0.90), rgba(26,36,30,0.90));
     }
     :root:not([data-theme="light"]) .ico{ stroke-width:2.1; }
     /* the ambient texture competes much harder on a small screen */
@@ -723,6 +746,9 @@
   @media (prefers-reduced-motion: reduce){
     .cc-core-hint{ animation:none; opacity:0.7; }
     .cc-core-ripple.go{ animation-duration:0.01s; }
+    /* the header's gradient sweep and caret blink were never covered here */
+    .logo{ animation:none; }
+    .cursor{ animation:none; opacity:0.75; }
   }
   /* shown only if three.js/WebGL isn't available — same glow-orb fallback
      look the old CSS-only version used, so the hero never renders empty */
@@ -1696,8 +1722,8 @@ function ico(name, cls){
     <div class="audio-controls">
       <button class="icon-btn theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle light/dark theme" aria-label="Toggle light/dark theme" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-moon"></use></svg></button>
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen" aria-label="Ambient screen"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-contrast"></use></svg></button>
-      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
-      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bot"></use></svg> B.U.A.M.</button>
+      <button class="snd-toggle" id="sndToggle" type="button" title="Sound" aria-label="Sound" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback" aria-label="B.U.A.M. voice feedback"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bot"></use></svg> B.U.A.M.</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
