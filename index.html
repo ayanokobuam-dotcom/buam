@@ -66,6 +66,8 @@
     --header-scrim: rgba(21,26,24,0.88);
     --accent-ink: #06170d;
     --boot-blue:#39d6ff;   /* electric-blue secondary accent (boot HUD, core rim) */
+    /* used by .task.overdue::after via mask(), so the marker still takes --red */
+    --ico-warning-url: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z'/><path d='M12 9.5v4.8M12 17.8h.01'/></svg>");
 
     /* surfaces are shaded, not flat fills — this is what sells the extrusion */
     --neu-grad-raised: linear-gradient(145deg, var(--panel-lt), var(--panel-dk));
@@ -577,6 +579,39 @@
     50%{ box-shadow:0 0 16px rgba(0,255,102,0.6); }
   }
 
+
+  /* ---- icon system ---- */
+  .ico-sprite{ position:absolute; width:0; height:0; overflow:hidden; }
+  .ico{
+    width:1em; height:1em;
+    display:inline-block; vertical-align:-0.14em; flex-shrink:0;
+    fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round;
+    overflow:visible;
+  }
+  /* per-context sizing so icons read at the same optical weight the glyphs did */
+  .icon-btn .ico{ width:16px; height:16px; vertical-align:middle; }
+  .check .ico{ width:12px; height:12px; stroke-width:3; }
+  .sb-glyph .ico{ width:17px; height:17px; vertical-align:middle; }
+  .cc-stat-glyph .ico{ width:15px; height:15px; vertical-align:middle; }
+  .cc-cmd-btn .ico, .snd-toggle .ico, .dose-modal-actions .ico,
+  .quick-link .ico, .cc-jarvis-chip .ico{ width:15px; height:15px; vertical-align:-0.2em; }
+  .dose-feeling-btn .ico{ width:22px; height:22px; margin-bottom:2px; }
+  .money-status .ico, .money-group-status .ico{ width:13px; height:13px; vertical-align:-0.15em; }
+  .money-stat-tile-delta .ico{ width:12px; height:12px; vertical-align:-0.1em; }
+  .boot-enter-btn .ico{ width:14px; height:14px; vertical-align:-0.2em; }
+
+  /* segmented dose meter — previously drawn with block glyphs, now real boxes */
+  .dose-bar{ display:inline-flex; align-items:center; gap:3px; vertical-align:-0.15em; }
+  .meter-seg{
+    width:7px; height:12px; border-radius:2px;
+    background:var(--ink-dim); opacity:0.35;
+  }
+  .meter-seg.on{
+    background:var(--accent); opacity:1;
+    box-shadow:0 0 6px rgba(0,255,102,0.5);
+  }
+
   /* ---- Command Center (Home tab) — uses the same green terminal palette
      as the rest of the app (:root vars, no override), so component classes
      below (.task, .chip, .icon-btn, etc.) just work as reused as-is. ---- */
@@ -929,7 +964,12 @@
   .task.cat-work{ border-left-color:var(--accent); }
   .task.cat-personal{ border-left-color:var(--amber); }
   .task.cat-other{ border-left-color:var(--ink-dim); }
-  .task.overdue::after{ content:"⚠"; color:var(--red); margin-left:6px; }
+  .task.overdue::after{
+    content:""; display:inline-block; width:0.95em; height:0.95em; margin-left:6px;
+    vertical-align:-0.15em; background:var(--red);
+    -webkit-mask:var(--ico-warning-url) center/contain no-repeat;
+    mask:var(--ico-warning-url) center/contain no-repeat;
+  }
   .task.done{ opacity:0.45; }
 
   .check{
@@ -1501,6 +1541,48 @@
 </style>
 </head>
 <body>
+<!-- ---- icon sprite: every pictograph in the UI is an SVG symbol drawn in
+     currentColor, so icons inherit theme colours and render identically across
+     platforms (emoji fonts differ per-OS and ignored our palette entirely) ---- -->
+<svg class="ico-sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 21l3.6-.9L20.1 6.6a1.9 1.9 0 0 0-2.7-2.7L3.9 17.4 3 21z"/><path d="M15.5 5.5l3 3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z"/><path d="M12 9.5v4.8M12 17.8h.01"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.6A8.7 8.7 0 0 1 9.4 3.5a8.7 8.7 0 1 0 11.1 11.1z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.4M12 19.8v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M1.8 12h2.4M19.8 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16 9a4.2 4.2 0 0 1 0 6M18.8 6.2a8 8 0 0 1 0 11.6"/></symbol>
+  <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16.5 9.8l5 4.4M21.5 9.8l-5 4.4"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="3.2"/><path d="M12 3.4v4.1M8.6 13h.01M15.4 13h.01M9.5 16.6h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"/><path d="M15.9 15.9L21 21"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></symbol>
+  <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15.5a4 4 0 0 1 .5-8 5.4 5.4 0 0 1 10.2 1.4A3.6 3.6 0 0 1 17.3 15.5z"/><path d="M8.5 18.6l-1 2.2M12 18.6l-1 2.2M15.5 18.6l-1 2.2"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M12 2.8L6.8 10h3L5.8 16.4h12.4L14.2 10h3z"/><path d="M12 16.4v4.8"/></symbol>
+  <symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M12 3.2a8.8 8.8 0 0 0 0 17.6z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.4 11L12 3.6 20.6 11"/><path d="M5.5 9.6V20h13V9.6"/><path d="M9.8 20v-5.4h4.4V20"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.3 6.5h.01M4.3 12h.01M4.3 17.5h.01"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.6" y="5.2" width="16.8" height="15.2" rx="2.4"/><path d="M3.6 10h16.8M8.2 2.9v4.2M15.8 2.9v4.2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4.5 20V11M12 20V4.6M19.5 20v-6.6"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.8" width="6" height="11.2" rx="3"/><path d="M5.4 11.6a6.6 6.6 0 0 0 13.2 0M12 18.2V21.2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.8 18.5a4.3 4.3 0 0 1 .6-8.6 5.7 5.7 0 0 1 10.8 1.5 3.8 3.8 0 0 1-.4 7.1z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M3.2 12h17.6M12 3.2a13.5 13.5 0 0 1 0 17.6 13.5 13.5 0 0 1 0-17.6z"/></symbol>
+  <symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 3.4L20.6 12 12 20.6 3.4 12z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19.5V5M5.4 11.6L12 5l6.6 6.6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4.5V19M5.4 12.4L12 19l6.6-6.6"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5.5v6.9a2 2 0 0 1-2 2H4.6"/><path d="M9 9.9l-4.4 4.5L9 18.9"/></symbol>
+  <symbol id="i-face-easy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.3 14.6a4.6 4.6 0 0 0 7.4 0M7.6 9.8a2.4 2.4 0 0 1 2.8 0M13.6 9.8a2.4 2.4 0 0 1 2.8 0"/></symbol>
+  <symbol id="i-face-neutral" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 15.2h6.8M9.2 9.6h.01M14.8 9.6h.01"/></symbol>
+  <symbol id="i-face-hard" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.3 16.4a4.6 4.6 0 0 1 7.4 0M7.7 8.6l2.6 1.4M16.3 8.6l-2.6 1.4"/></symbol>
+</defs></svg>
+<script>
+/* single place that builds an icon reference, used by every template string
+   that renders markup dynamically */
+function ico(name, cls){
+  return '<svg class="ico' + (cls ? ' ' + cls : '') + '" aria-hidden="true" focusable="false"><use href="#i-' + name + '"></use></svg>';
+}
+</script>
 <div class="boot-screen" id="bootScreen">
   <div class="boot-ambient" id="bootAmbient">
     <div class="boot-aurora" aria-hidden="true">
@@ -1543,13 +1625,13 @@
 <nav class="sidebar" id="sidebarNav" aria-hidden="true">
   <div class="sidebar-head">
     <span class="sidebar-title">&gt; buam</span>
-    <button type="button" class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" title="Close menu" data-fx-skip>&#10005;</button>
+    <button type="button" class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" title="Close menu" aria-label="Close menu" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   </div>
   <div class="sidebar-nav-group">
-    <button type="button" class="sidebar-link active" data-view="home"><span class="sb-glyph">&#8962;</span><span>Home</span></button>
-    <button type="button" class="sidebar-link" data-view="tasks"><span class="sb-glyph">&#9636;</span><span>Tasks</span></button>
-    <button type="button" class="sidebar-link" data-view="calendar"><span class="sb-glyph">&#8862;</span><span>Calendar</span></button>
-    <button type="button" class="sidebar-link" data-view="analytics"><span class="sb-glyph">&#9638;</span><span>Stats</span></button>
+    <button type="button" class="sidebar-link active" data-view="home"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-home"></use></svg></span><span>Home</span></button>
+    <button type="button" class="sidebar-link" data-view="tasks"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg></span><span>Tasks</span></button>
+    <button type="button" class="sidebar-link" data-view="calendar"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-calendar"></use></svg></span><span>Calendar</span></button>
+    <button type="button" class="sidebar-link" data-view="analytics"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-chart"></use></svg></span><span>Stats</span></button>
     <button type="button" class="sidebar-link" data-view="money"><span class="sb-glyph">&#3647;</span><span>Money</span></button>
   </div>
   <div class="sidebar-divider"></div>
@@ -1564,14 +1646,14 @@
 <div class="wrap">
   <header>
     <div class="header-left">
-      <button class="icon-btn menu-toggle-btn" id="menuToggleBtn" type="button" title="Menu" data-fx-skip>&#9776;</button>
+      <button class="icon-btn menu-toggle-btn" id="menuToggleBtn" type="button" title="Menu" aria-label="Menu" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg></button>
       <div class="logo"><span id="usernameText" class="username-edit" title="Click to edit name">CheeraBuam.exe</span><span class="cursor">_</span></div>
     </div>
     <div class="audio-controls">
-      <button class="icon-btn theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle light/dark theme" data-fx-skip>☾</button>
-      <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
-      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
-      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback">🤖 B.U.A.M.</button>
+      <button class="icon-btn theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle light/dark theme" aria-label="Toggle light/dark theme" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-moon"></use></svg></button>
+      <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen" aria-label="Ambient screen"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-contrast"></use></svg></button>
+      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bot"></use></svg> B.U.A.M.</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
@@ -1595,11 +1677,11 @@
     <div class="cc-grid">
       <div class="cc-card cc-overview">
         <div class="cc-card-title">core_overview</div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#127908;</span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9636;</span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9888;</span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-mic"></use></svg></span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg></span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warning"></use></svg></span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
         <div class="cc-stat-row"><span class="cc-stat-glyph">&#3647;</span><span class="cc-stat-name">Budget used</span><span class="cc-stat-val" id="ccBudgetStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9729;</span><span class="cc-stat-name">Sync</span><span class="cc-stat-val" id="ccSyncStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-cloud"></use></svg></span><span class="cc-stat-name">Sync</span><span class="cc-stat-val" id="ccSyncStat">&mdash;</span></div>
       </div>
 
       <div class="cc-card cc-feed">
@@ -1617,9 +1699,9 @@
       <div class="cc-card cc-quick">
         <div class="cc-card-title">quick_commands</div>
         <button type="button" class="cc-cmd-btn cc-cmd-primary" id="ccCmdAddTask"><span>+</span>Add Task</button>
-        <button type="button" class="cc-cmd-btn" id="ccCmdCalendar"><span>&#128197;</span>Calendar</button>
+        <button type="button" class="cc-cmd-btn" id="ccCmdCalendar"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-calendar"></use></svg>Calendar</button>
         <button type="button" class="cc-cmd-btn" id="ccCmdMoney"><span>&#3647;</span>Money</button>
-        <button type="button" class="cc-cmd-btn cc-cmd-wide" id="ccCmdFocus"><span>&#9654;</span>Focus Timer</button>
+        <button type="button" class="cc-cmd-btn cc-cmd-wide" id="ccCmdFocus"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>Focus Timer</button>
       </div>
 
       <div class="cc-card cc-monitor">
@@ -1656,7 +1738,7 @@
     </div>
 
     <div class="cc-jarvis-bar" id="ccJarvisBar">
-      <span class="cc-jarvis-chip" id="ccNetChip">&#127760; <b id="ccNetStat">online</b></span>
+      <span class="cc-jarvis-chip" id="ccNetChip"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-globe"></use></svg> <b id="ccNetStat">online</b></span>
       <span class="cc-jarvis-talk" id="ccJarvisStatus" role="status" aria-live="polite">
         <span class="cc-jarvis-wave"><span></span><span></span><span></span><span></span><span></span></span>
         <span id="ccJarvisState">B.U.A.M. READY</span>
@@ -1850,7 +1932,7 @@
         </div>
       </div>
       <div class="add-row1" style="margin-bottom:12px;">
-        <span class="glyph">⌕</span>
+        <span class="glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-search"></use></svg></span>
         <input type="text" id="moneySearchInput" placeholder="search note, category, amount, date...">
       </div>
 
@@ -2000,7 +2082,7 @@
 
       <div class="money-section">
         <div class="money-section-title">sync</div>
-        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (☰ menu → sync) — same account as tasks.</div>
+        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (<svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg> menu &rarr; sync) — same account as tasks.</div>
       </div>
 
       <div class="money-section">
@@ -2052,7 +2134,7 @@
 
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="doseWizardCancel" type="button">Cancel</button>
-      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled>▶ start this dose</button>
+      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> start this dose</button>
     </div>
   </div>
 
@@ -2072,9 +2154,9 @@
     <div class="prompt-label">how_was_it</div>
     <div class="dose-task-name" id="doseFeelingTaskName" style="margin-bottom:16px;"></div>
     <div class="dose-feeling-row" id="doseFeelingRow">
-      <button type="button" class="dose-feeling-btn" data-feeling="easy">😌<br>lighter than expected</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="asExpected">😐<br>about as expected</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="hard">😣<br>harder than expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="easy"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-easy"></use></svg><br>lighter than expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="asExpected"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-neutral"></use></svg><br>about as expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="hard"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-hard"></use></svg><br>harder than expected</button>
     </div>
     <button type="button" class="dose-feeling-skip" id="doseFeelingSkip">Skip</button>
   </div>
@@ -2100,13 +2182,13 @@
       <label>ambient sound</label>
       <div class="dose-size-row" id="timerAmbientRow">
         <button type="button" data-ambient="" class="active">none</button>
-        <button type="button" data-ambient="rain">🌧 rain</button>
-        <button type="button" data-ambient="forest">🌲 forest</button>
+        <button type="button" data-ambient="rain"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rain"></use></svg> rain</button>
+        <button type="button" data-ambient="forest"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tree"></use></svg> forest</button>
       </div>
     </div>
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="timerSetupCancel" type="button">Cancel</button>
-      <button class="dose-start-btn" id="timerSetupStart" type="button">▶ start timer</button>
+      <button class="dose-start-btn" id="timerSetupStart" type="button"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> start timer</button>
     </div>
   </div>
 
@@ -2471,7 +2553,7 @@
   btn.type = "button";
   btn.className = "boot-enter-btn";
   btn.setAttribute("data-fx-skip", "");
-  btn.textContent = "[ ENTER ↵ ]";
+  btn.innerHTML = '[ ENTER ' + ico("enter") + ' ]';
   gate.appendChild(q);
   gate.appendChild(btn);
   linesWrap.appendChild(gate);
@@ -2974,7 +3056,7 @@ function taskRowHtml(t, today){
   const notesTag = (t.notes && t.notes.length) ? `<span class="tag notes">≡ ${t.notes.length}</span>` : "";
   return `
     <div class="task ${catClass} ${isOverdueClass} ${doneClass}" data-id="${t.id}">
-      <button class="check" data-fx-skip onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <button class="check" data-fx-skip onclick="toggleDone('${t.id}')">${t.done ? ico("check") : ""}</button>
       <div class="task-body">
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">
@@ -2984,10 +3066,10 @@ function taskRowHtml(t, today){
         </div>
       </div>
       <div class="task-actions">
-        ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it">▶</button>`}
+        ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it" aria-label="Dose it">${ico("play")}</button>`}
         <button class="icon-btn" onclick="openNotesModal('${t.id}')" title="Notes">≡</button>
-        <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
-        <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete">✕</button>
+        <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
       </div>
     </div>
   `;
@@ -3025,7 +3107,7 @@ let activeDose = null; // { taskId, step, minutes, totalSeconds, endTime, interv
 function doseBarHtml(count){
   const filled = Math.min(count, DOSE_SCALE);
   let s = "";
-  for(let i=0;i<DOSE_SCALE;i++) s += i<filled ? '<span class="fill">▮</span>' : '<span class="bar-empty">▯</span>';
+  for(let i=0;i<DOSE_SCALE;i++) s += i<filled ? '<span class="meter-seg on"></span>' : '<span class="meter-seg"></span>';
   return s;
 }
 
@@ -3531,7 +3613,7 @@ function reportBar(count, total){
   const scale = 10;
   const filled = total ? Math.round(count/total*scale) : 0;
   let s = "";
-  for(let i=0;i<scale;i++) s += i<filled ? '<span class="fill">▮</span>' : '<span class="bar-empty">▯</span>';
+  for(let i=0;i<scale;i++) s += i<filled ? '<span class="meter-seg on"></span>' : '<span class="meter-seg"></span>';
   return s;
 }
 function reportRow(label, count, total){
@@ -3549,9 +3631,9 @@ function renderReportHtml(s, rangeLabel){
   let html = `<div style="font-size:0.85rem;margin-bottom:14px;"><b style="color:var(--accent)">${s.total}</b> total doses ${rangeLabel}</div>`;
   if(s.rated>0){
     html += `<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:6px;">feeling after doses (${s.rated} rated)</div>`;
-    html += reportRow("😌 lighter than expected", s.feel.easy, s.rated);
-    html += reportRow("😐 about as expected", s.feel.asExpected, s.rated);
-    html += reportRow("😣 harder than expected", s.feel.hard, s.rated);
+    html += reportRow(ico("face-easy") + " lighter than expected", s.feel.easy, s.rated);
+    html += reportRow(ico("face-neutral") + " about as expected", s.feel.asExpected, s.rated);
+    html += reportRow(ico("face-hard") + " harder than expected", s.feel.hard, s.rated);
     if(s.notAsBadPct!==null){
       html += `<div style="margin-top:12px;padding:10px 12px;background:var(--panel-2);border:1px dashed var(--border);border-radius:3px;font-size:0.8rem;color:var(--ink);">
         <b style="color:var(--accent);">${s.notAsBadPct}%</b> of rated doses weren't as bad as feared going in
@@ -3775,11 +3857,11 @@ function calTaskRowHtml(t, today){
   const isLate = !t.done && t.due && t.due<today;
   return `
     <div class="cal-task-row ${t.done?'done':''}" data-id="${t.id}" onclick="editTask('${t.id}')">
-      <button class="check" data-fx-skip onclick="event.stopPropagation(); toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <button class="check" data-fx-skip onclick="event.stopPropagation(); toggleDone('${t.id}')">${t.done ? ico("check") : ""}</button>
       <span class="cal-task-catbar cat-${t.cat}"></span>
       <span class="cal-task-title">${escapeHtml(t.title)}</span>
       ${isLate ? `<span class="cal-task-overdue">overdue</span>` : ""}
-      <button class="icon-btn" data-fx-skip onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>
   `;
 }
@@ -3847,9 +3929,9 @@ function renderGoals(){
   goalRingLabel.textContent = `${done} / ${total} done`;
   goalList.innerHTML = total ? monthGoals.map(g => `
     <div class="goal-row ${g.done?'done':''}" data-id="${g.id}">
-      <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?"✓":""}</button>
+      <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?ico("check"):""}</button>
       <div class="goal-title">${escapeHtml(g.title)}</div>
-      <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>
   `).join("") : `<div class="notes-log-empty">no goals for this month yet</div>`;
 }
@@ -4009,7 +4091,7 @@ if("serviceWorker" in navigator){
 const sndBtn = document.getElementById("sndToggle");
 function updateSndBtn(){
   const m = window.buamFx ? buamFx.isMuted() : false;
-  sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
+  sndBtn.innerHTML = (m ? ico("volume-off") : ico("volume")) + " snd";
   sndBtn.classList.toggle("muted", m);
 }
 const volSlider = document.getElementById("musicVolInput");
@@ -5143,7 +5225,7 @@ const themeToggleBtn = document.getElementById("themeToggleBtn");
 const metaThemeColor = document.getElementById("metaThemeColor");
 function applyThemeUI(){
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
-  themeToggleBtn.textContent = isLight ? "☀" : "☾";
+  themeToggleBtn.innerHTML = isLight ? ico("sun") : ico("moon");
   themeToggleBtn.title = isLight ? "Switch to dark theme" : "Switch to light theme";
   if(metaThemeColor) metaThemeColor.setAttribute("content", isLight ? "#e8ecea" : "#151a18");
 }
@@ -5285,6 +5367,11 @@ window.addEventListener("pointerup", e=>{
   activateBuamCore();
 });
 window.addEventListener("pointercancel", ()=>{ coreDown = false; });
+// belt-and-braces: some pointer-event sequences (synthetic input, odd touch
+// stacks) can swallow the pointerup above, but a plain click still lands.
+// coreMoved still holds the last gesture's verdict, so drags stay excluded,
+// and the debounce inside activateBuamCore keeps this from double-firing.
+coreOrb.addEventListener("click", ()=>{ if(!coreMoved) activateBuamCore(); });
 
 // hover is a mouse-only affordance — touch would leave it stuck on
 coreOrb.addEventListener("pointerenter", e=>{
@@ -5559,10 +5646,10 @@ function closeMoneyConfirm(){
 
 /* ---- dashboard ---- */
 const MONEY_STATUS_LABELS = {
-  normal: "◈ ปกติ",
-  near: "⚠ ใกล้ถึงงบ",
-  reached: "✪ ถึงงบแล้ว",
-  over: "✕ เกินงบ"
+  normal: ico("diamond") + " ปกติ",
+  near: ico("warning") + " ใกล้ถึงงบ",
+  reached: ico("target") + " ถึงงบแล้ว",
+  over: ico("close") + " เกินงบ"
 };
 function moneyStatusLabel(status){ return MONEY_STATUS_LABELS[status] || MONEY_STATUS_LABELS.normal; }
 
@@ -5585,8 +5672,8 @@ function checkMoneyBudgetAlerts(mKey, beforeMap){
     ensureNotifyPermission();
     let title = "Budget alert", msg;
     if(after.status==="reached"){
-      title = "✪ Budget reached!";
-      msg = `หมวด "${after.name}" ถึงงบพอดี ฿${BuamMoney.formatBaht(after.budget)} — ใช้ครบตามเป้าเป๊ะ ✪`;
+      title = "Budget reached!";
+      msg = `หมวด "${after.name}" ถึงงบพอดี ฿${BuamMoney.formatBaht(after.budget)} — ใช้ครบตามเป้าเป๊ะ`;
     } else if(after.status==="over"){
       msg = `หมวด "${after.name}" เกินงบไปแล้ว ฿${BuamMoney.formatBaht(Math.abs(after.remaining))}`;
     } else {
@@ -5632,7 +5719,7 @@ function renderMoneyDashboard(){
     if(delta==null) return "";
     const up = delta >= 0;
     const goodUp = positiveIsGood ? up : !up;
-    return `<div class="money-stat-tile-delta ${goodUp?'up':'down'}">${up?'▲':'▼'} ${BuamMoney.formatPct(Math.abs(delta))} vs last month</div>`;
+    return `<div class="money-stat-tile-delta ${goodUp?'up':'down'}">${up?ico("up"):ico("down")} ${BuamMoney.formatPct(Math.abs(delta))} vs last month</div>`;
   }
 
   const heroVal = document.getElementById("moneyHeroValue");
@@ -5700,8 +5787,8 @@ function txnRowHtml(t){
         ${t.note ? `<div class="txn-note">${escapeHtml(t.note)}</div>` : ""}
       </div>
       <div class="task-actions">
-        <button class="icon-btn" data-fx-skip onclick="openMoneyEditTxn('${t.id}')" title="Edit">✎</button>
-        <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteTxn('${t.id}')" title="Delete">✕</button>
+        <button class="icon-btn" data-fx-skip onclick="openMoneyEditTxn('${t.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteTxn('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
       </div>
     </div>`;
 }
@@ -5760,7 +5847,7 @@ function renderMoneyBudgetView(){
     <div class="budget-group-card">
       <div class="budget-group-head">
         <div class="budget-group-name">${escapeHtml(g.name)}${g.isInvestmentGroup?' <span style="color:var(--cyan);font-size:0.68rem;">(auto: investment txns)</span>':''}</div>
-        <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit">✎</button>
+        <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
       </div>
       <div class="budget-group-amounts" style="margin-bottom:8px;">฿${BuamMoney.formatBaht(g.spent)} / ฿${BuamMoney.formatBaht(g.budget)}</div>
       <div class="budget-bar"><div class="budget-bar-fill status-${g.status}" style="width:${fillPct}%"></div></div>
@@ -5956,7 +6043,7 @@ function renderMoneyCategoryList(){
     return `
     <div class="goal-row">
       <div class="goal-title">${escapeHtml(c.name)}${group?` <span style="color:var(--ink-dim); font-size:0.7rem;">— ${escapeHtml(group.name)}</span>`:""}</div>
-      <button class="icon-btn" data-fx-skip onclick="openMoneyEditCat('${c.id}')" title="Edit">✎</button>
+      <button class="icon-btn" data-fx-skip onclick="openMoneyEditCat('${c.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
     </div>`;
   }).join("") : `<div class="empty">no_categories</div>`;
 }
@@ -5985,8 +6072,8 @@ function renderMoneyRecurringList(){
     return `
     <div class="goal-row">
       <div class="goal-title">฿${BuamMoney.formatBaht(r.amount)} · ${escapeHtml(cat?cat.name:"?")} · ${r.frequency}${r.endDate?` (until ${r.endDate})`:""}</div>
-      <button class="icon-btn" data-fx-skip onclick="openMoneyEditRecurring('${r.id}')" title="Edit">✎</button>
-      <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteRecurring('${r.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="openMoneyEditRecurring('${r.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+      <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteRecurring('${r.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>`;
   }).join("") : `<div class="empty">no_recurring_income</div>`;
 }
