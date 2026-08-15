@@ -933,7 +933,17 @@
     font-family:inherit;
     color-scheme:dark;
     box-shadow:var(--neu-inset-md);
+    /* a <select> sizes itself to its widest <option>, and task titles are
+       injected as options — without these it pushes straight out of its
+       container. min-width:0 lets it shrink as a flex item too. */
+    max-width:100%;
+    min-width:0;
+    text-overflow:ellipsis;
   }
+  /* fields inside a modal are stacked, so they own the full row */
+  .dose-field select,
+  .dose-field input[type=text],
+  .dose-field input[type=date]{ width:100%; }
   button{ font-family:inherit; cursor:pointer; border:none; }
   .btn-add{
     background:var(--accent);
@@ -1050,7 +1060,7 @@
   .icon-btn:hover{ color:var(--accent); box-shadow:var(--neu-shadow-md); }
   .icon-btn:active{ color:var(--accent); box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
 
-  .audio-controls{ display:flex; gap:6px; align-items:center; flex-shrink:0; }
+  .audio-controls{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
   .snd-toggle{
     background:var(--neu-grad-raised); color:var(--ink-dim);
     border:none; border-radius:999px;
@@ -1067,7 +1077,8 @@
   .vol-slider{
     -webkit-appearance:none; appearance:none;
     width:64px; height:4px; border-radius:2px;
-    background:var(--border); outline:none; flex-shrink:0; cursor:pointer;
+    background:var(--border); outline:none; cursor:pointer;
+    flex:0 1 64px; min-width:40px;
   }
   .vol-slider::-webkit-slider-thumb{
     -webkit-appearance:none; appearance:none;
