@@ -1839,16 +1839,18 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- postprocessing (bloom) for the ambient-screen ship scene — pinned to the
-     same r128 build as three.js above; every script here is additive/optional,
-     the ambient ship code checks for these before using them and just skips
-     the bloom pass if any of it failed to load -->
+<!-- bloom postprocessing + orbit/zoom/pan controls for the ambient-screen ship
+     scene — pinned to the same r128 build as three.js above; every script
+     here is additive/optional, the ambient ship code checks for each before
+     using it and just skips that piece (no bloom, or no camera controls) if
+     it failed to load -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 /* ---------------- boot intro ---------------- */
 (function(){
@@ -4020,7 +4022,7 @@ window.buamAmbientShip = (function(){
   if(!canvas) return { start(){}, stop(){} };
 
   const COUNT = window.innerWidth < 700 ? 3500 : 8000;
-  let renderer, scene, camera, composer, mesh, animId = null, frame;
+  let renderer, scene, camera, composer, mesh, controls, animId = null, frame;
   let ready = false;
 
   function init(){
@@ -4033,6 +4035,19 @@ window.buamAmbientShip = (function(){
     scene.fog = new THREE.FogExp2(0x05070a, 0.01);
     camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
     camera.position.set(0, 0, 100);
+
+    // orbit/zoom/pan the ship while the ambient screen is open — the
+    // document-level tap-vs-drag detection below (see armIdleWatch) makes
+    // sure dragging on the canvas to orbit doesn't also dismiss the screen
+    if(typeof THREE.OrbitControls === "function"){
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 15;
+      controls.maxDistance = 500;
+      controls.target.set(0, 10, 0);
+      controls.update();
+    }
 
     if(typeof THREE.EffectComposer === "function" && typeof THREE.RenderPass === "function" && typeof THREE.UnrealBloomPass === "function"){
       composer = new THREE.EffectComposer(renderer);
@@ -4193,6 +4208,7 @@ window.buamAmbientShip = (function(){
       mesh.instanceMatrix.needsUpdate = true;
       mesh.instanceColor.needsUpdate = true;
 
+      if(controls) controls.update();
       if(composer) composer.render();
       else renderer.render(scene, camera);
     }
@@ -4269,16 +4285,40 @@ function resetIdleTimer(){
 
 let lastMoveReset = 0;
 function throttledActivity(){
+  // while the ambient ship scene is open, dragging to orbit it and
+  // scrolling to zoom it both fire mousemove/scroll — don't treat that as
+  // "leave idle", or it'd exit the instant you tried to look around
+  if(ambientScreen.classList.contains("visible")) return;
   const now = Date.now();
   if(now - lastMoveReset < 500) return;
   lastMoveReset = now;
   resetIdleTimer();
 }
 
+// While the ambient screen is open, only a plain tap/click (press and
+// release close together, without dragging) or any keypress exits it — a
+// drag is camera orbit on the 3D scene instead. Off the ambient screen this
+// still behaves exactly as before: any press immediately resets the timer.
+let ambientDownPos = null;
 function armIdleWatch(){
-  ["pointerdown","keydown","touchstart"].forEach(evt=>{
-    document.addEventListener(evt, resetIdleTimer, { passive:true });
-  });
+  document.addEventListener("pointerdown", e=>{
+    if(ambientScreen.classList.contains("visible")){
+      ambientDownPos = { x:e.clientX, y:e.clientY, t:Date.now() };
+      return;
+    }
+    resetIdleTimer();
+  }, { passive:true });
+  document.addEventListener("pointerup", e=>{
+    if(!ambientScreen.classList.contains("visible") || !ambientDownPos) return;
+    const moved = Math.hypot(e.clientX - ambientDownPos.x, e.clientY - ambientDownPos.y);
+    const quick = Date.now() - ambientDownPos.t < 500;
+    ambientDownPos = null;
+    if(moved < 8 && quick) resetIdleTimer();
+  }, { passive:true });
+  document.addEventListener("keydown", resetIdleTimer, { passive:true });
+  document.addEventListener("touchstart", ()=>{
+    if(!ambientScreen.classList.contains("visible")) resetIdleTimer();
+  }, { passive:true });
   ["mousemove","scroll"].forEach(evt=>{
     document.addEventListener(evt, throttledActivity, { passive:true });
   });
