@@ -4611,6 +4611,7 @@ function showAmbientScreen(){
   if(window.buamRainIdleMode) buamRainIdleMode(true);
   if(window.buamDustIdleMode) buamDustIdleMode(true);
   if(window.buamAmbientShip) buamAmbientShip.start();
+  if(window.buamAICore) buamAICore.stop(); // the ambient screen fully covers it, no point rendering underneath
   updateAmbientClock();
   ambientClockTimerId = setInterval(updateAmbientClock, 1000);
 }
@@ -4623,6 +4624,7 @@ function hideAmbientScreen(){
   if(window.buamRainIdleMode) buamRainIdleMode(false);
   if(window.buamDustIdleMode) buamDustIdleMode(false);
   if(window.buamAmbientShip) buamAmbientShip.stop();
+  if(window.buamAICore && currentView === "home") buamAICore.start();
   if(ambientClockTimerId){ clearInterval(ambientClockTimerId); ambientClockTimerId = null; }
 }
 
@@ -4689,6 +4691,7 @@ function switchView(name){
   document.querySelectorAll(".bottom-tab").forEach(el=>{
     el.classList.toggle("active", el.dataset.view === name);
   });
+  if(name === "home") renderCommandCenter(); // money/goal changes made on other tabs don't call render(), so refresh on the way back in
   if(name === "analytics") renderAnalyticsView();
   if(name === "calendar") renderCalendar();
   if(name === "money") initMoneyView();
