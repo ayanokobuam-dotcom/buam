@@ -4411,7 +4411,7 @@ window.buamAICore = (function(){
   const orbEl = document.getElementById("aiCoreOrb");
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
-  let renderer, scene, camera, composer, controls, core, rings = [], animId = null, frame;
+  let renderer, scene, camera, controls, core, coreGlow, orbits = [], electrons = [], animId = null, frame;
   let ready = false;
 
   function makeGlowTexture(){
@@ -4445,60 +4445,77 @@ window.buamAICore = (function(){
     return positions;
   }
 
-  function ringPositions(n, radius){
-    const positions = new Float32Array(n*3);
-    for(let i=0;i<n;i++){
-      const a = (i/n) * Math.PI * 2;
+  // a faint circular guide line for each orbit — the actual "electron" is a
+  // separate bright point that travels along this path (see electronPivot
+  // below), rather than the whole ring of dots just spinning as one clump
+  function makeOrbitLine(radius, color){
+    const segments = 64;
+    const positions = new Float32Array((segments+1)*3);
+    for(let i=0;i<=segments;i++){
+      const a = (i/segments) * Math.PI * 2;
       positions[i*3] = Math.cos(a) * radius;
       positions[i*3+1] = 0;
       positions[i*3+2] = Math.sin(a) * radius;
     }
-    return positions;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.28 });
+    return new THREE.LineLoop(geo, mat);
   }
 
   function init(){
     if(ready) return true;
     try{ renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true }); }
     catch(e){ orbEl.classList.add("cc-hero-fallback"); return false; }
+    renderer.setClearColor(0x000000, 0); // fully transparent canvas — no bloom composer here (see below) since post-processing can't preserve alpha, which was showing as an opaque black square
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
     camera.position.set(0, 1.2, 6);
 
     const glowTex = makeGlowTexture();
-    const green = 0x00ff66;
+    const coreColor = 0x8dffc4;   // bright minty green — the core itself
+    const lineColor = 0x00ff66;   // faint orbit-path guide
+    const electronColor = 0xe8fff2; // near-white — the moving electron reads as the brightest thing on screen
+
+    // soft glow halo behind the core — a cheap stand-in for real bloom that
+    // doesn't fight the canvas's transparency the way EffectComposer does
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.45, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(2.6);
+    scene.add(coreGlow);
 
     const coreGeo = new THREE.BufferGeometry();
     coreGeo.setAttribute("position", new THREE.BufferAttribute(fibonacciSphere(280, 1.05), 3));
-    const coreMat = new THREE.PointsMaterial({ size:0.11, map:glowTex, color:green, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    const coreMat = new THREE.PointsMaterial({ size:0.16, map:glowTex, color:coreColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
     core = new THREE.Points(coreGeo, coreMat);
     scene.add(core);
 
-    // three "electron shell" rings at different tilts/speeds — a whole-object
-    // rotation per frame is enough (no per-particle recompute needed since
-    // the ring shape itself is static, unlike the ambient ship's morphing)
+    // three "electron shell" orbits at different tilts/speeds/radii, each a
+    // faint guide ring plus one bright particle actually traveling around it
     const ringDefs = [
-      { count:130, radius:1.9,  tiltX:0,             tiltZ:0,    speed:0.28 },
-      { count:110, radius:2.3,  tiltX:Math.PI/2.6,   tiltZ:0.4,  speed:-0.19 },
-      { count:110, radius:2.55, tiltX:-Math.PI/2.3,  tiltZ:-0.5, speed:0.15 }
+      { radius:1.9,  tiltX:0,             tiltZ:0,    speed:0.9 },
+      { radius:2.3,  tiltX:Math.PI/2.6,   tiltZ:0.4,  speed:-0.65 },
+      { radius:2.55, tiltX:-Math.PI/2.3,  tiltZ:-0.5, speed:0.5 }
     ];
-    rings = ringDefs.map(def=>{
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.BufferAttribute(ringPositions(def.count, def.radius), 3));
-      const mat = new THREE.PointsMaterial({ size:0.075, map:glowTex, color:green, transparent:true, opacity:0.85, depthWrite:false, blending:THREE.AdditiveBlending });
-      const pts = new THREE.Points(geo, mat);
-      pts.rotation.x = def.tiltX;
-      pts.rotation.z = def.tiltZ;
-      pts.userData.speed = def.speed;
-      scene.add(pts);
-      return pts;
-    });
+    ringDefs.forEach(def=>{
+      const pivot = new THREE.Object3D();
+      pivot.rotation.x = def.tiltX;
+      pivot.rotation.z = def.tiltZ;
+      scene.add(pivot);
+      pivot.add(makeOrbitLine(def.radius, lineColor));
 
-    if(typeof THREE.EffectComposer === "function" && typeof THREE.RenderPass === "function" && typeof THREE.UnrealBloomPass === "function"){
-      composer = new THREE.EffectComposer(renderer);
-      composer.addPass(new THREE.RenderPass(scene, camera));
-      composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(200, 200), 1.1, 0.5, 0.15));
-    }
+      const electronPivot = new THREE.Object3D();
+      electronPivot.userData.speed = def.speed;
+      pivot.add(electronPivot);
+
+      const electron = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:electronColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+      electron.scale.setScalar(0.32);
+      electron.position.set(def.radius, 0, 0);
+      electronPivot.add(electron);
+
+      orbits.push(pivot);
+      electrons.push(electronPivot);
+    });
 
     if(typeof THREE.OrbitControls === "function"){
       controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -4515,7 +4532,6 @@ window.buamAICore = (function(){
       const size = Math.max(1, Math.round(canvas.getBoundingClientRect().width));
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       renderer.setSize(size, size, false);
-      if(composer) composer.setSize(size, size);
       camera.aspect = 1;
       camera.updateProjectionMatrix();
     }
@@ -4529,10 +4545,12 @@ window.buamAICore = (function(){
       const dt = clock.getDelta();
       const t = clock.getElapsedTime();
       core.rotation.y += dt * 0.15;
-      core.scale.setScalar(1 + Math.sin(t * 1.3) * 0.04);
-      rings.forEach(r=>{ r.rotation.y += dt * r.userData.speed; });
+      const breathe = 1 + Math.sin(t * 1.3) * 0.04;
+      core.scale.setScalar(breathe);
+      coreGlow.scale.setScalar(2.6 * breathe);
+      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed; });
       if(controls) controls.update();
-      if(composer) composer.render(); else renderer.render(scene, camera);
+      renderer.render(scene, camera);
     };
 
     document.addEventListener("visibilitychange", ()=>{
