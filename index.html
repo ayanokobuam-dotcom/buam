@@ -38,7 +38,7 @@
     font-family:var(--font);
     min-height:100vh;
     min-height:100dvh;
-    padding:calc(22px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    padding:calc(22px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
     position:relative;
   }
   /* sits behind #bgCanvas so the rain animation stays visible on top of it */
@@ -206,15 +206,21 @@
   ::selection{ background:var(--accent); color:#00170a; }
 
   header{
+    position:sticky; top:0; z-index:40;
     display:flex;
     align-items:baseline;
     justify-content:space-between;
-    margin-bottom:16px;
+    margin:calc(-22px - env(safe-area-inset-top)) calc(-14px - env(safe-area-inset-right)) 16px calc(-14px - env(safe-area-inset-left));
+    padding:calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 12px calc(14px + env(safe-area-inset-left));
     flex-wrap:wrap;
     gap:8px;
     border-bottom:1px dashed var(--border);
-    padding-bottom:12px;
+    background:rgba(5,7,10,0.86);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
   }
+  .header-left{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .menu-toggle-btn{ font-size:1rem; flex-shrink:0; }
   .logo{
     font-size:1.3rem;
     font-weight:700;
@@ -949,9 +955,6 @@
     transition:box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
   .quick-link .qsym{ font-weight:700; }
-  .quick-link.arcade{ border-left-color:var(--magenta); background:rgba(255,63,214,0.05); }
-  .quick-link.arcade .qsym{ color:var(--magenta); }
-  .quick-link.arcade:hover, .quick-link.arcade:active{ border-color:var(--magenta); color:var(--ink); box-shadow:0 0 10px rgba(255,63,214,0.3); }
   .quick-link.pick{ border-left-color:var(--accent); background:rgba(0,255,102,0.05); }
   .quick-link.pick .qsym{ color:var(--accent); }
   .quick-link.pick:hover, .quick-link.pick:active{ border-color:var(--accent); color:var(--ink); box-shadow:0 0 10px rgba(0,255,102,0.3); }
@@ -961,17 +964,11 @@
   .quick-link.calendar{ border-left-color:var(--cyan); background:rgba(57,214,255,0.05); }
   .quick-link.calendar .qsym{ color:var(--cyan); }
   .quick-link.calendar:hover, .quick-link.calendar:active{ border-color:var(--cyan); color:var(--ink); box-shadow:0 0 10px rgba(57,214,255,0.3); }
-  .quick-link.sync{ border-left-color:var(--red); background:rgba(255,59,59,0.05); }
-  .quick-link.sync .qsym{ color:var(--red); }
-  .quick-link.sync:hover, .quick-link.sync:active{ border-color:var(--red); color:var(--ink); box-shadow:0 0 10px rgba(255,59,59,0.3); }
-  .quick-link.timer{ border-left-color:var(--accent); background:rgba(0,255,102,0.05); }
-  .quick-link.timer .qsym{ color:var(--accent); }
-  .quick-link.timer:hover, .quick-link.timer:active{ border-color:var(--accent); color:var(--ink); box-shadow:0 0 10px rgba(0,255,102,0.3); }
 
   /* ---- Jarvis dialogue box: VN-style avatar + text bubble that appears
      while a voice line is speaking, text typed in sync with the speech ---- */
   .jarvis-box{
-    position:fixed; left:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:90;
+    position:fixed; left:16px; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:90;
     display:flex; align-items:flex-end; gap:12px; max-width:min(360px, calc(100vw - 32px));
     opacity:0; transform:translateY(10px) scale(0.97); pointer-events:none;
     transition:opacity 0.22s ease, transform 0.22s ease;
@@ -1036,34 +1033,52 @@
     opacity:0.6;
   }
 
-  /* ---------------- V3: bottom-tab view structure ---------------- */
+  /* ---------------- view structure ---------------- */
   .app-view{ display:none; }
   .app-view.active{ display:block; }
 
-  .bottom-tabs{
-    position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:80;
-    transform:translateX(-50%);
-    display:flex; gap:2px;
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:999px;
-    padding:5px;
-    box-shadow:0 0 20px rgba(0,255,102,0.10), 0 6px 20px rgba(0,0,0,0.35);
+  /* ---- sidebar nav (hamburger drawer, replaces the old bottom-tab bar) ---- */
+  .sidebar-backdrop{
+    position:fixed; inset:0; z-index:970;
+    background:rgba(0,0,0,0.55);
+    opacity:0; pointer-events:none;
+    transition:opacity 0.25s ease;
   }
-  .bottom-tab{
-    flex:none; display:flex; flex-direction:column; align-items:center; gap:2px;
-    background:transparent; border:none; color:var(--ink-dim);
-    font-family:inherit; font-size:0.62rem; padding:8px 16px; cursor:pointer;
-    border-radius:999px; letter-spacing:0.02em; min-width:56px;
+  .sidebar-backdrop.open{ opacity:1; pointer-events:auto; }
+  .sidebar{
+    position:fixed; top:0; left:0; bottom:0; z-index:980;
+    width:min(78vw, 300px);
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    box-shadow:0 0 30px rgba(0,0,0,0.5);
+    transform:translateX(-100%);
+    transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    display:flex; flex-direction:column;
+    padding:calc(16px + env(safe-area-inset-top)) 0 calc(16px + env(safe-area-inset-bottom));
+    overflow-y:auto;
+  }
+  .sidebar.open{ transform:translateX(0); }
+  .sidebar-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 16px 16px; margin-bottom:8px; border-bottom:1px dashed var(--border);
+  }
+  .sidebar-title{ font-size:1.05rem; font-weight:700; color:var(--accent); letter-spacing:0.03em; }
+  .sidebar-close-btn{ font-size:0.85rem; padding:6px 9px; }
+  .sidebar-nav-group{ display:flex; flex-direction:column; padding:6px 10px; gap:2px; }
+  .sidebar-divider{ height:1px; background:var(--border); margin:10px 16px; }
+  .sidebar-link{
+    display:flex; align-items:center; gap:12px;
+    background:transparent; border:none; border-radius:8px;
+    color:var(--ink-dim); font-family:inherit; font-size:0.88rem;
+    padding:11px 12px; cursor:pointer; text-decoration:none;
     transition:background 0.15s ease, color 0.15s ease;
   }
-  .bottom-tab .bt-glyph{ font-size:1.15rem; line-height:1; }
-  .bottom-tab.active{
+  .sidebar-link:hover, .sidebar-link:active{ background:var(--panel-2); color:var(--ink); }
+  .sidebar-link.active{
     background:var(--accent-dim); color:var(--accent);
-    text-shadow:0 0 12px rgba(0,255,102,0.65);
-    box-shadow:0 0 14px rgba(0,255,102,0.3), inset 0 0 8px rgba(0,255,102,0.12);
+    text-shadow:0 0 10px rgba(0,255,102,0.5);
   }
-  .bottom-tab:active{ color:var(--accent); }
+  .sb-glyph{ width:22px; text-align:center; font-size:1.1rem; flex-shrink:0; }
 
   .home-view-all{
     background:transparent; border:none; color:var(--accent);
@@ -1117,8 +1132,6 @@
   .more-menu{ display:flex; flex-direction:column; gap:8px; }
 
   /* ---------- money ---------- */
-  .bottom-tab{ padding:8px 11px; min-width:44px; }
-
   .money-subnav{ display:flex; gap:4px; margin-bottom:16px; overflow-x:auto; padding-bottom:2px; }
   .money-subnav .tvt-btn{ flex:none; white-space:nowrap; }
 
@@ -1280,11 +1293,34 @@
   <canvas id="ambientShipCanvas" class="ambient-ship-canvas"></canvas>
   <div class="ambient-clock" id="ambientClock">00:00:00</div>
 </div>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<nav class="sidebar" id="sidebarNav" aria-hidden="true">
+  <div class="sidebar-head">
+    <span class="sidebar-title">&gt; buam</span>
+    <button type="button" class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" title="Close menu" data-fx-skip>&#10005;</button>
+  </div>
+  <div class="sidebar-nav-group">
+    <button type="button" class="sidebar-link active" data-view="home"><span class="sb-glyph">&#8962;</span><span>Home</span></button>
+    <button type="button" class="sidebar-link" data-view="tasks"><span class="sb-glyph">&#9636;</span><span>Tasks</span></button>
+    <button type="button" class="sidebar-link" data-view="calendar"><span class="sb-glyph">&#8862;</span><span>Calendar</span></button>
+    <button type="button" class="sidebar-link" data-view="analytics"><span class="sb-glyph">&#9638;</span><span>Stats</span></button>
+    <button type="button" class="sidebar-link" data-view="money"><span class="sb-glyph">&#3647;</span><span>Money</span></button>
+  </div>
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-nav-group">
+    <a href="./games/index.html" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Arcade</span></a>
+    <button type="button" id="syncBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Sync</span></button>
+    <button type="button" id="timerBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Timer</span></button>
+  </div>
+</nav>
 <script src="./buam-fx.js"></script>
 <script src="./buam-money.js"></script>
 <div class="wrap">
   <header>
-    <div class="logo"><span id="usernameText" class="username-edit" title="Click to edit name">CheeraBuam.exe</span><span class="cursor">_</span></div>
+    <div class="header-left">
+      <button class="icon-btn menu-toggle-btn" id="menuToggleBtn" type="button" title="Menu" data-fx-skip>&#9776;</button>
+      <div class="logo"><span id="usernameText" class="username-edit" title="Click to edit name">CheeraBuam.exe</span><span class="cursor">_</span></div>
+    </div>
     <div class="audio-controls">
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
@@ -1477,14 +1513,6 @@
 
   <div class="app-view" id="viewAnalytics">
     <div id="analyticsBody"></div>
-  </div>
-
-  <div class="app-view" id="viewMore">
-    <div class="more-menu">
-      <a href="./games/index.html" class="quick-link arcade"><span class="qsym">&gt;</span> arcade</a>
-      <button type="button" id="syncBtn" class="quick-link sync"><span class="qsym">&gt;</span> sync</button>
-      <button type="button" id="timerBtn" class="quick-link timer"><span class="qsym">&gt;</span> timer</button>
-    </div>
   </div>
 
   <div class="app-view" id="viewMoney">
@@ -1722,7 +1750,7 @@
 
       <div class="money-section">
         <div class="money-section-title">sync</div>
-        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (⋯ more → sync) — same account as tasks.</div>
+        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (☰ menu → sync) — same account as tasks.</div>
       </div>
 
       <div class="money-section">
@@ -1744,15 +1772,6 @@
 
   <footer>buam v1 — data stored locally on this device</footer>
 </div>
-
-<nav class="bottom-tabs" id="bottomTabs">
-  <button type="button" class="bottom-tab active" data-view="home"><span class="bt-glyph">⌂</span><span class="bt-label">home</span></button>
-  <button type="button" class="bottom-tab" data-view="tasks"><span class="bt-glyph">▤</span><span class="bt-label">tasks</span></button>
-  <button type="button" class="bottom-tab" data-view="calendar"><span class="bt-glyph">⊞</span><span class="bt-label">calendar</span></button>
-  <button type="button" class="bottom-tab" data-view="analytics"><span class="bt-glyph">▦</span><span class="bt-label">stats</span></button>
-  <button type="button" class="bottom-tab" data-view="money"><span class="bt-glyph">฿</span><span class="bt-label">money</span></button>
-  <button type="button" class="bottom-tab" data-view="more"><span class="bt-glyph">⋯</span><span class="bt-label">more</span></button>
-</nav>
 
 <div class="dose-overlay hidden" id="doseOverlay">
   <div class="dose-modal" id="doseWizard">
@@ -4588,6 +4607,7 @@ let idleTimerId = null;
 let ambientClockTimerId = null;
 
 function anyOverlayOpen(){
+  if(document.getElementById("sidebarNav").classList.contains("open")) return true;
   return [doseOverlay, syncOverlay, timerOverlay, notesOverlay, editOverlay,
       document.getElementById("moneyEditTxnOverlay"), document.getElementById("moneyEditGroupOverlay"),
       document.getElementById("moneyEditCatOverlay"), document.getElementById("moneyConfirmOverlay")]
@@ -4678,8 +4698,8 @@ function armIdleWatch(){
 
 document.getElementById("ambientTriggerBtn").addEventListener("click", showAmbientScreen);
 
-/* ---------------- V3: bottom-tab view switching ---------------- */
-const VIEW_IDS = { home:"viewHome", tasks:"viewTasks", calendar:"viewCalendar", analytics:"viewAnalytics", more:"viewMore", money:"viewMoney" };
+/* ---------------- view switching (sidebar nav) ---------------- */
+const VIEW_IDS = { home:"viewHome", tasks:"viewTasks", calendar:"viewCalendar", analytics:"viewAnalytics", money:"viewMoney" };
 let currentView = "home";
 
 function switchView(name){
@@ -4688,7 +4708,7 @@ function switchView(name){
   document.querySelectorAll(".app-view").forEach(el=>{
     el.classList.toggle("active", el.id === VIEW_IDS[name]);
   });
-  document.querySelectorAll(".bottom-tab").forEach(el=>{
+  document.querySelectorAll(".sidebar-link[data-view]").forEach(el=>{
     el.classList.toggle("active", el.dataset.view === name);
   });
   if(name === "home") renderCommandCenter(); // money/goal changes made on other tabs don't call render(), so refresh on the way back in
@@ -4699,10 +4719,35 @@ function switchView(name){
   if(window.buamFx) buamFx.blip();
 }
 
-document.querySelectorAll(".bottom-tab").forEach(btn=>{
+document.querySelectorAll(".sidebar-link[data-view]").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
 });
+// every sidebar link closes the drawer on click — not just the nav-view
+// buttons, but also Arcade/Sync/Timer, so the drawer (which sits above
+// modals in z-index) doesn't stay open blocking whatever it just opened
+document.querySelectorAll(".sidebar-link").forEach(btn=>{
+  btn.addEventListener("click", closeSidebar);
+});
 document.getElementById("homeViewAllBtn").addEventListener("click", ()=> switchView("tasks"));
+
+/* ---------------- sidebar drawer (hamburger nav) ---------------- */
+const sidebarNav = document.getElementById("sidebarNav");
+const sidebarBackdrop = document.getElementById("sidebarBackdrop");
+function openSidebar(){
+  sidebarNav.classList.add("open");
+  sidebarBackdrop.classList.add("open");
+  sidebarNav.setAttribute("aria-hidden", "false");
+  if(window.buamFx) buamFx.blip();
+}
+function closeSidebar(){
+  sidebarNav.classList.remove("open");
+  sidebarBackdrop.classList.remove("open");
+  sidebarNav.setAttribute("aria-hidden", "true");
+}
+document.getElementById("menuToggleBtn").addEventListener("click", openSidebar);
+document.getElementById("sidebarCloseBtn").addEventListener("click", closeSidebar);
+sidebarBackdrop.addEventListener("click", closeSidebar);
+document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSidebar(); });
 
 /* ---------------- Command Center: quick commands, live clock, Jarvis bar ---------------- */
 document.getElementById("ccCmdAddTask").addEventListener("click", ()=>{
