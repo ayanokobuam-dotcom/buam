@@ -619,6 +619,43 @@
     background:radial-gradient(circle, var(--panel) 0%, var(--panel) 55%, transparent 78%);
   }
   #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
+
+  /* ---- the Core is the primary voice control. the orb box is deliberately
+     larger than the particle sphere, so it doubles as a generous touch target
+     without spilling into neighbouring controls. ---- */
+  .cc-hero-orb{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .cc-hero-orb:focus{ outline:none; }
+  .cc-hero-orb:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:-8px;
+    border-radius:50%;
+  }
+  /* expanding energy wave on activation — a cheap CSS ring, so the GL loop
+     doesn't have to allocate anything per tap */
+  .cc-core-ripple{
+    position:absolute; left:50%; top:50%;
+    width:44%; height:44%; margin:-22% 0 0 -22%;
+    border-radius:50%; pointer-events:none;
+    border:1px solid var(--accent);
+    opacity:0; transform:scale(0.6);
+  }
+  .cc-core-ripple.go{ animation:ccCoreRipple 0.85s cubic-bezier(0.2,0.7,0.3,1); }
+  @keyframes ccCoreRipple{
+    0%{ opacity:0.55; transform:scale(0.6); }
+    100%{ opacity:0; transform:scale(2.05); }
+  }
+  /* one-time affordance under the label; retires once the core has been used */
+  .cc-core-hint{
+    margin-top:8px; font-size:0.64rem; letter-spacing:0.22em; text-transform:uppercase;
+    color:var(--ink-dim); opacity:0.75;
+    animation:ccHintPulse 2.8s ease-in-out infinite;
+  }
+  .cc-core-hint.retired{ display:none; }
+  @keyframes ccHintPulse{ 0%,100%{ opacity:0.35; } 50%{ opacity:0.8; } }
+  @media (prefers-reduced-motion: reduce){
+    .cc-core-hint{ animation:none; opacity:0.7; }
+    .cc-core-ripple.go{ animation-duration:0.01s; }
+  }
   /* shown only if three.js/WebGL isn't available — same glow-orb fallback
      look the old CSS-only version used, so the hero never renders empty */
   .cc-hero-orb.cc-hero-fallback{
@@ -761,16 +798,15 @@
   }
   .cc-jarvis-chip{ white-space:nowrap; }
   .cc-jarvis-chip b{ color:var(--ink); }
+  /* status readout, not a button — it reports state, it does not start voice */
   .cc-jarvis-talk{
     display:flex; align-items:center; gap:8px;
-    background:var(--neu-grad-raised); border:none; border-radius:999px;
+    background:var(--neu-grad-inset); border:none; border-radius:999px;
     padding:10px 18px; font-family:inherit; font-weight:700; letter-spacing:0.05em;
-    color:var(--accent); cursor:pointer; font-size:0.76rem;
-    box-shadow:var(--neu-shadow-sm);
-    transition:box-shadow 0.2s ease-out;
+    color:var(--accent); font-size:0.76rem;
+    box-shadow:var(--neu-inset-sm);
+    cursor:default; user-select:none;
   }
-  .cc-jarvis-talk:hover{ box-shadow:var(--neu-shadow-md); }
-  .cc-jarvis-talk:active{ background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm); }
   .cc-jarvis-wave{ display:flex; align-items:center; gap:2px; height:14px; }
   .cc-jarvis-wave span{
     width:2px; height:5px; border-radius:1px; background:var(--accent);
@@ -1547,10 +1583,13 @@
     </div>
 
     <div class="cc-hero">
-      <div class="cc-hero-orb" id="aiCoreOrb">
+      <div class="cc-hero-orb" id="aiCoreOrb"
+           role="button" tabindex="0" aria-label="Activate B.U.A.M." title="Tap the core to speak">
+        <span class="cc-core-ripple" id="ccCoreRipple" aria-hidden="true"></span>
         <canvas id="aiCoreCanvas"></canvas>
       </div>
       <div class="cc-hero-label">B.U.A.M.<span>CORE</span></div>
+      <div class="cc-core-hint" id="ccCoreHint">tap core to speak</div>
     </div>
 
     <div class="cc-grid">
@@ -1618,11 +1657,11 @@
 
     <div class="cc-jarvis-bar" id="ccJarvisBar">
       <span class="cc-jarvis-chip" id="ccNetChip">&#127760; <b id="ccNetStat">online</b></span>
-      <button type="button" class="cc-jarvis-talk" id="ccBriefingBtn">
+      <span class="cc-jarvis-talk" id="ccJarvisStatus" role="status" aria-live="polite">
         <span class="cc-jarvis-wave"><span></span><span></span><span></span><span></span><span></span></span>
         <span id="ccJarvisState">B.U.A.M. READY</span>
-      </button>
-      <span class="cc-jarvis-chip">Briefing</span>
+      </span>
+      <span class="cc-jarvis-chip">Status</span>
     </div>
   </div>
 
@@ -4686,6 +4725,11 @@ window.buamAICore = (function(){
   // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
   // speaks, so the core visibly reacts instead of always idling identically
   let activity = 0;
+  // interaction state, each 0..1 and eased toward its target every frame so
+  // hover/press never snap. `speaking` is a sustained latch, not a decay.
+  let hover = 0, hoverTarget = 0;
+  let press = 0, pressTarget = 0;
+  let speaking = false;
   window.addEventListener("buam-jarvis-speak", ()=>{ activity = 1; });
 
   function makeGlowTexture(){
@@ -4881,24 +4925,39 @@ window.buamAICore = (function(){
       const dt = clock.getDelta();
       const t = clock.getElapsedTime();
 
-      activity *= Math.exp(-dt * 0.9); // smooth decay back to idle
+      // while speaking the core stays energised; otherwise energy bleeds off
+      if(speaking) activity = Math.min(1, activity + dt * 1.4);
+      else activity *= Math.exp(-dt * 0.9);
+
+      // ease interaction states toward their targets so nothing snaps
+      hover += (hoverTarget - hover) * Math.min(1, dt * 8);
+      press += (pressTarget - press) * Math.min(1, dt * 12);
+      if(pressTarget > 0 && press > 0.92) pressTarget = 0; // auto-release the tap kick
+
+      const energy = Math.max(activity, hover * 0.45);
 
       // layers turn at slightly different rates — the parallax between them is
       // what sells the depth, more than any single layer's motion does
-      core.rotation.y += dt * (0.12 + activity * 0.22);
-      shell.rotation.y -= dt * 0.05;
+      core.rotation.y += dt * (0.12 + energy * 0.22);
+      shell.rotation.y -= dt * (0.05 + hover * 0.05);
       shell.rotation.x += dt * 0.02;
-      dust.rotation.y -= dt * (0.045 + activity * 0.05);
+      dust.rotation.y -= dt * (0.045 + energy * 0.05);
       dust.rotation.z += dt * 0.015;
 
-      const breathe = 1 + Math.sin(t * 1.3) * 0.035 + activity * 0.05;
+      // press pulls the particle layers inward, then they spring back out
+      const squeeze = 1 - press * 0.16;
+      const breathe = (1 + Math.sin(t * 1.3) * 0.035 + activity * 0.05 + hover * 0.03) * squeeze;
       core.scale.setScalar(breathe);
-      coreGlow.scale.setScalar(2.9 * breathe);
-      coreGlow.material.opacity = 0.5 + activity * 0.22;
-      coreHot.scale.setScalar(1.25 * breathe);
-      coreHot.material.opacity = 0.4 + Math.sin(t * 1.9) * 0.06 + activity * 0.25;
+      dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
-      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + activity * 0.6); });
+      coreGlow.scale.setScalar(2.9 * breathe);
+      coreGlow.material.opacity = 0.5 + energy * 0.22 + hover * 0.12 + press * 0.25;
+      coreHot.scale.setScalar(1.25 * breathe * (1 + press * 0.5));
+      coreHot.material.opacity = 0.4 + Math.sin(t * 1.9) * 0.06 + activity * 0.25 + hover * 0.18 + press * 0.35;
+      nucleus.material.opacity = 0.95 + hover * 0.05;
+      shell.material.opacity = 0.7 + hover * 0.2 + press * 0.2;
+
+      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5); });
       if(controls) controls.update();
       renderer.render(scene, camera);
     };
@@ -4920,7 +4979,13 @@ window.buamAICore = (function(){
     if(animId){ cancelAnimationFrame(animId); animId = null; }
   }
 
-  return { start, stop };
+  return {
+    start, stop,
+    setHover(on){ hoverTarget = on ? 1 : 0; },
+    // one-shot inward compression + brightness kick on activation
+    kick(){ press = 0; pressTarget = 1; activity = 1; },
+    setSpeaking(on){ speaking = !!on; if(on) activity = 1; }
+  };
 })();
 
 /* ---------------- ambient/idle showcase screen ---------------- */
@@ -5127,8 +5192,14 @@ window.addEventListener("buam-jarvis-speak", e=>{
   if(!bar || !stateEl) return;
   bar.classList.add("talking");
   stateEl.textContent = "B.U.A.M. SPEAKING…";
-  e.detail.utterance.addEventListener("end", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
-  e.detail.utterance.addEventListener("error", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
+  if(window.buamAICore) buamAICore.setSpeaking(true);
+  const settle = ()=>{
+    bar.classList.remove("talking");
+    if(window.buamAICore) buamAICore.setSpeaking(false);
+    updateCcJarvisBar();
+  };
+  e.detail.utterance.addEventListener("end", settle);
+  e.detail.utterance.addEventListener("error", settle);
 });
 document.getElementById("jarvisToggle").addEventListener("click", updateCcJarvisBar);
 
@@ -5140,8 +5211,11 @@ updateCcNetStat();
 window.addEventListener("online", updateCcNetStat);
 window.addEventListener("offline", updateCcNetStat);
 
-document.getElementById("ccBriefingBtn").addEventListener("click", ()=>{
-  if(!window.buamFx) return;
+/* ---------------- B.U.A.M. Core: the primary voice interaction ----------------
+   The briefing used to be triggered by the "B.U.A.M. READY" pill. That element
+   is now a status readout only; the 3D Core is the control. The voice logic
+   itself is unchanged — only the trigger moved. */
+function buildBriefingText(){
   const today = todayStr();
   const overdueCount = tasks.filter(t=>!t.done && t.due && t.due<today).length;
   const dueTodayCount = tasks.filter(t=>!t.done && t.due===today).length;
@@ -5155,7 +5229,74 @@ document.getElementById("ccBriefingBtn").addEventListener("click", ()=>{
     : "No overdue tasks, nicely done.");
   if(dueTodayCount>0) parts.push(`${dueTodayCount} task${dueTodayCount>1?'s are':' is'} due today.`);
   if(budgetPct!=null) parts.push(budgetPct>=100 ? `You're over budget this month, at ${budgetPct}%.` : `You're at ${budgetPct}% of this month's budget.`);
-  buamFx.jarvisSayCustom(parts.join(" "));
+  return parts.join(" ");
+}
+
+const coreOrb = document.getElementById("aiCoreOrb");
+const coreRipple = document.getElementById("ccCoreRipple");
+const coreHint = document.getElementById("ccCoreHint");
+const CORE_USED_KEY = "buam-core-used";
+try{ if(localStorage.getItem(CORE_USED_KEY) === "1") coreHint.classList.add("retired"); }catch(e){}
+
+let lastCoreActivate = 0;
+function activateBuamCore(){
+  const bar = document.getElementById("ccJarvisBar");
+  // state protection: never stack a second briefing onto one already speaking,
+  // and swallow double-taps that would otherwise queue two utterances
+  if(bar && bar.classList.contains("talking")) return;
+  const now = Date.now();
+  if(now - lastCoreActivate < 700) return;
+  lastCoreActivate = now;
+
+  // visual acknowledgement fires even when the voice is muted, so a tap is
+  // never silently ignored
+  if(window.buamAICore) buamAICore.kick();
+  if(coreRipple){
+    coreRipple.classList.remove("go");
+    void coreRipple.offsetWidth; // restart the animation
+    coreRipple.classList.add("go");
+  }
+  if(coreHint && !coreHint.classList.contains("retired")){
+    coreHint.classList.add("retired");
+    try{ localStorage.setItem(CORE_USED_KEY, "1"); }catch(e){}
+  }
+
+  if(window.buamFx) buamFx.jarvisSayCustom(buildBriefingText());
+}
+
+/* tap vs. orbit-drag: OrbitControls owns dragging on this same canvas, so only
+   a press that stayed put and ended inside the orb counts as an activation */
+let coreDown = false, coreMoved = false, coreDownX = 0, coreDownY = 0, coreDownT = 0;
+coreOrb.addEventListener("pointerdown", e=>{
+  coreDown = true; coreMoved = false;
+  coreDownX = e.clientX; coreDownY = e.clientY; coreDownT = Date.now();
+});
+window.addEventListener("pointermove", e=>{
+  if(!coreDown) return;
+  if(Math.hypot(e.clientX - coreDownX, e.clientY - coreDownY) > 10) coreMoved = true;
+});
+window.addEventListener("pointerup", e=>{
+  if(!coreDown) return;
+  coreDown = false;
+  if(coreMoved) return;                      // that was a rotate gesture
+  if(Date.now() - coreDownT > 700) return;   // long-press, not a tap
+  const r = coreOrb.getBoundingClientRect();
+  if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+  activateBuamCore();
+});
+window.addEventListener("pointercancel", ()=>{ coreDown = false; });
+
+// hover is a mouse-only affordance — touch would leave it stuck on
+coreOrb.addEventListener("pointerenter", e=>{
+  if(e.pointerType === "mouse" && window.buamAICore) buamAICore.setHover(true);
+});
+coreOrb.addEventListener("pointerleave", ()=>{ if(window.buamAICore) buamAICore.setHover(false); });
+
+coreOrb.addEventListener("keydown", e=>{
+  if(e.key === "Enter" || e.key === " " || e.key === "Spacebar"){
+    e.preventDefault(); // Space would otherwise scroll the dashboard
+    activateBuamCore();
+  }
 });
 
 let taskViewMode = "list";
