@@ -332,6 +332,7 @@
   function jarvisTaskDeleted(){ jarvisSay("taskDeleted"); }
   function jarvisMoneyDeleted(){ jarvisSay("moneyDeleted"); }
   function jarvisOnline(){ jarvisSay("online"); }
+  function jarvisSayCustom(text){ speak(text); }
 
   function isJarvisEnabled(){ return jarvisEnabled; }
   function setJarvisEnabled(v){
@@ -363,6 +364,7 @@
     jarvisTaskDeleted: jarvisTaskDeleted,
     jarvisMoneyDeleted: jarvisMoneyDeleted,
     jarvisOnline: jarvisOnline,
+    jarvisSayCustom: jarvisSayCustom,
     isJarvisEnabled: isJarvisEnabled,
     setJarvisEnabled: setJarvisEnabled,
     toggleJarvisEnabled: toggleJarvisEnabled

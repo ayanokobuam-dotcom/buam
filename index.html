@@ -126,9 +126,14 @@
     transition:opacity 0.6s cubic-bezier(0.4,0,0.2,1);
   }
   .ambient-screen.visible{ opacity:1; pointer-events:auto; }
+  .ambient-ship-canvas{
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block; z-index:0;
+  }
   .wrap{ transition:opacity 0.6s ease; }
   body.ambient-mode .wrap{ opacity:0.04; pointer-events:none; }
   .ambient-clock{
+    position:relative; z-index:1; pointer-events:none;
     font-family:var(--font); font-size:4rem; font-variant-numeric:tabular-nums;
     color:var(--accent); text-shadow:0 0 24px rgba(0,255,102,0.5);
     letter-spacing:0.05em;
@@ -448,38 +453,153 @@
     50%{ box-shadow:0 0 16px rgba(0,255,102,0.6); }
   }
 
-  .stat-tiles{
-    display:grid; grid-template-columns:repeat(2,1fr); gap:10px;
-    margin-bottom:18px;
+  /* ---- Command Center (Home tab) — uses the same green terminal palette
+     as the rest of the app (:root vars, no override), so component classes
+     below (.task, .chip, .icon-btn, etc.) just work as reused as-is. ---- */
+  .cc-statusbar{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:16px; font-size:0.72rem;
   }
-  .stat-tile{
+  .cc-status-pill{
+    display:flex; align-items:center; gap:6px;
+    border:1px solid var(--border); border-radius:20px;
+    padding:4px 10px 4px 8px; color:var(--ink-dim); letter-spacing:0.04em;
+  }
+  .cc-status-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 8px var(--accent); animation:ccPulseDot 2s ease-in-out infinite;
+  }
+  @keyframes ccPulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+  .cc-clock{ font-variant-numeric:tabular-nums; color:var(--accent); letter-spacing:0.05em; }
+
+  .cc-hero{ display:flex; flex-direction:column; align-items:center; margin-bottom:20px; }
+  .cc-hero-orb{
+    position:relative; width:280px; height:280px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  /* soft panel-colored backing (not flat black, not left fully transparent)
+     so the falling code-rain background doesn't show its own colored
+     glyphs bleeding through the gaps between particles */
+  .cc-hero-orb::before{
+    content:""; position:absolute; inset:20%; border-radius:50%;
+    background:radial-gradient(circle, var(--panel) 0%, var(--panel) 55%, transparent 78%);
+  }
+  #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
+  /* shown only if three.js/WebGL isn't available — same glow-orb fallback
+     look the old CSS-only version used, so the hero never renders empty */
+  .cc-hero-orb.cc-hero-fallback{
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--ink), var(--accent) 55%, transparent 75%);
+    box-shadow:0 0 30px 6px rgba(0,255,102,0.5);
+    animation:ccBreathe 3.2s ease-in-out infinite;
+  }
+  @keyframes ccBreathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.08); } }
+  .cc-hero-label{
+    margin-top:12px; font-weight:700; letter-spacing:0.25em; font-size:0.95rem;
+    color:var(--ink); text-shadow:0 0 14px rgba(0,255,102,0.5);
+  }
+  .cc-hero-label span{ color:var(--accent); margin-left:6px; }
+
+  .cc-grid{
+    display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:16px;
+  }
+  @media (min-width:640px){
+    .cc-grid{ grid-template-columns:1fr 1fr; }
+    .cc-card.cc-span2{ grid-column:span 2; }
+  }
+  .cc-card{
     background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius-tile);
-    padding:12px 14px;
-    display:flex; align-items:center; gap:10px;
+    border-radius:var(--radius-tile); padding:14px;
   }
-  .stat-tile-glyph{ font-size:1.2rem; opacity:0.85; }
-  .stat-tile-num{
-    font-size:1.5rem; font-variant-numeric:tabular-nums; font-weight:700;
-    line-height:1;
+  .cc-card-title{
+    font-size:0.72rem; color:var(--ink-dim); letter-spacing:0.08em;
+    text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; justify-content:space-between;
   }
-  .stat-tile-label{
-    font-size:0.7rem; color:var(--ink-dim); letter-spacing:0.04em;
-    text-transform:uppercase; margin-top:3px;
+  .cc-card-sub{ text-transform:none; letter-spacing:0; opacity:0.7; }
+
+  .cc-stat-row{
+    display:flex; align-items:center; gap:10px; padding:6px 0;
+    border-bottom:1px solid var(--border); font-size:0.82rem;
   }
-  .stat-tile.tile-total{ border-left:2px solid var(--border-bright); box-shadow:0 0 16px rgba(0,255,102,0.14); }
-  .stat-tile.tile-total .stat-tile-num{ color:var(--ink); }
-  .stat-tile.tile-done{ border-left:2px solid var(--accent); box-shadow:0 0 18px rgba(0,255,102,0.18); }
-  .stat-tile.tile-done .stat-tile-num{ color:var(--accent); text-shadow:0 0 10px rgba(0,255,102,0.55); }
-  .stat-tile.tile-overdue{ border-left:2px solid var(--red); box-shadow:0 0 18px rgba(255,59,59,0.18); }
-  .stat-tile.tile-overdue .stat-tile-num{ color:var(--red); text-shadow:0 0 10px rgba(255,59,59,0.5); }
-  .stat-tile.tile-overdue.tile-calm{ box-shadow:0 0 16px rgba(255,59,59,0.08); }
-  .stat-tile.tile-overdue.tile-calm .stat-tile-num{ color:var(--ink-dim); text-shadow:none; }
-  .stat-tile.tile-doses{ border-left:2px solid var(--cyan); box-shadow:0 0 18px rgba(57,214,255,0.18); }
-  .stat-tile.tile-doses .stat-tile-num{ color:var(--cyan); text-shadow:0 0 10px rgba(57,214,255,0.5); }
-  .stat-tile-bar{ font-family:var(--font); letter-spacing:1px; font-size:0.7rem; }
-  .stat-tile-bar .fill{ color:var(--cyan); text-shadow:0 0 6px rgba(57,214,255,0.5); }
-  .stat-tile-bar .bar-empty{ color:var(--ink-dim); opacity:0.5; }
+  .cc-stat-row:last-child{ border-bottom:none; }
+  .cc-stat-glyph{ width:20px; text-align:center; color:var(--accent); }
+  .cc-stat-name{ flex:1; color:var(--ink-dim); }
+  .cc-stat-val{ font-variant-numeric:tabular-nums; color:var(--ink); font-weight:700; }
+  .cc-stat-val.cc-warn{ color:var(--red); }
+
+  .cc-feed-list, .cc-timeline-list{ display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
+  .cc-feed-item{
+    display:flex; align-items:center; gap:8px;
+    font-size:0.78rem; padding:7px 8px; border-radius:6px;
+    background:var(--panel-2); border-left:2px solid var(--border-bright);
+  }
+  .cc-feed-item.cc-feed-warn{ border-left-color:var(--amber); }
+  .cc-feed-item.cc-feed-alert{ border-left-color:var(--red); }
+  .cc-feed-text{ flex:1; color:var(--ink-dim); }
+  .cc-feed-tag{
+    font-size:0.62rem; letter-spacing:0.05em; padding:2px 6px; border-radius:4px;
+    background:var(--accent-dim); color:var(--accent);
+  }
+
+  .cc-quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .cc-cmd-btn{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    padding:10px; font-family:inherit; font-size:0.76rem; color:var(--ink);
+    cursor:pointer; transition:border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .cc-cmd-btn:hover, .cc-cmd-btn:active{ border-color:var(--accent); box-shadow:0 0 10px rgba(34,211,238,0.25); }
+  .cc-cmd-btn span{ color:var(--accent); font-weight:700; }
+
+  .cc-gauges{ display:flex; justify-content:space-around; text-align:center; }
+  .cc-gauge{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .cc-gauge-dial{
+    width:64px; height:64px; border-radius:50%; position:relative;
+    background:conic-gradient(var(--accent) calc(var(--pct,0)*1%), var(--border) 0);
+  }
+  .cc-gauge-dial::before{ content:""; position:absolute; inset:6px; border-radius:50%; background:var(--panel); }
+  .cc-gauge-pct{
+    position:relative; font-size:0.72rem; font-weight:700; color:var(--accent);
+    display:flex; align-items:center; justify-content:center; width:100%; height:100%;
+  }
+  .cc-gauge-label{ font-size:0.68rem; color:var(--ink-dim); }
+
+  .cc-sparkline{ display:flex; align-items:flex-end; gap:3px; height:48px; margin-bottom:10px; }
+  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.7; border-radius:2px 2px 0 0; }
+  .cc-insights-stats{ display:flex; justify-content:space-between; font-size:0.72rem; color:var(--ink-dim); }
+  .cc-insights-stats b{ display:block; font-size:0.95rem; color:var(--ink); }
+
+  .cc-chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .cc-chip{
+    font-size:0.72rem; padding:5px 10px; border-radius:20px;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--ink-dim);
+  }
+
+  .cc-jarvis-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--panel); border:1px solid var(--border); border-radius:24px;
+    padding:8px 14px; font-size:0.7rem; color:var(--ink-dim);
+  }
+  .cc-jarvis-chip{ white-space:nowrap; }
+  .cc-jarvis-chip b{ color:var(--ink); }
+  .cc-jarvis-talk{
+    display:flex; align-items:center; gap:8px;
+    background:var(--accent-dim); border:1px solid var(--accent); border-radius:20px;
+    padding:8px 16px; font-family:inherit; font-weight:700; letter-spacing:0.05em;
+    color:var(--accent); cursor:pointer; font-size:0.76rem;
+  }
+  .cc-jarvis-wave{ display:flex; align-items:center; gap:2px; height:14px; }
+  .cc-jarvis-wave span{
+    width:2px; height:5px; border-radius:1px; background:var(--accent);
+    animation:ccWave 1s ease-in-out infinite;
+  }
+  .cc-jarvis-wave span:nth-child(2){ animation-delay:0.1s; }
+  .cc-jarvis-wave span:nth-child(3){ animation-delay:0.2s; }
+  .cc-jarvis-wave span:nth-child(4){ animation-delay:0.3s; }
+  .cc-jarvis-wave span:nth-child(5){ animation-delay:0.4s; }
+  .cc-jarvis-bar:not(.talking) .cc-jarvis-wave span{ animation-play-state:paused; height:3px; }
+  @keyframes ccWave{ 0%,100%{ height:5px; } 50%{ height:13px; } }
 
   .add-card{
     background:var(--panel);
@@ -945,25 +1065,13 @@
   }
   .bottom-tab:active{ color:var(--accent); }
 
-  .home-ring-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:18px; }
-  .home-ring{ width:150px; height:150px; filter:drop-shadow(0 0 16px rgba(0,255,102,0.35)); }
-  .home-ring-label{ font-size:0.76rem; color:var(--ink-dim); margin-top:8px; }
-
-  .home-today{
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-tile);
-    padding:14px; margin-bottom:18px;
-  }
-  .home-today-head{
-    display:flex; justify-content:space-between; align-items:center;
-    font-size:0.78rem; color:var(--ink-dim); margin-bottom:10px;
-  }
   .home-view-all{
     background:transparent; border:none; color:var(--accent);
     font-family:inherit; font-size:0.74rem; cursor:pointer; padding:0;
     transition:text-shadow 0.15s ease;
   }
   .home-view-all:hover, .home-view-all:active{ text-shadow:0 0 8px rgba(0,255,102,0.6); }
-  .home-today-empty{ font-size:0.78rem; color:var(--ink-dim); opacity:0.7; }
+  .cc-timeline-empty{ font-size:0.78rem; color:var(--ink-dim); opacity:0.7; }
 
   .tasks-toolbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
   .task-view-toggle{ display:flex; gap:4px; }
@@ -1169,6 +1277,7 @@
 <canvas id="bgCanvas3D"></canvas>
 <div class="page-tint" id="pageTint" aria-hidden="true"></div>
 <div class="ambient-screen" id="ambientScreen" aria-hidden="true">
+  <canvas id="ambientShipCanvas" class="ambient-ship-canvas"></canvas>
   <div class="ambient-clock" id="ambientClock">00:00:00</div>
 </div>
 <script src="./buam-fx.js"></script>
@@ -1179,27 +1288,94 @@
     <div class="audio-controls">
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
       <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
-      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="Jarvis voice feedback">🤖 jarvis</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback">🤖 B.U.A.M.</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
 
-  <div class="app-view active" id="viewHome">
-    <div class="home-ring-wrap">
-      <div class="dose-dial home-ring" id="homeRing" style="--pct:0">
-        <div class="dose-digits" id="homeRingPct">0%</div>
-      </div>
-      <div class="home-ring-label">tasks done today</div>
+  <div class="app-view active cc" id="viewHome">
+    <div class="cc-statusbar">
+      <span class="cc-status-pill" id="ccStatusPill"><span class="cc-status-dot"></span><span id="ccStatusText">SYSTEM OPTIMAL</span></span>
+      <span class="cc-clock" id="ccClock">00:00:00</span>
     </div>
 
-    <div class="stat-tiles" id="statTiles"></div>
-
-    <div class="home-today">
-      <div class="home-today-head">
-        <span>Today's tasks</span>
-        <button type="button" id="homeViewAllBtn" class="home-view-all">view all &gt;</button>
+    <div class="cc-hero">
+      <div class="cc-hero-orb" id="aiCoreOrb">
+        <canvas id="aiCoreCanvas"></canvas>
       </div>
-      <div id="homeTodayList"></div>
+      <div class="cc-hero-label">B.U.A.M.<span>CORE</span></div>
+    </div>
+
+    <div class="cc-grid">
+      <div class="cc-card cc-overview">
+        <div class="cc-card-title">core_overview</div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#127908;</span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9636;</span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9888;</span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#3647;</span><span class="cc-stat-name">Budget used</span><span class="cc-stat-val" id="ccBudgetStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9729;</span><span class="cc-stat-name">Sync</span><span class="cc-stat-val" id="ccSyncStat">&mdash;</span></div>
+      </div>
+
+      <div class="cc-card cc-feed">
+        <div class="cc-card-title">live_feed</div>
+        <div class="cc-feed-list" id="ccFeedList">
+          <div class="cc-feed-item"><span class="cc-feed-text">Add a task or transaction to see activity here</span><span class="cc-feed-tag">INFO</span></div>
+        </div>
+      </div>
+
+      <div class="cc-card cc-timeline cc-span2">
+        <div class="cc-card-title">mission_timeline <span class="cc-card-sub">today</span> <button type="button" id="homeViewAllBtn" class="home-view-all">view all &gt;</button></div>
+        <div class="cc-timeline-list" id="ccTimelineList"></div>
+      </div>
+
+      <div class="cc-card cc-quick">
+        <div class="cc-card-title">quick_commands</div>
+        <button type="button" class="cc-cmd-btn" id="ccCmdAddTask"><span>+</span>Add Task</button>
+        <button type="button" class="cc-cmd-btn" id="ccCmdCalendar"><span>&#128197;</span>Calendar</button>
+        <button type="button" class="cc-cmd-btn" id="ccCmdMoney"><span>&#3647;</span>Money</button>
+        <button type="button" class="cc-cmd-btn" id="ccCmdFocus"><span>&#9654;</span>Focus Timer</button>
+      </div>
+
+      <div class="cc-card cc-monitor">
+        <div class="cc-card-title">system_monitor</div>
+        <div class="cc-gauges">
+          <div class="cc-gauge">
+            <div class="cc-gauge-dial" id="ccGaugeTasks" style="--pct:0"><span class="cc-gauge-pct" id="ccGaugeTasksPct">0%</span></div>
+            <span class="cc-gauge-label">Tasks</span>
+          </div>
+          <div class="cc-gauge">
+            <div class="cc-gauge-dial" id="ccGaugeBudget" style="--pct:0"><span class="cc-gauge-pct" id="ccGaugeBudgetPct">0%</span></div>
+            <span class="cc-gauge-label">Budget</span>
+          </div>
+          <div class="cc-gauge">
+            <div class="cc-gauge-dial" id="ccGaugeGoals" style="--pct:0"><span class="cc-gauge-pct" id="ccGaugeGoalsPct">0%</span></div>
+            <span class="cc-gauge-label">Goals</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cc-card cc-insights">
+        <div class="cc-card-title">spending_insights <span class="cc-card-sub">7d</span></div>
+        <div class="cc-sparkline" id="ccSparkline"></div>
+        <div class="cc-insights-stats">
+          <div><b id="ccInsightSpend">&mdash;</b>spent</div>
+          <div><b id="ccInsightTasks">&mdash;</b>done this wk</div>
+        </div>
+      </div>
+
+      <div class="cc-card cc-categories cc-span2">
+        <div class="cc-card-title">top_categories <span class="cc-card-sub">this month</span></div>
+        <div class="cc-chip-row" id="ccCategoryChips"><span class="cc-chip">no spending yet</span></div>
+      </div>
+    </div>
+
+    <div class="cc-jarvis-bar" id="ccJarvisBar">
+      <span class="cc-jarvis-chip" id="ccNetChip">&#127760; <b id="ccNetStat">online</b></span>
+      <button type="button" class="cc-jarvis-talk" id="ccBriefingBtn">
+        <span class="cc-jarvis-wave"><span></span><span></span><span></span><span></span><span></span></span>
+        <span id="ccJarvisState">B.U.A.M. READY</span>
+      </button>
+      <span class="cc-jarvis-chip">Briefing</span>
     </div>
   </div>
 
@@ -1833,6 +2009,18 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- bloom postprocessing + orbit/zoom/pan controls for the ambient-screen ship
+     scene — pinned to the same r128 build as three.js above; every script
+     here is additive/optional, the ambient ship code checks for each before
+     using it and just skips that piece (no bloom, or no camera controls) if
+     it failed to load -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 /* ---------------- boot intro ---------------- */
 (function(){
@@ -2350,17 +2538,7 @@ function render(){
     c.classList.toggle("active", c.dataset.filter===filter);
   });
 
-  const total = tasks.length;
-  const done = tasks.filter(t=>t.done).length;
-  const overdue = tasks.filter(t=>!t.done && t.due && t.due<today).length;
-  const dosesToday = todayDosesCount();
-  renderStatTiles(total, done, overdue, dosesToday);
-
-  const todayTasks = tasks.filter(t=>t.due===today);
-  const todayDone = todayTasks.filter(t=>t.done).length;
-  const todayPct = todayTasks.length ? Math.round(todayDone/todayTasks.length*100) : 0;
-  renderHomeRing(todayPct);
-  renderHomeToday(today);
+  renderCommandCenter();
 
   if(filtered.length===0){
     list.innerHTML = `<div class="empty">no_tasks_found</div>`;
@@ -2379,20 +2557,87 @@ function render(){
   renderTimelineView(filtered, today);
 }
 
-function renderHomeRing(pct){
-  document.getElementById("homeRing").style.setProperty("--pct", pct);
-  document.getElementById("homeRingPct").textContent = pct + "%";
+function setGauge(dialId, pctId, pct){
+  const dial = document.getElementById(dialId);
+  const label = document.getElementById(pctId);
+  if(!dial || !label) return;
+  const clamped = Math.max(0, Math.min(100, pct));
+  dial.style.setProperty("--pct", clamped);
+  label.textContent = Math.round(pct) + "%";
 }
 
-function renderHomeToday(today){
-  const wrap = document.getElementById("homeTodayList");
+/* ---------------- Command Center (Home tab) ---------------- */
+function renderCommandCenter(){
+  if(!document.getElementById("viewHome")) return;
+  const today = todayStr();
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  const activeTasks = tasks.filter(t=>!t.done).length;
+  const overdueTasks = tasks.filter(t=>!t.done && t.due && t.due<today);
+  document.getElementById("ccTasksStat").textContent = activeTasks;
+  const overdueEl = document.getElementById("ccOverdueStat");
+  overdueEl.textContent = overdueTasks.length;
+  overdueEl.classList.toggle("cc-warn", overdueTasks.length>0);
+  document.getElementById("ccJarvisStat").textContent = window.buamFx && buamFx.isJarvisEnabled() ? "Online" : "Muted";
+  document.getElementById("ccSyncStat").textContent = currentUser ? "Synced" : "Local only";
+
+  const dash = BuamMoney.calcDashboard(moneyState.transactions, BuamMoney.monthKeyOf(today), null);
+  const budgetIncome = moneyState.settings.monthlyIncome || 0;
+  const budgetPct = budgetIncome > 0 ? Math.round((dash.expense/budgetIncome)*100) : 0;
+  const budgetEl = document.getElementById("ccBudgetStat");
+  budgetEl.textContent = budgetIncome > 0 ? budgetPct + "%" : "no budget set";
+  budgetEl.classList.toggle("cc-warn", budgetIncome > 0 && budgetPct >= 100);
+
+  const statusText = document.getElementById("ccStatusText");
+  statusText.textContent = overdueTasks.length>0
+    ? `${overdueTasks.length} TASK${overdueTasks.length>1?'S':''} OVERDUE`
+    : "SYSTEM OPTIMAL";
+
+  const timelineWrap = document.getElementById("ccTimelineList");
   const todayTasks = tasks.filter(t=>t.due===today);
   if(todayTasks.length===0){
-    wrap.innerHTML = `<div class="home-today-empty">no tasks due today</div>`;
-    return;
+    timelineWrap.innerHTML = `<div class="cc-timeline-empty">no tasks due today</div>`;
+  } else {
+    const sortedToday = todayTasks.slice().sort((a,b)=> (a.done===b.done ? 0 : a.done ? 1 : -1) || (b.createdAt - a.createdAt));
+    timelineWrap.innerHTML = sortedToday.map(t=>taskRowHtml(t, today)).join("");
   }
-  const sorted = todayTasks.slice().sort((a,b)=> (a.done===b.done ? 0 : a.done ? 1 : -1) || (b.createdAt - a.createdAt));
-  wrap.innerHTML = sorted.map(t=>taskRowHtml(t, today)).join("");
+
+  const feedItems = [];
+  if(budgetIncome > 0 && budgetPct >= 100) feedItems.push({ text: `Monthly budget exceeded (${budgetPct}%)`, tag:"WARN", cls:"cc-feed-warn" });
+  overdueTasks.slice(0,3).forEach(t=> feedItems.push({ text: `Overdue: ${t.title}`, tag:"ALERT", cls:"cc-feed-alert" }));
+  tasks.filter(t=>!t.done && t.due===today).slice(0,3).forEach(t=> feedItems.push({ text: `Due today: ${t.title}`, tag:"WARN", cls:"cc-feed-warn" }));
+  tasks.filter(t=>t.done).sort((a,b)=>b.createdAt-a.createdAt).slice(0,2).forEach(t=> feedItems.push({ text: `Completed: ${t.title}`, tag:"INFO", cls:"" }));
+  const feedWrap = document.getElementById("ccFeedList");
+  feedWrap.innerHTML = feedItems.length
+    ? feedItems.slice(0,6).map(f=>`<div class="cc-feed-item ${f.cls}"><span class="cc-feed-text">${escapeHtml(f.text)}</span><span class="cc-feed-tag">${f.tag}</span></div>`).join("")
+    : `<div class="cc-feed-item"><span class="cc-feed-text">All clear — nothing needs attention</span><span class="cc-feed-tag">INFO</span></div>`;
+
+  const totalToday = todayTasks.length;
+  const doneToday = todayTasks.filter(t=>t.done).length;
+  setGauge("ccGaugeTasks", "ccGaugeTasksPct", totalToday ? Math.round(doneToday/totalToday*100) : 0);
+  setGauge("ccGaugeBudget", "ccGaugeBudgetPct", Math.min(100, budgetPct));
+  const monthGoals = goals.filter(g=>g.month===ym);
+  setGauge("ccGaugeGoals", "ccGaugeGoalsPct", monthGoals.length ? Math.round(monthGoals.filter(g=>g.done).length/monthGoals.length*100) : 0);
+
+  const dayList = [];
+  for(let i=6;i>=0;i--){ const d=new Date(now); d.setDate(d.getDate()-i); dayList.push(localDateStr(d)); }
+  const spentByDay = BuamMoney.aggregateByPeriod(moneyState.transactions, "day", dayList[0], today);
+  const maxExpense = Math.max(1, ...spentByDay.map(d=>d.expense));
+  document.getElementById("ccSparkline").innerHTML = dayList.map(ds=>{
+    const bucket = spentByDay.find(d=>d.key===ds);
+    const h = bucket ? Math.max(4, Math.round((bucket.expense/maxExpense)*48)) : 4;
+    return `<div class="cc-sparkline-bar" style="height:${h}px"></div>`;
+  }).join("");
+  const weekSpend = spentByDay.reduce((s,d)=>s+d.expense,0);
+  document.getElementById("ccInsightSpend").textContent = "฿" + BuamMoney.formatBaht(weekSpend);
+  document.getElementById("ccInsightTasks").textContent = tasks.filter(t=>t.done && t.due && t.due>=dayList[0] && t.due<=today).length;
+
+  const catBreak = BuamMoney.categoryBreakdown(moneyState.transactions, moneyState.categories, "expense", ym+"-01", today);
+  const chipsWrap = document.getElementById("ccCategoryChips");
+  chipsWrap.innerHTML = catBreak.length
+    ? catBreak.slice(0,5).map(c=>`<span class="cc-chip">${escapeHtml(c.name)} · ${BuamMoney.formatPct(c.pct)}</span>`).join("")
+    : `<span class="cc-chip">no spending yet</span>`;
 }
 
 function renderTimelineView(filtered, today){
@@ -2414,46 +2659,6 @@ function renderTimelineView(filtered, today){
       ${taskRowHtml(t, today)}
     </div>`;
   }).join("");
-}
-
-function animateNumber(el, from, to, ms){
-  if(from===to){ el.textContent = to; return; }
-  const start = performance.now();
-  function tick(now){
-    const p = Math.min(1, (now-start)/ms);
-    const val = Math.round(from + (to-from)*p);
-    el.textContent = val;
-    if(p<1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
-function renderStatTiles(total, done, overdue, dosesToday){
-  const wrap = document.getElementById("statTiles");
-  const prev = wrap._prevVals || {};
-  wrap.innerHTML =
-    `<div class="stat-tile tile-total">
-      <span class="stat-tile-glyph">▣</span>
-      <div><div class="stat-tile-num" data-k="total">${prev.total ?? total}</div><div class="stat-tile-label">total</div></div>
-    </div>
-    <div class="stat-tile tile-done">
-      <span class="stat-tile-glyph">✓</span>
-      <div><div class="stat-tile-num" data-k="done">${prev.done ?? done}</div><div class="stat-tile-label">done</div></div>
-    </div>
-    <div class="stat-tile tile-overdue ${overdue===0?'tile-calm':''}">
-      <span class="stat-tile-glyph">${overdue===0?'◈':'⚠'}</span>
-      <div><div class="stat-tile-num" data-k="overdue">${prev.overdue ?? overdue}</div><div class="stat-tile-label">${overdue===0?'on track':'overdue'}</div></div>
-    </div>
-    <div class="stat-tile tile-doses">
-      <span class="stat-tile-glyph">▮</span>
-      <div><div class="stat-tile-num" data-k="doses">${prev.doses ?? dosesToday}</div><div class="stat-tile-label">doses today</div></div>
-    </div>`;
-
-  animateNumber(wrap.querySelector('[data-k="total"]'), prev.total ?? total, total, 400);
-  animateNumber(wrap.querySelector('[data-k="done"]'), prev.done ?? done, done, 400);
-  animateNumber(wrap.querySelector('[data-k="overdue"]'), prev.overdue ?? overdue, overdue, 400);
-  animateNumber(wrap.querySelector('[data-k="doses"]'), prev.doses ?? dosesToday, dosesToday, 400);
-  wrap._prevVals = { total, done, overdue, doses: dosesToday };
 }
 
 function taskRowHtml(t, today){
@@ -2516,18 +2721,6 @@ function notifyTimerDone(title, body, tag){
 
 let activeDose = null; // { taskId, step, minutes, totalSeconds, endTime, intervalId }
 
-function isSameDay(ts, d2){
-  const d1 = new Date(ts);
-  return d1.getFullYear()===d2.getFullYear() && d1.getMonth()===d2.getMonth() && d1.getDate()===d2.getDate();
-}
-function todayDosesCount(){
-  const now = new Date();
-  let n = 0;
-  tasks.forEach(t=>{
-    (t.doses||[]).forEach(d=>{ if(d.takenAt && isSameDay(d.takenAt, now)) n++; });
-  });
-  return n;
-}
 function doseBarHtml(count){
   const filled = Math.min(count, DOSE_SCALE);
   let s = "";
@@ -3993,6 +4186,400 @@ updateJarvisBtn();
   }
 })();
 
+/* ---------------- ambient-screen ship (particle swarm forming Odysseus'
+   ship, shown only while the idle/ambient screen is open). Additive only:
+   if three.js or the bloom addons failed to load, or WebGL isn't
+   available, this stays a no-op and the ambient screen still works with
+   just its clock, same fallback contract as the 3D rain background above. */
+window.buamAmbientShip = (function(){
+  if(typeof THREE === "undefined") return { start(){}, stop(){} };
+  const canvas = document.getElementById("ambientShipCanvas");
+  if(!canvas) return { start(){}, stop(){} };
+
+  const COUNT = window.innerWidth < 700 ? 3500 : 8000;
+  let renderer, scene, camera, composer, mesh, controls, animId = null, frame;
+  let ready = false;
+
+  function init(){
+    if(ready) return true;
+    try{ renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, powerPreference:"high-performance" }); }
+    catch(e){ return false; }
+    if(!renderer) return false;
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x05070a, 0.01);
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 0, 100);
+
+    // orbit/zoom/pan the ship while the ambient screen is open — the
+    // document-level tap-vs-drag detection below (see armIdleWatch) makes
+    // sure dragging on the canvas to orbit doesn't also dismiss the screen
+    if(typeof THREE.OrbitControls === "function"){
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 15;
+      controls.maxDistance = 500;
+      controls.target.set(0, 10, 0);
+      controls.update();
+    }
+
+    if(typeof THREE.EffectComposer === "function" && typeof THREE.RenderPass === "function" && typeof THREE.UnrealBloomPass === "function"){
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.8, 0.4, 0);
+      composer.addPass(bloom);
+    }
+
+    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff66, wireframe:true });
+    mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(mesh);
+
+    const dummy = new THREE.Object3D();
+    const positions = [];
+    const pColor = new THREE.Color();
+    for(let i=0;i<COUNT;i++){
+      positions.push(new THREE.Vector3((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*100));
+      mesh.setColorAt(i, pColor.setHex(0x00ff66));
+    }
+
+    // fixed "sliders" — the source this was adapted from exposed these as
+    // live-tunable params; here they're just baked-in constants
+    const PARAMS = { scale:27.1, waveSpeed:3.2, windForce:15.8, rowSpeed:5.6 };
+    const target = new THREE.Vector3();
+    const clock = new THREE.Clock();
+
+    function resize(){
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if(composer) composer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    let resizeTimer;
+    window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 150); });
+
+    frame = function(){
+      animId = requestAnimationFrame(frame);
+      const time = clock.getElapsedTime() * 0.5;
+      const { scale, waveSpeed, windForce, rowSpeed } = PARAMS;
+
+      for(let i=0;i<COUNT;i++){
+        const u = i / COUNT;
+        const r1 = Math.sin(i * 13.412);
+        const r2 = Math.cos(i * 37.193);
+        const r3 = Math.sin(i * 73.912);
+        const r4 = Math.cos(i * 103.11);
+
+        let x = 0, y = 0, z = 0;
+        let h = 0, s = 0, l = 0;
+
+        if(u < 0.4){
+          z = r1 * 1.3;
+          const wp = 1.0 - (z * z) / 1.69;
+          const shell = r2 > 0 ? 1 : -1;
+          x = shell * 0.4 * wp * (0.8 + 0.2 * r3);
+          const hp = (r4 * 0.5 + 0.5) * 0.4;
+          y = hp + Math.pow(Math.abs(z), 2.5) * 0.25;
+          h = 0.08; s = 0.6; l = 0.15 + y * 0.3;
+          if(z > 1.1){
+            x = r2 * 0.05;
+            y = 0.1 + r3 * 0.05;
+            z = 1.1 + Math.abs(r4) * 0.4;
+            h = 0.12; s = 0.8; l = 0.4;
+          } else if(z < -1.1){
+            x = r2 * 0.05;
+            const sternCurve = Math.abs(r4) * 0.4;
+            z = -1.1 - sternCurve;
+            y = 0.4 + Math.pow(sternCurve, 1.5) * 3.0 + r3 * 0.05;
+          }
+        } else if(u < 0.55){
+          const oarId = Math.floor((u - 0.4) * COUNT);
+          const oarIndex = Math.floor(oarId / 20);
+          const maxOars = Math.floor((0.15 * COUNT) / 20);
+          const oarZ = (oarIndex / maxOars) * 2.0 - 1.0;
+          const side = (oarIndex % 2 === 0) ? 1 : -1;
+          const oarT = (oarId % 20) / 19.0;
+          const rowPhase = time * rowSpeed + oarZ * 2.0;
+          const dip = Math.sin(rowPhase);
+          const sweep = Math.cos(rowPhase);
+          x = side * (0.35 + oarT * 0.7) + side * sweep * oarT * 0.25;
+          y = 0.35 + dip * oarT * 0.2;
+          z = oarZ - sweep * oarT * 0.4;
+          h = 0.09; s = 0.5; l = 0.25 + oarT * 0.2;
+        } else if(u < 0.75){
+          const sx = r1 * 0.9;
+          const sy = (r2 * 0.5 + 0.5) * 1.5 + 0.5;
+          let billow = Math.sin(sx * 2.0) * 0.15 + Math.sin(sy * 1.5) * 0.15;
+          billow += Math.sin(time * waveSpeed + sy) * (windForce * 0.005);
+          const cornerPull = Math.pow(Math.abs(sx), 2.0) * 0.4;
+          x = sx;
+          y = sy;
+          z = 0.1 + billow - cornerPull;
+          h = 0.1; s = 0.2; l = 0.7 + r3 * 0.1;
+        } else if(u < 0.80){
+          const subU = (u - 0.75) / 0.05;
+          if(subU < 0.5){
+            x = r1 * 0.04;
+            z = r2 * 0.04 + 0.1;
+            y = (r3 * 0.5 + 0.5) * 2.1;
+            h = 0.07; s = 0.7; l = 0.15;
+          } else {
+            const shieldId = Math.floor((subU - 0.5) * 2.0 * COUNT);
+            const sIdx = Math.floor(shieldId / 15);
+            const sSide = (sIdx % 2 === 0) ? 1 : -1;
+            const sz = ((sIdx / 30) * 2.2 - 1.1) % 1.2;
+            const wpS = 1.0 - (sz * sz) / 1.69;
+            x = sSide * 0.42 * wpS + r1 * 0.03;
+            y = 0.45 + r2 * 0.04 + Math.pow(Math.abs(sz), 2.5) * 0.3;
+            z = sz + r3 * 0.03;
+            h = 0.12; s = 0.8; l = 0.4 + Math.abs(r1) * 0.2;
+          }
+        }
+
+        if(u < 0.80){
+          const shipPitch = Math.sin(time * waveSpeed * 0.6) * 0.08;
+          const shipRoll = Math.cos(time * waveSpeed * 0.8) * 0.05;
+          const shipY = Math.sin(time * waveSpeed * 1.2) * 0.05;
+          let ny = y * Math.cos(shipPitch) - z * Math.sin(shipPitch);
+          let nz = y * Math.sin(shipPitch) + z * Math.cos(shipPitch);
+          y = ny; z = nz;
+          const nx = x * Math.cos(shipRoll) - y * Math.sin(shipRoll);
+          ny = x * Math.sin(shipRoll) + y * Math.cos(shipRoll);
+          x = nx; y = ny;
+          y += shipY;
+        } else {
+          const angle = (r1 * 0.5 + 0.5) * Math.PI * 2.0;
+          const radius = 1.0 + Math.pow(Math.abs(r2), 1.5) * 15.0;
+          x = Math.cos(angle) * radius;
+          z = Math.sin(angle) * radius;
+          const wave = Math.sin(x * 1.5 + time * waveSpeed) * Math.cos(z * 1.5 + time * waveSpeed) * 0.12;
+          y = wave - 0.15;
+          const bowDist = Math.sqrt(x * x + (z - 1.2) * (z - 1.2));
+          if(bowDist < 1.5){
+            y += (1.5 - bowDist) * 0.2 * Math.max(0, Math.sin(time * waveSpeed * 1.2));
+          }
+          if(z < -1.0 && Math.abs(x) < (1.0 + Math.abs(z) * 0.2)){
+            y += 0.15 * Math.sin(z * 4.0 - time * 4.0);
+          }
+          h = 0.82 + r3 * 0.04;
+          s = 0.7;
+          l = 0.15 + wave * 0.5;
+          if(y > -0.05){ s = 0.1; l = 0.8 + r4 * 0.2; }
+        }
+
+        target.set(x * scale, y * scale, z * scale);
+        pColor.setHSL(h, s, l);
+
+        positions[i].lerp(target, 0.1);
+        dummy.position.copy(positions[i]);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        mesh.setColorAt(i, pColor);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceColor.needsUpdate = true;
+
+      if(controls) controls.update();
+      if(composer) composer.render();
+      else renderer.render(scene, camera);
+    }
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.hidden) stop(); else if(canvas.closest(".ambient-screen.visible")) start();
+    });
+
+    ready = true;
+    return true;
+  }
+
+  function start(){
+    if(!init()) return;
+    if(!animId) frame();
+  }
+  function stop(){
+    if(animId){ cancelAnimationFrame(animId); animId = null; }
+  }
+
+  return { start, stop };
+})();
+
+/* ---------------- B.U.A.M. Core — small 3D particle "atom" visualization
+   for the Command Center hero: a glowing sphere core with tilted orbiting
+   rings of particles (electron shells), draggable/zoomable like the ambient
+   ship. Runs only while the Home tab is the active view — started/stopped
+   from switchView() below and paused on visibilitychange. Same
+   additive-only fallback contract as the other three.js scenes: if
+   THREE/WebGL isn't available, the CSS glow-orb fallback is shown instead. */
+window.buamAICore = (function(){
+  const canvas = document.getElementById("aiCoreCanvas");
+  const orbEl = document.getElementById("aiCoreOrb");
+  if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
+
+  let renderer, scene, camera, controls, core, coreGlow, orbits = [], electrons = [], animId = null, frame;
+  let ready = false;
+
+  function makeGlowTexture(){
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const cx = c.getContext("2d");
+    const g = cx.createRadialGradient(32,32,0, 32,32,32);
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    cx.fillStyle = g;
+    cx.fillRect(0,0,64,64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+  }
+
+  // evenly-spaced sphere surface — used for the core so it reads as a solid
+  // glowing ball of particles rather than a random scatter
+  function fibonacciSphere(n, radius){
+    const positions = new Float32Array(n*3);
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for(let i=0;i<n;i++){
+      const y = 1 - (i/(n-1))*2;
+      const r = Math.sqrt(Math.max(0, 1 - y*y));
+      const theta = golden * i;
+      positions[i*3] = Math.cos(theta) * r * radius;
+      positions[i*3+1] = y * radius;
+      positions[i*3+2] = Math.sin(theta) * r * radius;
+    }
+    return positions;
+  }
+
+  // a faint circular guide line for each orbit — the actual "electron" is a
+  // separate bright point that travels along this path (see electronPivot
+  // below), rather than the whole ring of dots just spinning as one clump
+  function makeOrbitLine(radius, color){
+    const segments = 64;
+    const positions = new Float32Array((segments+1)*3);
+    for(let i=0;i<=segments;i++){
+      const a = (i/segments) * Math.PI * 2;
+      positions[i*3] = Math.cos(a) * radius;
+      positions[i*3+1] = 0;
+      positions[i*3+2] = Math.sin(a) * radius;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.28 });
+    return new THREE.LineLoop(geo, mat);
+  }
+
+  function init(){
+    if(ready) return true;
+    try{ renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true }); }
+    catch(e){ orbEl.classList.add("cc-hero-fallback"); return false; }
+    renderer.setClearColor(0x000000, 0); // fully transparent canvas — no bloom composer here (see below) since post-processing can't preserve alpha, which was showing as an opaque black square
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0, 1.2, 6);
+
+    const glowTex = makeGlowTexture();
+    const coreColor = 0x22ff77;     // vivid saturated green — the core itself
+    const lineColor = 0x00ff66;     // faint orbit-path guide, matches the app accent exactly
+    const electronColor = 0x9dffc0; // brighter, still clearly green — the moving electron stands out without going white
+
+    // soft glow halo behind the core — a cheap stand-in for real bloom that
+    // doesn't fight the canvas's transparency the way EffectComposer does
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.45, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(2.6);
+    scene.add(coreGlow);
+
+    const coreGeo = new THREE.BufferGeometry();
+    coreGeo.setAttribute("position", new THREE.BufferAttribute(fibonacciSphere(280, 1.05), 3));
+    const coreMat = new THREE.PointsMaterial({ size:0.16, map:glowTex, color:coreColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    core = new THREE.Points(coreGeo, coreMat);
+    scene.add(core);
+
+    // three "electron shell" orbits at different tilts/speeds/radii, each a
+    // faint guide ring plus one bright particle actually traveling around it
+    const ringDefs = [
+      { radius:1.9,  tiltX:0,             tiltZ:0,    speed:0.9 },
+      { radius:2.3,  tiltX:Math.PI/2.6,   tiltZ:0.4,  speed:-0.65 },
+      { radius:2.55, tiltX:-Math.PI/2.3,  tiltZ:-0.5, speed:0.5 }
+    ];
+    ringDefs.forEach(def=>{
+      const pivot = new THREE.Object3D();
+      pivot.rotation.x = def.tiltX;
+      pivot.rotation.z = def.tiltZ;
+      scene.add(pivot);
+      pivot.add(makeOrbitLine(def.radius, lineColor));
+
+      const electronPivot = new THREE.Object3D();
+      electronPivot.userData.speed = def.speed;
+      pivot.add(electronPivot);
+
+      const electron = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:electronColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+      electron.scale.setScalar(0.32);
+      electron.position.set(def.radius, 0, 0);
+      electronPivot.add(electron);
+
+      orbits.push(pivot);
+      electrons.push(electronPivot);
+    });
+
+    if(typeof THREE.OrbitControls === "function"){
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 3.5;
+      controls.maxDistance = 10;
+      controls.enablePan = false;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.1;
+    }
+
+    function resize(){
+      const size = Math.max(1, Math.round(canvas.getBoundingClientRect().width));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.setSize(size, size, false);
+      camera.aspect = 1;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    let resizeTimer;
+    window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 150); });
+
+    const clock = new THREE.Clock();
+    frame = function(){
+      animId = requestAnimationFrame(frame);
+      const dt = clock.getDelta();
+      const t = clock.getElapsedTime();
+      core.rotation.y += dt * 0.15;
+      const breathe = 1 + Math.sin(t * 1.3) * 0.04;
+      core.scale.setScalar(breathe);
+      coreGlow.scale.setScalar(2.6 * breathe);
+      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed; });
+      if(controls) controls.update();
+      renderer.render(scene, camera);
+    };
+
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.hidden) stop();
+      else if(document.getElementById("viewHome").classList.contains("active")) start();
+    });
+
+    ready = true;
+    return true;
+  }
+
+  function start(){
+    if(!init()) return;
+    if(!animId) frame();
+  }
+  function stop(){
+    if(animId){ cancelAnimationFrame(animId); animId = null; }
+  }
+
+  return { start, stop };
+})();
+
 /* ---------------- ambient/idle showcase screen ---------------- */
 const ambientScreen = document.getElementById("ambientScreen");
 const ambientClock = document.getElementById("ambientClock");
@@ -4023,6 +4610,8 @@ function showAmbientScreen(){
   document.querySelector(".app-aurora").classList.add("intensify");
   if(window.buamRainIdleMode) buamRainIdleMode(true);
   if(window.buamDustIdleMode) buamDustIdleMode(true);
+  if(window.buamAmbientShip) buamAmbientShip.start();
+  if(window.buamAICore) buamAICore.stop(); // the ambient screen fully covers it, no point rendering underneath
   updateAmbientClock();
   ambientClockTimerId = setInterval(updateAmbientClock, 1000);
 }
@@ -4034,6 +4623,8 @@ function hideAmbientScreen(){
   document.querySelector(".app-aurora").classList.remove("intensify");
   if(window.buamRainIdleMode) buamRainIdleMode(false);
   if(window.buamDustIdleMode) buamDustIdleMode(false);
+  if(window.buamAmbientShip) buamAmbientShip.stop();
+  if(window.buamAICore && currentView === "home") buamAICore.start();
   if(ambientClockTimerId){ clearInterval(ambientClockTimerId); ambientClockTimerId = null; }
 }
 
@@ -4045,16 +4636,40 @@ function resetIdleTimer(){
 
 let lastMoveReset = 0;
 function throttledActivity(){
+  // while the ambient ship scene is open, dragging to orbit it and
+  // scrolling to zoom it both fire mousemove/scroll — don't treat that as
+  // "leave idle", or it'd exit the instant you tried to look around
+  if(ambientScreen.classList.contains("visible")) return;
   const now = Date.now();
   if(now - lastMoveReset < 500) return;
   lastMoveReset = now;
   resetIdleTimer();
 }
 
+// While the ambient screen is open, only a plain tap/click (press and
+// release close together, without dragging) or any keypress exits it — a
+// drag is camera orbit on the 3D scene instead. Off the ambient screen this
+// still behaves exactly as before: any press immediately resets the timer.
+let ambientDownPos = null;
 function armIdleWatch(){
-  ["pointerdown","keydown","touchstart"].forEach(evt=>{
-    document.addEventListener(evt, resetIdleTimer, { passive:true });
-  });
+  document.addEventListener("pointerdown", e=>{
+    if(ambientScreen.classList.contains("visible")){
+      ambientDownPos = { x:e.clientX, y:e.clientY, t:Date.now() };
+      return;
+    }
+    resetIdleTimer();
+  }, { passive:true });
+  document.addEventListener("pointerup", e=>{
+    if(!ambientScreen.classList.contains("visible") || !ambientDownPos) return;
+    const moved = Math.hypot(e.clientX - ambientDownPos.x, e.clientY - ambientDownPos.y);
+    const quick = Date.now() - ambientDownPos.t < 500;
+    ambientDownPos = null;
+    if(moved < 8 && quick) resetIdleTimer();
+  }, { passive:true });
+  document.addEventListener("keydown", resetIdleTimer, { passive:true });
+  document.addEventListener("touchstart", ()=>{
+    if(!ambientScreen.classList.contains("visible")) resetIdleTimer();
+  }, { passive:true });
   ["mousemove","scroll"].forEach(evt=>{
     document.addEventListener(evt, throttledActivity, { passive:true });
   });
@@ -4076,9 +4691,11 @@ function switchView(name){
   document.querySelectorAll(".bottom-tab").forEach(el=>{
     el.classList.toggle("active", el.dataset.view === name);
   });
+  if(name === "home") renderCommandCenter(); // money/goal changes made on other tabs don't call render(), so refresh on the way back in
   if(name === "analytics") renderAnalyticsView();
   if(name === "calendar") renderCalendar();
   if(name === "money") initMoneyView();
+  if(window.buamAICore){ if(name === "home") buamAICore.start(); else buamAICore.stop(); }
   if(window.buamFx) buamFx.blip();
 }
 
@@ -4086,6 +4703,68 @@ document.querySelectorAll(".bottom-tab").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
 });
 document.getElementById("homeViewAllBtn").addEventListener("click", ()=> switchView("tasks"));
+
+/* ---------------- Command Center: quick commands, live clock, Jarvis bar ---------------- */
+document.getElementById("ccCmdAddTask").addEventListener("click", ()=>{
+  switchView("tasks");
+  document.getElementById("titleInput").focus();
+});
+document.getElementById("ccCmdCalendar").addEventListener("click", ()=> switchView("calendar"));
+document.getElementById("ccCmdMoney").addEventListener("click", ()=> switchView("money"));
+document.getElementById("ccCmdFocus").addEventListener("click", ()=> openTimerSetup());
+
+function updateCcClock(){
+  const el = document.getElementById("ccClock");
+  if(!el) return;
+  const d = new Date();
+  el.textContent = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+}
+updateCcClock();
+setInterval(updateCcClock, 1000);
+
+function updateCcJarvisBar(){
+  const stateEl = document.getElementById("ccJarvisState");
+  const bar = document.getElementById("ccJarvisBar");
+  if(!stateEl || !bar || bar.classList.contains("talking")) return;
+  stateEl.textContent = (window.buamFx && buamFx.isJarvisEnabled()) ? "B.U.A.M. READY" : "B.U.A.M. MUTED";
+}
+updateCcJarvisBar();
+window.addEventListener("buam-jarvis-speak", e=>{
+  const bar = document.getElementById("ccJarvisBar");
+  const stateEl = document.getElementById("ccJarvisState");
+  if(!bar || !stateEl) return;
+  bar.classList.add("talking");
+  stateEl.textContent = "B.U.A.M. SPEAKING…";
+  e.detail.utterance.addEventListener("end", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
+  e.detail.utterance.addEventListener("error", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
+});
+document.getElementById("jarvisToggle").addEventListener("click", updateCcJarvisBar);
+
+function updateCcNetStat(){
+  const el = document.getElementById("ccNetStat");
+  if(el) el.textContent = navigator.onLine ? "online" : "offline";
+}
+updateCcNetStat();
+window.addEventListener("online", updateCcNetStat);
+window.addEventListener("offline", updateCcNetStat);
+
+document.getElementById("ccBriefingBtn").addEventListener("click", ()=>{
+  if(!window.buamFx) return;
+  const today = todayStr();
+  const overdueCount = tasks.filter(t=>!t.done && t.due && t.due<today).length;
+  const dueTodayCount = tasks.filter(t=>!t.done && t.due===today).length;
+  const budgetIncome = moneyState.settings.monthlyIncome || 0;
+  const dash = BuamMoney.calcDashboard(moneyState.transactions, BuamMoney.monthKeyOf(today), null);
+  const budgetPct = budgetIncome > 0 ? Math.round((dash.expense/budgetIncome)*100) : null;
+
+  const parts = [];
+  parts.push(overdueCount>0
+    ? `You have ${overdueCount} overdue task${overdueCount>1?'s':''}.`
+    : "No overdue tasks, nicely done.");
+  if(dueTodayCount>0) parts.push(`${dueTodayCount} task${dueTodayCount>1?'s are':' is'} due today.`);
+  if(budgetPct!=null) parts.push(budgetPct>=100 ? `You're over budget this month, at ${budgetPct}%.` : `You're at ${budgetPct}% of this month's budget.`);
+  buamFx.jarvisSayCustom(parts.join(" "));
+});
 
 let taskViewMode = "list";
 const taskViewToggle = document.getElementById("taskViewToggle");
@@ -4128,9 +4807,6 @@ function scheduleMidnightRefresh(){
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) checkDateRollover(); });
 window.addEventListener("focus", checkDateRollover);
 scheduleMidnightRefresh();
-
-render();
-renderCalendar();
 
 /* ---------------- resume dose/timer countdowns left running when the app was closed ---------------- */
 function restoreActiveTimers(){
@@ -4277,6 +4953,12 @@ auth.onAuthStateChanged(async user=>{
     moneyState.recurring.forEach(r => moneyRecSync.pushUpsert(r));
   }
 })();
+
+// first paint of the task list + Command Center — deferred until here since
+// renderCommandCenter() reads moneyState, which isn't ready any earlier
+render();
+renderCalendar();
+if(window.buamAICore && currentView === "home") buamAICore.start();
 
 function initMoneyView(){
   if(!window.BuamMoney){ console.error("[money] BuamMoney failed to load"); return; }
