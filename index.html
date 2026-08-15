@@ -474,10 +474,17 @@
 
   .cc-hero{ display:flex; flex-direction:column; align-items:center; margin-bottom:20px; }
   .cc-hero-orb{
-    position:relative; width:200px; height:200px;
+    position:relative; width:280px; height:280px;
     display:flex; align-items:center; justify-content:center;
   }
-  #aiCoreCanvas{ width:100%; height:100%; display:block; touch-action:none; }
+  /* soft panel-colored backing (not flat black, not left fully transparent)
+     so the falling code-rain background doesn't show its own colored
+     glyphs bleeding through the gaps between particles */
+  .cc-hero-orb::before{
+    content:""; position:absolute; inset:20%; border-radius:50%;
+    background:radial-gradient(circle, var(--panel) 0%, var(--panel) 55%, transparent 78%);
+  }
+  #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
   /* shown only if three.js/WebGL isn't available — same glow-orb fallback
      look the old CSS-only version used, so the hero never renders empty */
   .cc-hero-orb.cc-hero-fallback{
@@ -4474,9 +4481,9 @@ window.buamAICore = (function(){
     camera.position.set(0, 1.2, 6);
 
     const glowTex = makeGlowTexture();
-    const coreColor = 0x8dffc4;   // bright minty green — the core itself
-    const lineColor = 0x00ff66;   // faint orbit-path guide
-    const electronColor = 0xe8fff2; // near-white — the moving electron reads as the brightest thing on screen
+    const coreColor = 0x22ff77;     // vivid saturated green — the core itself
+    const lineColor = 0x00ff66;     // faint orbit-path guide, matches the app accent exactly
+    const electronColor = 0x9dffc0; // brighter, still clearly green — the moving electron stands out without going white
 
     // soft glow halo behind the core — a cheap stand-in for real bloom that
     // doesn't fight the canvas's transparency the way EffectComposer does
