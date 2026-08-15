@@ -675,6 +675,18 @@
     background:radial-gradient(circle, var(--surface) 0%, var(--surface) 40%, transparent 72%);
   }
   #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
+  /* broad green bloom behind the canvas — extends the falloff past the WebGL
+     viewport so the glow does not stop at a hard square edge */
+  .cc-hero-orb::after{
+    content:""; position:absolute; inset:-8%; z-index:0;
+    border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle,
+      rgba(0,255,106,0.06) 0%,
+      rgba(0,255,106,0.13) 40%,
+      rgba(0,255,106,0.06) 58%,
+      transparent 74%);
+    filter:blur(12px);
+  }
 
   /* ---- the Core is the primary voice control. the orb box is deliberately
      larger than the particle sphere, so it doubles as a generous touch target
@@ -4822,7 +4834,7 @@ window.buamAICore = (function(){
   const orbEl = document.getElementById("aiCoreOrb");
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
-  let renderer, scene, camera, controls, core, coreGlow, coreHot, nucleus, shell, dust,
+  let renderer, scene, camera, controls, core, coreGlow, coreHalo, coreHot, nucleus, shell, dust,
       orbits = [], electrons = [], animId = null, frame;
   let ready = false;
   // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
@@ -4915,7 +4927,7 @@ window.buamAICore = (function(){
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.45 });
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.55 });
     return new THREE.LineLoop(geo, mat);
   }
 
@@ -4930,9 +4942,14 @@ window.buamAICore = (function(){
     camera.position.set(0, 1.2, 6);
 
     const glowTex = makeGlowTexture();
-    const coreColor = 0x22ff77;     // vivid saturated green — the core itself
-    const lineColor = 0x00ff66;     // faint orbit-path guide, matches the app accent exactly
-    const electronColor = 0x9dffc0; // brighter, still clearly green — the moving electron stands out without going white
+    // additive blending stacks these, so anything near-white washes the centre
+    // out to white. Every layer stays saturated green and lets the *density* of
+    // overlapping particles create the hot centre instead of a pale colour.
+    const coreColor = 0x00ff6a;     // saturated green — the core itself
+    const lineColor = 0x00ff66;     // orbit-path guide, matches the app accent exactly
+    const hotColor  = 0x6effa8;     // hottest point: bright, still unmistakably green
+    const shellColor = 0x4dff96;    // surface shell
+    const electronColor = 0x7dffb4; // the travelling electrons
 
     // particle budget scales down on small/low-core devices so the core stays
     // smooth on phones; the visual reads the same, just less dense
@@ -4944,13 +4961,19 @@ window.buamAICore = (function(){
 
     // soft glow halo behind the core — a cheap stand-in for real bloom that
     // doesn't fight the canvas's transparency the way EffectComposer does
-    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.62, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreGlow.scale.setScalar(3.1);
+    // broad outer bloom — carries the "energy field" read without brightening
+    // the particles themselves
+    coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.36, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHalo.scale.setScalar(5.6);
+    scene.add(coreHalo);
+
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.55, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(3.15);
     scene.add(coreGlow);
 
     // tight inner bloom, so the very centre reads as the hottest point
-    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:0xd6ffe6, transparent:true, opacity:0.52, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreHot.scale.setScalar(1.32);
+    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:hotColor, transparent:true, opacity:0.46, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHot.scale.setScalar(1.15);
     scene.add(coreHot);
 
     // core = three stacked layers: a dense volumetric nucleus, a crisp surface
@@ -4959,17 +4982,17 @@ window.buamAICore = (function(){
     scene.add(core);
 
     nucleus = pointsLayer(volumeCloud(N_NUCLEUS, 0.05, 1.02, 1.7), {
-      size:0.095, map:glowTex, color:coreColor, opacity:1
+      size:0.105, map:glowTex, color:coreColor, opacity:1
     });
     core.add(nucleus);
 
     shell = pointsLayer(fibonacciSphere(N_SHELL, 1.12, 0.06), {
-      size:0.062, map:glowTex, color:0xd2ffe4, opacity:0.85
+      size:0.062, map:glowTex, color:shellColor, opacity:0.9
     });
     core.add(shell);
 
     dust = pointsLayer(volumeCloud(N_DUST, 1.45, 2.65, 0.85), {
-      size:0.05, map:glowTex, color:lineColor, opacity:0.62
+      size:0.052, map:glowTex, color:lineColor, opacity:0.7
     });
     scene.add(dust);
 
@@ -4992,7 +5015,7 @@ window.buamAICore = (function(){
       pivot.add(electronPivot);
 
       const electron = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:electronColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
-      electron.scale.setScalar(0.36);
+      electron.scale.setScalar(0.4);
       electron.position.set(def.radius, 0, 0);
       electronPivot.add(electron);
 
@@ -5053,10 +5076,12 @@ window.buamAICore = (function(){
       core.scale.setScalar(breathe);
       dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
-      coreGlow.scale.setScalar(3.1 * breathe);
-      coreGlow.material.opacity = 0.62 + energy * 0.22 + hover * 0.12 + press * 0.25;
-      coreHot.scale.setScalar(1.32 * breathe * (1 + press * 0.5));
-      coreHot.material.opacity = 0.52 + Math.sin(t * 1.9) * 0.06 + activity * 0.25 + hover * 0.18 + press * 0.35;
+      coreHalo.scale.setScalar(5.6 * (1 + (breathe - 1) * 0.6));
+      coreHalo.material.opacity = 0.36 + energy * 0.18 + hover * 0.09 + press * 0.2;
+      coreGlow.scale.setScalar(3.15 * breathe);
+      coreGlow.material.opacity = 0.55 + energy * 0.18 + hover * 0.1 + press * 0.2;
+      coreHot.scale.setScalar(1.15 * breathe * (1 + press * 0.5));
+      coreHot.material.opacity = 0.46 + Math.sin(t * 1.9) * 0.05 + activity * 0.2 + hover * 0.15 + press * 0.3;
       nucleus.material.opacity = 1;
       shell.material.opacity = 0.85 + hover * 0.15 + press * 0.15;
 
