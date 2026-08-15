@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>buam — task terminal</title>
 <meta name="description" content="Manage tasks and homework, hacker-terminal style">
-<meta name="theme-color" content="#05070a">
+<meta name="theme-color" content="#151a18" id="metaThemeColor">
+<script>
+  try{
+    if(localStorage.getItem("buam-theme") === "light"){
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  }catch(e){}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
@@ -13,23 +20,94 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{
-    --bg:#05070a;
-    --panel:#0a120d;
-    --panel-2:#0d1a12;
-    --border:#144024;
+    /* ---- matte charcoal base surface. the whole UI is one continuous
+       physical material; depth comes from elevation, not outlines. ---- */
+    --bg:#151a18;
+    --surface:#1a201d;
+    --panel:#1e2522;        /* raised surface  */
+    --panel-2:#161c1a;      /* inset / recessed surface */
+    --panel-dk:#111614;     /* deep well */
+    --panel-lt:#252d29;     /* lit edge of a raised surface */
+
+    /* borders are no longer the shape-defining element — they are a whisper.
+       shape is communicated by elevation + surface contrast instead. */
+    --border:rgba(255,255,255,0.05);
     --border-bright:#00ff66;
-    --ink:#baffc9;
-    --ink-dim:#4f8f5c;
+
+    --ink:#dcece1;
+    --ink-dim:#8ba396;
     --accent:#00ff66;
-    --accent-dim:rgba(0,255,102,0.14);
+    --accent-dim:rgba(0,255,102,0.12);
     --cyan:#39d6ff;
     --amber:#ffd23f;
-    --red:#ff3b3b;
+    --red:#ff5b5b;
     --magenta:#ff3fd6;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
-    --radius-tile:14px;
+
+    /* ---- shadow system: dark neumorphism, so the cast shadow carries most
+       of the weight and the "light" edge is a faint sheen, never a glow. ---- */
+    --shadow-dark:0,0,0;
+    --shadow-light:255,255,255;
+
+    --neu-shadow-sm:  5px 5px 12px rgba(var(--shadow-dark),0.50), -4px -4px 10px rgba(var(--shadow-light),0.028);
+    --neu-shadow-md:  9px 9px 22px rgba(var(--shadow-dark),0.58), -7px -7px 16px rgba(var(--shadow-light),0.035);
+    --neu-shadow-lg: 14px 14px 34px rgba(var(--shadow-dark),0.66), -10px -10px 24px rgba(var(--shadow-light),0.042);
+    --neu-floating:  20px 20px 48px rgba(var(--shadow-dark),0.74), -12px -12px 30px rgba(var(--shadow-light),0.05);
+
+    --neu-inset-sm: inset 4px 4px 10px rgba(var(--shadow-dark),0.55), inset -3px -3px  8px rgba(var(--shadow-light),0.030);
+    --neu-inset-md: inset 7px 7px 17px rgba(var(--shadow-dark),0.62), inset -5px -5px 12px rgba(var(--shadow-light),0.036);
+
+    /* ---- radius scale: soft industrial hardware, not bubbly ---- */
+    --neu-radius-sm:14px;   /* small controls */
+    --neu-radius-md:20px;   /* buttons, rows, inputs */
+    --radius-tile:26px;     /* cards */
+    --neu-radius-lg:30px;   /* large panels */
+
+    --header-scrim: rgba(21,26,24,0.88);
+    --accent-ink: #06170d;
+    --boot-blue:#39d6ff;   /* electric-blue secondary accent (boot HUD, core rim) */
+    /* used by .task.overdue::after via mask(), so the marker still takes --red */
+    --ico-warning-url: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z'/><path d='M12 9.5v4.8M12 17.8h.01'/></svg>");
+
+    /* surfaces are shaded, not flat fills — this is what sells the extrusion */
+    --neu-grad-raised: linear-gradient(145deg, var(--panel-lt), var(--panel-dk));
+    --neu-grad-inset: linear-gradient(145deg, var(--panel-dk), var(--panel-lt));
+    --neu-grad-flat: linear-gradient(145deg, var(--surface), var(--panel-2));
   }
+  [data-theme="light"]{
+    --bg:#e8ecea;
+    --surface:#eef2f0;
+    --panel:#eaefec;
+    --panel-2:#e2e8e5;
+    --panel-dk:#cfd8d3;
+    --panel-lt:#fbfdfc;
+
+    --border:rgba(0,0,0,0.045);
+    --border-bright:#07742e;
+
+    --ink:#1b2b22; --ink-dim:#5a6b61;
+    --accent:#07742e; --accent-dim:rgba(7,116,46,0.12);
+    --cyan:#0077a8; --amber:#8a6300; --red:#c92a2a; --magenta:#a3168a;
+
+    --shadow-dark:150,163,157;
+    --shadow-light:255,255,255;
+
+    --neu-shadow-sm:  5px 5px 12px rgba(var(--shadow-dark),0.42), -4px -4px 10px rgba(var(--shadow-light),0.90);
+    --neu-shadow-md:  9px 9px 22px rgba(var(--shadow-dark),0.50), -7px -7px 16px rgba(var(--shadow-light),0.95);
+    --neu-shadow-lg: 14px 14px 34px rgba(var(--shadow-dark),0.55), -10px -10px 24px rgba(var(--shadow-light),1);
+    --neu-floating:  20px 20px 48px rgba(var(--shadow-dark),0.60), -12px -12px 30px rgba(var(--shadow-light),1);
+
+    --neu-inset-sm: inset 4px 4px 10px rgba(var(--shadow-dark),0.45), inset -3px -3px  8px rgba(var(--shadow-light),0.85);
+    --neu-inset-md: inset 7px 7px 17px rgba(var(--shadow-dark),0.52), inset -5px -5px 12px rgba(var(--shadow-light),0.92);
+
+    --header-scrim: rgba(232,236,234,0.88);
+    --accent-ink: #ffffff;
+  }
+  [data-theme="light"] input[type=text],
+  [data-theme="light"] select,
+  [data-theme="light"] input[type=date]{ color-scheme:light; }
   *{box-sizing:border-box;}
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
   html{ background:var(--bg); }
   html,body{margin:0;padding:0; overscroll-behavior:none;}
   body{
@@ -48,7 +126,7 @@
     inset:0;
     z-index:-2;
     pointer-events:none;
-    background: radial-gradient(circle at 50% 0%, #0c1c12 0%, var(--bg) 60%);
+    background: radial-gradient(circle at 50% 0%, #1d2522 0%, var(--bg) 62%);
     transform-origin:50% 0%;
     animation:bgVignetteBreathe 16s ease-in-out infinite;
   }
@@ -71,7 +149,7 @@
     width:55vmax; height:55vmax;
     border-radius:50%;
     filter:blur(90px);
-    opacity:0.14;
+    opacity:0.05;
     mix-blend-mode:screen;
     will-change:transform;
   }
@@ -174,14 +252,22 @@
     z-index:-1;
     pointer-events:none;
     display:block;
+    /* the rain is now a faint texture across the matte base surface, not a
+       lit screen — keeps the cyber identity without fighting the elevation */
+    opacity:0.22;
   }
+  [data-theme="light"] #bgCanvas{ opacity:0.10; }
   #bgCanvas3D{
     position:fixed;
     inset:0;
     z-index:-1;
     pointer-events:none;
     display:none; /* shown by JS only after a real WebGL context is confirmed working */
+    /* held back to the same ambient level as the 2D rain so the drifting
+       glyphs texture the base surface instead of competing with the cards */
+    opacity:0.30;
   }
+  [data-theme="light"] #bgCanvas3D{ opacity:0.14; }
   /* subtle scanlines */
   body::before{
     content:"";
@@ -203,7 +289,7 @@
     position:relative;
     z-index:1;
   }
-  ::selection{ background:var(--accent); color:#00170a; }
+  ::selection{ background:var(--accent); color:var(--accent-ink); }
 
   header{
     position:sticky; top:0; z-index:40;
@@ -215,7 +301,7 @@
     flex-wrap:wrap;
     gap:8px;
     border-bottom:1px dashed var(--border);
-    background:rgba(5,7,10,0.86);
+    background:var(--header-scrim);
     backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);
   }
@@ -250,7 +336,7 @@
 
   .boot-screen{
     position:fixed; inset:0; z-index:999;
-    background:var(--bg); color:var(--accent);
+    background:#080b0a; color:var(--accent);
     font-family:var(--font);
     padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -440,6 +526,40 @@
     margin:14px 0 0;
     font-size:0.68rem; color:var(--ink-dim); opacity:0.7; text-align:right;
   }
+
+  /* ---- HUD initialization progress bar: segmented track, green fill with an
+     electric-blue leading edge. hidden until the sequence actually starts ---- */
+  .boot-progress{
+    margin-top:16px; opacity:0;
+    transition:opacity 0.4s ease;
+  }
+  .boot-progress.on{ opacity:1; }
+  .boot-progress-track{
+    position:relative; height:12px; overflow:hidden;
+    border:1px solid rgba(0,255,102,0.35);
+    background:
+      repeating-linear-gradient(to right,
+        rgba(0,255,102,0.10) 0 6px, transparent 6px 10px);
+  }
+  .boot-progress-fill{
+    position:relative;   /* anchors the leading edge to the fill, not the track */
+    height:100%; width:0%;
+    background:linear-gradient(to right, rgba(0,255,102,0.5), var(--accent));
+    box-shadow:0 0 12px rgba(0,255,102,0.6);
+    transition:width 0.45s cubic-bezier(0.3,0.8,0.4,1);
+  }
+  /* electric-blue leading edge riding the end of the fill */
+  .boot-progress-fill::after{
+    content:""; position:absolute; top:-1px; bottom:-1px; width:2px;
+    right:0; background:var(--boot-blue);
+    box-shadow:0 0 10px 2px var(--boot-blue);
+  }
+  .boot-progress-meta{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-top:6px; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase;
+  }
+  .boot-progress-pct{ color:var(--boot-blue); font-variant-numeric:tabular-nums; }
+  .boot-progress-label{ color:var(--accent); opacity:0.8; }
   .boot-gate{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     margin-top:22px;
@@ -453,10 +573,43 @@
     text-shadow:0 0 8px rgba(0,255,102,0.5);
     animation:gatePulse 1.3s ease-in-out infinite;
   }
-  .boot-enter-btn:hover{ background:var(--accent); color:#00170a; }
+  .boot-enter-btn:hover{ background:var(--accent); color:var(--accent-ink); }
   @keyframes gatePulse{
     0%, 100%{ box-shadow:0 0 4px rgba(0,255,102,0.25); }
     50%{ box-shadow:0 0 16px rgba(0,255,102,0.6); }
+  }
+
+
+  /* ---- icon system ---- */
+  .ico-sprite{ position:absolute; width:0; height:0; overflow:hidden; }
+  .ico{
+    width:1em; height:1em;
+    display:inline-block; vertical-align:-0.14em; flex-shrink:0;
+    fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round;
+    overflow:visible;
+  }
+  /* per-context sizing so icons read at the same optical weight the glyphs did */
+  .icon-btn .ico{ width:16px; height:16px; vertical-align:middle; }
+  .check .ico{ width:12px; height:12px; stroke-width:3; }
+  .sb-glyph .ico{ width:17px; height:17px; vertical-align:middle; }
+  .cc-stat-glyph .ico{ width:15px; height:15px; vertical-align:middle; }
+  .cc-cmd-btn .ico, .snd-toggle .ico, .dose-modal-actions .ico,
+  .quick-link .ico, .cc-jarvis-chip .ico{ width:15px; height:15px; vertical-align:-0.2em; }
+  .dose-feeling-btn .ico{ width:22px; height:22px; margin-bottom:2px; }
+  .money-status .ico, .money-group-status .ico{ width:13px; height:13px; vertical-align:-0.15em; }
+  .money-stat-tile-delta .ico{ width:12px; height:12px; vertical-align:-0.1em; }
+  .boot-enter-btn .ico{ width:14px; height:14px; vertical-align:-0.2em; }
+
+  /* segmented dose meter — previously drawn with block glyphs, now real boxes */
+  .dose-bar{ display:inline-flex; align-items:center; gap:3px; vertical-align:-0.15em; }
+  .meter-seg{
+    width:7px; height:12px; border-radius:2px;
+    background:var(--ink-dim); opacity:0.35;
+  }
+  .meter-seg.on{
+    background:var(--accent); opacity:1;
+    box-shadow:0 0 6px rgba(0,255,102,0.5);
   }
 
   /* ---- Command Center (Home tab) — uses the same green terminal palette
@@ -468,8 +621,9 @@
   }
   .cc-status-pill{
     display:flex; align-items:center; gap:6px;
-    border:1px solid var(--border); border-radius:20px;
-    padding:4px 10px 4px 8px; color:var(--ink-dim); letter-spacing:0.04em;
+    border:none; border-radius:999px;
+    background:var(--neu-grad-raised); box-shadow:var(--neu-shadow-sm);
+    padding:6px 13px 6px 10px; color:var(--ink-dim); letter-spacing:0.04em;
   }
   .cc-status-dot{
     width:7px; height:7px; border-radius:50%; background:var(--accent);
@@ -478,10 +632,19 @@
   @keyframes ccPulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
   .cc-clock{ font-variant-numeric:tabular-nums; color:var(--accent); letter-spacing:0.05em; }
 
-  .cc-hero{ display:flex; flex-direction:column; align-items:center; margin-bottom:20px; }
+  .cc-hero{ display:flex; flex-direction:column; align-items:center; margin-bottom:24px; }
   .cc-hero-orb{
-    position:relative; width:280px; height:280px;
+    position:relative;
+    /* the core is the centrepiece — it scales with the viewport instead of
+       sitting as a fixed 280px dot in the middle of a wide screen */
+    width:min(82vw, 300px); height:min(82vw, 300px);
     display:flex; align-items:center; justify-content:center;
+  }
+  @media (min-width:640px){
+    .cc-hero-orb{ width:360px; height:360px; }
+  }
+  @media (min-width:1024px){
+    .cc-hero-orb{ width:420px; height:420px; }
   }
   /* soft panel-colored backing (not flat black, not left fully transparent)
      so the falling code-rain background doesn't show its own colored
@@ -491,6 +654,43 @@
     background:radial-gradient(circle, var(--panel) 0%, var(--panel) 55%, transparent 78%);
   }
   #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
+
+  /* ---- the Core is the primary voice control. the orb box is deliberately
+     larger than the particle sphere, so it doubles as a generous touch target
+     without spilling into neighbouring controls. ---- */
+  .cc-hero-orb{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .cc-hero-orb:focus{ outline:none; }
+  .cc-hero-orb:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:-8px;
+    border-radius:50%;
+  }
+  /* expanding energy wave on activation — a cheap CSS ring, so the GL loop
+     doesn't have to allocate anything per tap */
+  .cc-core-ripple{
+    position:absolute; left:50%; top:50%;
+    width:44%; height:44%; margin:-22% 0 0 -22%;
+    border-radius:50%; pointer-events:none;
+    border:1px solid var(--accent);
+    opacity:0; transform:scale(0.6);
+  }
+  .cc-core-ripple.go{ animation:ccCoreRipple 0.85s cubic-bezier(0.2,0.7,0.3,1); }
+  @keyframes ccCoreRipple{
+    0%{ opacity:0.55; transform:scale(0.6); }
+    100%{ opacity:0; transform:scale(2.05); }
+  }
+  /* one-time affordance under the label; retires once the core has been used */
+  .cc-core-hint{
+    margin-top:8px; font-size:0.64rem; letter-spacing:0.22em; text-transform:uppercase;
+    color:var(--ink-dim); opacity:0.75;
+    animation:ccHintPulse 2.8s ease-in-out infinite;
+  }
+  .cc-core-hint.retired{ display:none; }
+  @keyframes ccHintPulse{ 0%,100%{ opacity:0.35; } 50%{ opacity:0.8; } }
+  @media (prefers-reduced-motion: reduce){
+    .cc-core-hint{ animation:none; opacity:0.7; }
+    .cc-core-ripple.go{ animation-duration:0.01s; }
+  }
   /* shown only if three.js/WebGL isn't available — same glow-orb fallback
      look the old CSS-only version used, so the hero never renders empty */
   .cc-hero-orb.cc-hero-fallback{
@@ -508,14 +708,16 @@
 
   .cc-grid{
     display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:16px;
+    align-items:stretch;
   }
   @media (min-width:640px){
     .cc-grid{ grid-template-columns:1fr 1fr; }
     .cc-card.cc-span2{ grid-column:span 2; }
   }
   .cc-card{
-    background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius-tile); padding:14px;
+    background:var(--neu-grad-raised); border:none;
+    border-radius:var(--radius-tile); padding:18px;
+    box-shadow:var(--neu-shadow-md);
   }
   .cc-card-title{
     font-size:0.72rem; color:var(--ink-dim); letter-spacing:0.08em;
@@ -525,8 +727,8 @@
   .cc-card-sub{ text-transform:none; letter-spacing:0; opacity:0.7; }
 
   .cc-stat-row{
-    display:flex; align-items:center; gap:10px; padding:6px 0;
-    border-bottom:1px solid var(--border); font-size:0.82rem;
+    display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid rgba(255,255,255,0.035); font-size:0.82rem;
   }
   .cc-stat-row:last-child{ border-bottom:none; }
   .cc-stat-glyph{ width:20px; text-align:center; color:var(--accent); }
@@ -534,11 +736,21 @@
   .cc-stat-val{ font-variant-numeric:tabular-nums; color:var(--ink); font-weight:700; }
   .cc-stat-val.cc-warn{ color:var(--red); }
 
-  .cc-feed-list, .cc-timeline-list{ display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
+  /* recessed display modules — the feed and timeline read as screens set
+     into the card surface, with their rows raised back out of the well */
+  .cc-feed-list, .cc-timeline-list{
+    display:flex; flex-direction:column; gap:8px;
+    max-height:260px; overflow-y:auto;
+    background:var(--neu-grad-inset);
+    box-shadow:var(--neu-inset-sm);
+    border-radius:var(--neu-radius-md);
+    padding:12px;
+  }
   .cc-feed-item{
     display:flex; align-items:center; gap:8px;
-    font-size:0.78rem; padding:7px 8px; border-radius:6px;
-    background:var(--panel-2); border-left:2px solid var(--border-bright);
+    font-size:0.78rem; padding:10px 11px; border-radius:var(--neu-radius-sm);
+    background:var(--neu-grad-raised); box-shadow:var(--neu-shadow-sm);
+    border-left:2px solid var(--border-bright);
   }
   .cc-feed-item.cc-feed-warn{ border-left-color:var(--amber); }
   .cc-feed-item.cc-feed-alert{ border-left-color:var(--red); }
@@ -548,52 +760,87 @@
     background:var(--accent-dim); color:var(--accent);
   }
 
-  .cc-quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .cc-cmd-btn{
-    display:flex; align-items:center; gap:8px;
-    background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
-    padding:10px; font-family:inherit; font-size:0.76rem; color:var(--ink);
-    cursor:pointer; transition:border-color 0.15s ease, box-shadow 0.15s ease;
+  .cc-quick{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    align-content:start;
   }
-  .cc-cmd-btn:hover, .cc-cmd-btn:active{ border-color:var(--accent); box-shadow:0 0 10px rgba(34,211,238,0.25); }
+  /* the card title is a grid child too — without this it consumes a cell and
+     knocks every button one slot out of alignment */
+  .cc-quick .cc-card-title{ grid-column:1 / -1; margin-bottom:0; }
+  /* primary action gets the full row and a touch more presence */
+  .cc-cmd-btn.cc-cmd-primary,
+  .cc-cmd-btn.cc-cmd-wide{ grid-column:1 / -1; }
+  .cc-cmd-btn.cc-cmd-primary{
+    color:var(--accent); font-weight:700;
+    box-shadow:var(--neu-shadow-md);
+  }
+  .cc-cmd-btn.cc-cmd-primary:hover{ box-shadow:var(--neu-shadow-lg); }
+  .cc-cmd-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--neu-grad-raised); border:none; border-radius:var(--neu-radius-md);
+    padding:0 14px; min-height:52px; font-family:inherit; font-size:0.78rem; color:var(--ink);
+    cursor:pointer; box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, transform 0.2s ease-out;
+  }
+  .cc-cmd-btn span{ line-height:1; }
+  .cc-cmd-btn:hover{ box-shadow:var(--neu-shadow-md); transform:translateY(-1px); }
+  .cc-cmd-btn:active{
+    background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm);
+    transform:translateY(0);
+  }
   .cc-cmd-btn span{ color:var(--accent); font-weight:700; }
 
   .cc-gauges{ display:flex; justify-content:space-around; text-align:center; }
   .cc-gauge{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  /* embedded dial: a recessed circular well holding the accent ring,
+     with a raised puck in the middle carrying the number */
   .cc-gauge-dial{
-    width:64px; height:64px; border-radius:50%; position:relative;
-    background:conic-gradient(var(--accent) calc(var(--pct,0)*1%), var(--border) 0);
+    width:76px; height:76px; border-radius:50%; position:relative;
+    background:conic-gradient(var(--accent) calc(var(--pct,0)*1%), rgba(255,255,255,0.05) 0);
+    box-shadow:var(--neu-inset-sm);
   }
-  .cc-gauge-dial::before{ content:""; position:absolute; inset:6px; border-radius:50%; background:var(--panel); }
+  .cc-gauge-dial::before{
+    content:""; position:absolute; inset:8px; border-radius:50%;
+    background:var(--neu-grad-raised); box-shadow:var(--neu-shadow-sm);
+  }
   .cc-gauge-pct{
     position:relative; font-size:0.72rem; font-weight:700; color:var(--accent);
     display:flex; align-items:center; justify-content:center; width:100%; height:100%;
   }
   .cc-gauge-label{ font-size:0.68rem; color:var(--ink-dim); }
 
-  .cc-sparkline{ display:flex; align-items:flex-end; gap:3px; height:48px; margin-bottom:10px; }
-  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.7; border-radius:2px 2px 0 0; }
+  .cc-sparkline{
+    display:flex; align-items:flex-end; gap:4px; height:60px; margin-bottom:12px;
+    background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm);
+    border-radius:var(--neu-radius-md); padding:10px;
+  }
+  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.75; border-radius:999px; min-height:3px; }
   .cc-insights-stats{ display:flex; justify-content:space-between; font-size:0.72rem; color:var(--ink-dim); }
   .cc-insights-stats b{ display:block; font-size:0.95rem; color:var(--ink); }
 
   .cc-chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
   .cc-chip{
-    font-size:0.72rem; padding:5px 10px; border-radius:20px;
-    background:var(--panel-2); border:1px solid var(--border); color:var(--ink-dim);
+    font-size:0.72rem; padding:7px 13px; border-radius:999px;
+    background:var(--neu-grad-raised); border:none; color:var(--ink-dim);
+    box-shadow:var(--neu-shadow-sm);
   }
 
   .cc-jarvis-bar{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--panel); border:1px solid var(--border); border-radius:24px;
-    padding:8px 14px; font-size:0.7rem; color:var(--ink-dim);
+    background:var(--neu-grad-raised); border:none; border-radius:999px;
+    padding:10px 10px 10px 18px; font-size:0.7rem; color:var(--ink-dim);
+    box-shadow:var(--neu-shadow-md);
   }
   .cc-jarvis-chip{ white-space:nowrap; }
   .cc-jarvis-chip b{ color:var(--ink); }
+  /* status readout, not a button — it reports state, it does not start voice */
   .cc-jarvis-talk{
     display:flex; align-items:center; gap:8px;
-    background:var(--accent-dim); border:1px solid var(--accent); border-radius:20px;
-    padding:8px 16px; font-family:inherit; font-weight:700; letter-spacing:0.05em;
-    color:var(--accent); cursor:pointer; font-size:0.76rem;
+    background:var(--neu-grad-inset); border:none; border-radius:999px;
+    padding:10px 18px; font-family:inherit; font-weight:700; letter-spacing:0.05em;
+    color:var(--accent); font-size:0.76rem;
+    box-shadow:var(--neu-inset-sm);
+    cursor:default; user-select:none;
   }
   .cc-jarvis-wave{ display:flex; align-items:center; gap:2px; height:14px; }
   .cc-jarvis-wave span{
@@ -608,15 +855,15 @@
   @keyframes ccWave{ 0%,100%{ height:5px; } 50%{ height:13px; } }
 
   .add-card{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:4px;
-    padding:14px;
+    background:var(--neu-grad-raised);
+    border:none;
+    border-radius:var(--radius-tile);
+    padding:18px;
     margin-bottom:18px;
     display:flex;
     flex-direction:column;
     gap:10px;
-    box-shadow: 0 0 0 1px rgba(0,255,102,0.04) inset;
+    box-shadow: var(--neu-shadow-md), 0 0 0 1px rgba(0,255,102,0.04) inset;
   }
   .prompt-label{
     font-size:0.72rem;
@@ -628,71 +875,76 @@
   .add-row1 .glyph{ color:var(--accent); font-weight:700; }
   input[type=text]{
     flex:1;
-    background:var(--panel-2);
-    border:1px solid var(--border);
+    background:var(--neu-grad-inset);
+    border:none;
     color:var(--ink);
-    border-radius:3px;
-    padding:10px 12px;
+    border-radius:var(--neu-radius-md);
+    padding:13px 16px;
     font-size:16px;
     font-family:inherit;
+    box-shadow:var(--neu-inset-md);
   }
   input[type=text]::placeholder{ color:var(--ink-dim); }
   input[type=text]:focus, select:focus, input[type=date]:focus{
     outline:none;
-    border-color:var(--accent);
-    box-shadow:0 0 0 2px rgba(0,255,102,0.22);
+    box-shadow:var(--neu-inset-md), 0 0 0 2px var(--accent);
   }
   .add-row2{ display:flex; gap:8px; flex-wrap:wrap; }
   select, input[type=date]{
-    background:var(--panel-2);
-    border:1px solid var(--border);
+    background:var(--neu-grad-inset);
+    border:none;
     color:var(--ink);
-    border-radius:3px;
-    padding:8px 10px;
+    border-radius:var(--neu-radius-md);
+    padding:12px 14px;
     font-size:16px;
     font-family:inherit;
     color-scheme:dark;
+    box-shadow:var(--neu-inset-md);
   }
   button{ font-family:inherit; cursor:pointer; border:none; }
   .btn-add{
     background:var(--accent);
-    color:#00170a;
-    border-radius:3px;
-    padding:8px 18px;
+    color:var(--accent-ink);
+    border-radius:var(--neu-radius-md);
+    padding:12px 22px;
     font-size:0.85rem;
     font-weight:700;
     margin-left:auto;
     letter-spacing:0.03em;
-    box-shadow:0 0 8px rgba(0,255,102,0.35);
+    box-shadow:var(--neu-shadow-md);
+    transition:box-shadow 0.2s ease-out, transform 0.2s ease-out;
   }
-  .btn-add:hover{ box-shadow:0 0 12px rgba(0,255,102,0.6); }
+  .btn-add:hover{ box-shadow:var(--neu-shadow-lg); transform:translateY(-1px); }
+  .btn-add:active{ box-shadow:var(--neu-inset-sm); transform:translateY(0); }
 
   .filters{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
   .chip{
-    background:var(--panel);
-    border:1px solid var(--border);
+    background:var(--neu-grad-raised);
+    border:none;
     color:var(--ink-dim);
-    border-radius:3px;
-    padding:8px 12px;
+    border-radius:999px;
+    padding:9px 15px;
     font-size:0.76rem;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
   .chip::before{ content:"#"; opacity:0.6; margin-right:3px; }
   .chip.active{
-    background:var(--accent-dim);
-    border-color:var(--accent);
+    background:var(--neu-grad-inset);
     color:var(--accent);
-    text-shadow:0 0 8px rgba(0,255,102,0.6);
-    box-shadow:0 0 10px rgba(0,255,102,0.3);
+    box-shadow:var(--neu-inset-sm);
   }
-  .chip:active{ border-color:var(--accent); }
+  .chip:active{ box-shadow:var(--neu-inset-sm); }
 
   .empty{
     text-align:center;
     color:var(--ink-dim);
     padding:40px 10px;
     font-size:0.85rem;
-    border:1px dashed var(--border);
-    border-radius:4px;
+    border:none;
+    border-radius:var(--neu-radius-md);
+    background:var(--neu-grad-inset);
+    box-shadow:var(--neu-inset-sm);
   }
   .empty::before{ content:"$ "; color:var(--accent); }
 
@@ -700,18 +952,24 @@
     display:flex;
     align-items:flex-start;
     gap:10px;
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-left:2px solid var(--border-bright);
-    border-radius:3px;
-    padding:12px;
-    margin-bottom:8px;
+    background:var(--neu-grad-raised);
+    border:none;
+    border-left:3px solid var(--border-bright);
+    border-radius:var(--neu-radius-md);
+    padding:14px;
+    margin-bottom:10px;
+    box-shadow:var(--neu-shadow-sm);
   }
   .task.cat-homework{ border-left-color:var(--cyan); }
   .task.cat-work{ border-left-color:var(--accent); }
   .task.cat-personal{ border-left-color:var(--amber); }
   .task.cat-other{ border-left-color:var(--ink-dim); }
-  .task.overdue::after{ content:"⚠"; color:var(--red); margin-left:6px; }
+  .task.overdue::after{
+    content:""; display:inline-block; width:0.95em; height:0.95em; margin-left:6px;
+    vertical-align:-0.15em; background:var(--red);
+    -webkit-mask:var(--ico-warning-url) center/contain no-repeat;
+    mask:var(--ico-warning-url) center/contain no-repeat;
+  }
   .task.done{ opacity:0.45; }
 
   .check{
@@ -723,7 +981,7 @@
     flex-shrink:0;
     margin-top:2px;
     display:flex; align-items:center; justify-content:center;
-    color:#00170a;
+    color:var(--accent-ink);
     font-size:0.7rem;
     font-weight:700;
   }
@@ -748,23 +1006,29 @@
   .task-actions{ display:flex; gap:4px; flex-shrink:0; }
   .icon-btn{
     position:relative;
-    background:transparent; color:var(--ink-dim);
-    width:26px; height:26px; border-radius:3px;
+    background:var(--neu-grad-raised); color:var(--ink-dim);
+    width:34px; height:34px; border-radius:50%;
     font-size:0.85rem;
-    border:1px solid transparent;
+    border:none;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
-  .icon-btn::before{ content:""; position:absolute; inset:-9px; }
-  .icon-btn:hover{ border-color:var(--border); color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); }
-  .icon-btn:active{ color:var(--accent); text-shadow:0 0 8px rgba(0,255,102,0.5); }
+  .icon-btn::before{ content:""; position:absolute; inset:-5px; }
+  .icon-btn:hover{ color:var(--accent); box-shadow:var(--neu-shadow-md); }
+  .icon-btn:active{ color:var(--accent); box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
 
   .audio-controls{ display:flex; gap:6px; align-items:center; flex-shrink:0; }
   .snd-toggle{
-    background:transparent; color:var(--ink-dim);
-    border:1px solid var(--border); border-radius:3px;
-    padding:6px 10px; font-size:0.72rem; letter-spacing:0.03em;
+    background:var(--neu-grad-raised); color:var(--ink-dim);
+    border:none; border-radius:999px;
+    padding:8px 14px; font-size:0.72rem; letter-spacing:0.03em;
     display:flex; align-items:center; gap:5px; flex-shrink:0;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
-  .snd-toggle:hover{ border-color:var(--accent); color:var(--accent); }
+  .snd-toggle:hover{ color:var(--accent); box-shadow:var(--neu-shadow-md); }
+  .snd-toggle:active{ box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
+  .snd-toggle.muted{ box-shadow:var(--neu-inset-sm); background:var(--neu-grad-inset); }
   .snd-toggle.muted{ opacity:0.55; }
 
   .vol-slider{
@@ -803,16 +1067,16 @@
     display:flex; align-items:center; justify-content:center;
     padding:16px; z-index:50;
     overflow-y:auto;
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
   }
   .dose-overlay.hidden{ display:none; }
   .dose-modal{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-left:2px solid var(--accent);
-    border-radius:4px;
-    padding:18px;
+    background:var(--neu-grad-raised);
+    border:none;
+    border-radius:var(--neu-radius-lg);
+    padding:22px;
     max-width:380px; width:100%;
-    box-shadow:0 0 24px rgba(0,255,102,0.12);
+    box-shadow:var(--neu-floating);
   }
   .dose-task-name{ font-size:0.85rem; color:var(--ink-dim); margin-bottom:14px; word-break:break-word; }
   .dose-task-name b{ color:var(--ink); }
@@ -823,36 +1087,42 @@
   }
   .dose-size-row{ display:flex; gap:6px; flex-wrap:wrap; }
   .dose-size-row button{
-    background:var(--panel-2); border:1px solid var(--border); color:var(--ink-dim);
-    border-radius:3px; padding:6px 12px; font-size:0.78rem; font-family:inherit; cursor:pointer;
+    background:var(--neu-grad-raised); border:none; color:var(--ink-dim);
+    border-radius:var(--neu-radius-sm); padding:10px 15px; font-size:0.78rem; font-family:inherit; cursor:pointer;
     font-variant-numeric:tabular-nums;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
   .dose-size-row button.active{
-    background:var(--accent-dim); border-color:var(--accent); color:var(--accent);
-    text-shadow:0 0 6px rgba(0,255,102,0.5);
+    background:var(--neu-grad-inset); color:var(--accent);
+    box-shadow:var(--neu-inset-sm);
   }
   .dose-custom-min{
     display:block; width:100%; margin-top:8px;
-    background:var(--panel-2); border:1px solid var(--border); color:var(--ink);
-    border-radius:3px; padding:8px 10px; font-size:16px; font-family:inherit;
+    background:var(--neu-grad-inset); border:none; color:var(--ink);
+    border-radius:var(--neu-radius-md); padding:12px 14px; font-size:16px; font-family:inherit;
     font-variant-numeric:tabular-nums;
+    box-shadow:var(--neu-inset-md);
   }
-  .dose-custom-min:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,255,102,0.22); }
+  .dose-custom-min:focus{ outline:none; box-shadow:var(--neu-inset-md), 0 0 0 2px var(--accent); }
   .dose-custom-min.hidden{ display:none; }
   .dose-reassure-note{ font-size:0.78rem; color:var(--accent); margin-bottom:14px; }
   .dose-plan{
-    font-size:0.76rem; color:var(--ink); background:var(--panel-2); border:1px dashed var(--border);
-    border-radius:3px; padding:10px 12px; margin-bottom:14px; min-height:2.6em; line-height:1.5;
+    font-size:0.76rem; color:var(--ink); background:var(--neu-grad-inset); border:none;
+    border-radius:var(--neu-radius-md); padding:13px 15px; margin-bottom:14px; min-height:2.6em; line-height:1.5;
+    box-shadow:var(--neu-inset-sm);
   }
   .dose-plan .kw{ color:var(--cyan); }
   .dose-plan .str{ color:var(--amber); }
   .dose-plan.is-empty{ color:var(--ink-dim); font-style:italic; }
   .dose-modal-actions{ display:flex; gap:8px; }
-  .dose-modal-actions button{ flex:1; padding:9px; border-radius:3px; font-size:0.82rem; font-family:inherit; cursor:pointer; }
-  .dose-start-btn{ background:var(--accent); color:#00170a; font-weight:700; box-shadow:0 0 12px rgba(0,255,102,0.5); transition:box-shadow 0.15s ease, transform 0.1s ease; }
-  .dose-start-btn:active{ box-shadow:0 0 18px rgba(0,255,102,0.7); transform:scale(0.98); }
-  .dose-start-btn:disabled{ opacity:0.35; cursor:not-allowed; box-shadow:none; }
-  .dose-cancel-btn{ background:transparent; border:1px solid var(--border); color:var(--ink-dim); }
+  .dose-modal-actions button{ flex:1; padding:13px; border-radius:var(--neu-radius-md); font-size:0.82rem; font-family:inherit; cursor:pointer; }
+  .dose-start-btn{ background:var(--accent); color:var(--accent-ink); font-weight:700; box-shadow:var(--neu-shadow-md); transition:box-shadow 0.2s ease-out, transform 0.2s ease-out; }
+  .dose-start-btn:hover{ box-shadow:var(--neu-shadow-lg); transform:translateY(-1px); }
+  .dose-start-btn:active{ box-shadow:var(--neu-inset-sm); transform:translateY(0); }
+  .dose-start-btn:disabled{ opacity:0.35; cursor:not-allowed; box-shadow:none; transform:none; }
+  .dose-cancel-btn{ background:var(--neu-grad-raised); border:none; color:var(--ink-dim); box-shadow:var(--neu-shadow-sm); }
+  .dose-cancel-btn:active{ background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm); }
 
   /* ---------- calendar ---------- */
   .cal-nav{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
@@ -867,17 +1137,18 @@
   }
   .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal-day{
-    min-height:36px; border:1px solid transparent; border-radius:3px;
-    background:var(--panel-2); padding:5px 2px 4px;
+    min-height:42px; border:none; border-radius:var(--neu-radius-sm);
+    background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm);
+    padding:5px 2px 4px;
     font-size:0.7rem; color:var(--ink-dim);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
     cursor:pointer;
   }
-  .cal-day:hover{ border-color:var(--accent); color:var(--ink); }
+  .cal-day:hover{ color:var(--ink); box-shadow:var(--neu-shadow-sm); background:var(--neu-grad-raised); }
   .cal-day.empty{ visibility:hidden; cursor:default; pointer-events:none; }
-  .cal-day.today{ border-color:var(--border-bright); box-shadow:0 0 8px rgba(0,255,102,0.3); color:var(--ink); }
-  .cal-day.selected{ background:var(--accent-dim); border-color:var(--accent); color:var(--ink); }
-  .cal-day.has-overdue{ border-color:var(--red); }
+  .cal-day.today{ background:var(--neu-grad-raised); box-shadow:var(--neu-shadow-sm); color:var(--accent); font-weight:700; }
+  .cal-day.selected{ background:var(--neu-grad-raised); box-shadow:var(--neu-shadow-md); color:var(--ink); }
+  .cal-day.has-overdue{ color:var(--red); }
   .cal-dots{ display:flex; align-items:center; gap:3px; justify-content:center; min-height:5px; }
   .cal-dot{ width:5px; height:5px; border-radius:50%; flex:none; background:var(--accent); }
   .cal-dot.reflect-dot{ background:var(--magenta); border-radius:1px; }
@@ -890,9 +1161,10 @@
 
   .cal-task-row{
     display:flex; align-items:center; gap:8px; padding:7px 8px; margin-bottom:5px;
-    background:var(--panel-2); border:1px solid var(--border); border-radius:3px; cursor:pointer;
+    background:var(--neu-grad-raised); border:none; border-radius:var(--neu-radius-sm); cursor:pointer;
+    box-shadow:var(--neu-shadow-sm);
   }
-  .cal-task-row:hover{ border-color:var(--accent); }
+  .cal-task-row:hover{ box-shadow:var(--neu-shadow-md); }
   .cal-task-row.done{ opacity:0.5; }
   .cal-task-row.done .check{ background:var(--accent); border-color:var(--accent); }
   .cal-task-catbar{ flex:none; width:3px; align-self:stretch; border-radius:2px; }
@@ -948,22 +1220,22 @@
   .quick-links{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:18px; }
   .quick-link{
     display:flex; align-items:center; justify-content:center; gap:6px;
-    background:var(--panel); border:1px solid var(--border); border-radius:3px;
-    border-left:2px solid var(--border);
-    padding:9px 10px; font-size:0.76rem; color:var(--ink-dim);
+    background:var(--neu-grad-raised); border:none; border-radius:var(--neu-radius-md);
+    border-left:3px solid transparent;
+    padding:13px 12px; font-size:0.76rem; color:var(--ink-dim);
     text-decoration:none; cursor:pointer; font-family:inherit; text-align:center;
-    transition:box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out, transform 0.2s ease-out;
   }
+  .quick-link:hover{ box-shadow:var(--neu-shadow-md); transform:translateY(-1px); color:var(--ink); }
+  .quick-link:active{ background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm); transform:translateY(0); }
   .quick-link .qsym{ font-weight:700; }
-  .quick-link.pick{ border-left-color:var(--accent); background:rgba(0,255,102,0.05); }
+  .quick-link.pick{ border-left-color:var(--accent); }
   .quick-link.pick .qsym{ color:var(--accent); }
-  .quick-link.pick:hover, .quick-link.pick:active{ border-color:var(--accent); color:var(--ink); box-shadow:0 0 10px rgba(0,255,102,0.3); }
-  .quick-link.report{ border-left-color:var(--amber); background:rgba(255,210,63,0.05); }
+  .quick-link.report{ border-left-color:var(--amber); }
   .quick-link.report .qsym{ color:var(--amber); }
-  .quick-link.report:hover, .quick-link.report:active{ border-color:var(--amber); color:var(--ink); box-shadow:0 0 10px rgba(255,210,63,0.3); }
-  .quick-link.calendar{ border-left-color:var(--cyan); background:rgba(57,214,255,0.05); }
+  .quick-link.calendar{ border-left-color:var(--cyan); }
   .quick-link.calendar .qsym{ color:var(--cyan); }
-  .quick-link.calendar:hover, .quick-link.calendar:active{ border-color:var(--cyan); color:var(--ink); box-shadow:0 0 10px rgba(57,214,255,0.3); }
 
   /* ---- Jarvis dialogue box: VN-style avatar + text bubble that appears
      while a voice line is speaking, text typed in sync with the speech ---- */
@@ -976,8 +1248,8 @@
   .jarvis-box.show{ opacity:1; transform:translateY(0) scale(1); }
   .jarvis-avatar{
     flex-shrink:0; width:54px; height:54px; border-radius:50%;
-    background:var(--panel); border:1px solid var(--accent);
-    box-shadow:0 0 16px rgba(0,255,102,0.35);
+    background:var(--neu-grad-raised); border:none;
+    box-shadow:var(--neu-shadow-md);
     display:flex; align-items:center; justify-content:center; gap:4px;
     transform-origin:center;
   }
@@ -999,10 +1271,10 @@
     50%{ height:var(--jb-peak, 21px); }
   }
   .jarvis-bubble{
-    background:var(--panel); border:1px solid var(--border); border-left:2px solid var(--accent);
-    border-radius:var(--radius-tile); padding:12px 15px; min-height:1.3em;
+    background:var(--neu-grad-raised); border:none;
+    border-radius:var(--radius-tile); padding:14px 17px; min-height:1.3em;
     font-size:0.92rem; line-height:1.4; color:var(--ink);
-    box-shadow:0 0 20px rgba(0,255,102,0.12);
+    box-shadow:var(--neu-shadow-lg);
   }
   .jarvis-bubble .jb-cursor{
     display:inline-block; width:0.5em; background:var(--accent); margin-left:1px;
@@ -1014,11 +1286,14 @@
 
   .dose-feeling-row{ display:flex; gap:8px; margin-bottom:14px; }
   .dose-feeling-btn{
-    flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:4px;
-    padding:14px 6px; font-size:0.72rem; color:var(--ink-dim); text-align:center;
+    flex:1; background:var(--neu-grad-raised); border:none; border-radius:var(--neu-radius-md);
+    padding:16px 8px; font-size:0.72rem; color:var(--ink-dim); text-align:center;
     line-height:1.6; cursor:pointer; font-family:inherit;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
-  .dose-feeling-btn:hover{ border-color:var(--accent); color:var(--ink); }
+  .dose-feeling-btn:active{ background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm); }
+  .dose-feeling-btn:hover{ color:var(--ink); box-shadow:var(--neu-shadow-md); }
   .dose-feeling-skip{
     display:block; width:100%; text-align:center; background:none; border:none;
     color:var(--ink-dim); font-size:0.76rem; text-decoration:underline; cursor:pointer;
@@ -1048,9 +1323,10 @@
   .sidebar{
     position:fixed; top:0; left:0; bottom:0; z-index:980;
     width:min(78vw, 300px);
-    background:var(--panel);
-    border-right:1px solid var(--border);
-    box-shadow:0 0 30px rgba(0,0,0,0.5);
+    background:var(--neu-grad-flat);
+    border-right:none;
+    border-radius:0 var(--neu-radius-lg) var(--neu-radius-lg) 0;
+    box-shadow:var(--neu-floating);
     transform:translateX(-100%);
     transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
     display:flex; flex-direction:column;
@@ -1068,12 +1344,13 @@
   .sidebar-divider{ height:1px; background:var(--border); margin:10px 16px; }
   .sidebar-link{
     display:flex; align-items:center; gap:12px;
-    background:transparent; border:none; border-radius:8px;
+    background:transparent; border:none; border-radius:var(--neu-radius-md);
     color:var(--ink-dim); font-family:inherit; font-size:0.88rem;
-    padding:11px 12px; cursor:pointer; text-decoration:none;
-    transition:background 0.15s ease, color 0.15s ease;
+    padding:13px 14px; cursor:pointer; text-decoration:none;
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out, background 0.2s ease-out;
   }
-  .sidebar-link:hover, .sidebar-link:active{ background:var(--panel-2); color:var(--ink); }
+  .sidebar-link:hover{ background:var(--neu-grad-raised); color:var(--ink); box-shadow:var(--neu-shadow-sm); }
+  .sidebar-link:active{ background:var(--neu-grad-inset); color:var(--ink); box-shadow:var(--neu-inset-sm); }
   .sidebar-link.active{
     background:var(--accent-dim); color:var(--accent);
     text-shadow:0 0 10px rgba(0,255,102,0.5);
@@ -1091,15 +1368,16 @@
   .tasks-toolbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
   .task-view-toggle{ display:flex; gap:4px; }
   .tvt-btn{
-    background:var(--panel-2); border:1px solid var(--border); color:var(--ink-dim);
-    font-family:inherit; font-size:0.72rem; padding:6px 10px; border-radius:3px; cursor:pointer;
+    background:var(--neu-grad-raised); border:none; color:var(--ink-dim);
+    font-family:inherit; font-size:0.72rem; padding:9px 15px; border-radius:999px; cursor:pointer;
+    box-shadow:var(--neu-shadow-sm);
+    transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
   .tvt-btn.active{
-    background:var(--accent-dim); border-color:var(--accent); color:var(--accent);
-    text-shadow:0 0 8px rgba(0,255,102,0.5);
-    box-shadow:0 0 10px rgba(0,255,102,0.25);
+    background:var(--neu-grad-inset); color:var(--accent);
+    box-shadow:var(--neu-inset-sm);
   }
-  .tvt-btn:active{ border-color:var(--accent); color:var(--accent); }
+  .tvt-btn:active{ color:var(--accent); box-shadow:var(--neu-inset-sm); }
 
   .timeline-view{ position:relative; padding-left:20px; }
   .timeline-node{ position:relative; padding-bottom:16px; }
@@ -1138,7 +1416,7 @@
   /* boxed section — app-wide "one box per topic" primitive. Introduced for Money,
      now reused everywhere (.app-section is the general-purpose name; .money-section
      stays as an alias so none of the existing Money markup needs to change). */
-  .app-section, .money-section{ background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:14px; margin-bottom:14px; }
+  .app-section, .money-section{ background:var(--neu-grad-raised); border:none; border-radius:var(--radius-tile); padding:18px; margin-bottom:14px; box-shadow:var(--neu-shadow-md); }
   .app-section-title, .money-section-title{
     display:flex; align-items:center; justify-content:space-between; gap:8px;
     font-size:0.72rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;
@@ -1221,8 +1499,9 @@
 
   .txn-row{
     display:flex; align-items:flex-start; gap:10px;
-    background:var(--panel); border:1px solid var(--border); border-left:2px solid var(--border-bright);
-    border-radius:3px; padding:12px; margin-bottom:8px;
+    background:var(--neu-grad-raised); border:none; border-left:3px solid var(--border-bright);
+    border-radius:var(--neu-radius-md); padding:14px; margin-bottom:10px;
+    box-shadow:var(--neu-shadow-sm);
   }
   .txn-row.type-income{ border-left-color:var(--accent); }
   .txn-row.type-expense{ border-left-color:var(--amber); }
@@ -1262,6 +1541,48 @@
 </style>
 </head>
 <body>
+<!-- ---- icon sprite: every pictograph in the UI is an SVG symbol drawn in
+     currentColor, so icons inherit theme colours and render identically across
+     platforms (emoji fonts differ per-OS and ignored our palette entirely) ---- -->
+<svg class="ico-sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 21l3.6-.9L20.1 6.6a1.9 1.9 0 0 0-2.7-2.7L3.9 17.4 3 21z"/><path d="M15.5 5.5l3 3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z"/><path d="M12 9.5v4.8M12 17.8h.01"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.6A8.7 8.7 0 0 1 9.4 3.5a8.7 8.7 0 1 0 11.1 11.1z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.4M12 19.8v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M1.8 12h2.4M19.8 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16 9a4.2 4.2 0 0 1 0 6M18.8 6.2a8 8 0 0 1 0 11.6"/></symbol>
+  <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16.5 9.8l5 4.4M21.5 9.8l-5 4.4"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="3.2"/><path d="M12 3.4v4.1M8.6 13h.01M15.4 13h.01M9.5 16.6h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"/><path d="M15.9 15.9L21 21"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></symbol>
+  <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15.5a4 4 0 0 1 .5-8 5.4 5.4 0 0 1 10.2 1.4A3.6 3.6 0 0 1 17.3 15.5z"/><path d="M8.5 18.6l-1 2.2M12 18.6l-1 2.2M15.5 18.6l-1 2.2"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M12 2.8L6.8 10h3L5.8 16.4h12.4L14.2 10h3z"/><path d="M12 16.4v4.8"/></symbol>
+  <symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M12 3.2a8.8 8.8 0 0 0 0 17.6z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.4 11L12 3.6 20.6 11"/><path d="M5.5 9.6V20h13V9.6"/><path d="M9.8 20v-5.4h4.4V20"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.3 6.5h.01M4.3 12h.01M4.3 17.5h.01"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.6" y="5.2" width="16.8" height="15.2" rx="2.4"/><path d="M3.6 10h16.8M8.2 2.9v4.2M15.8 2.9v4.2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4.5 20V11M12 20V4.6M19.5 20v-6.6"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.8" width="6" height="11.2" rx="3"/><path d="M5.4 11.6a6.6 6.6 0 0 0 13.2 0M12 18.2V21.2"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.8 18.5a4.3 4.3 0 0 1 .6-8.6 5.7 5.7 0 0 1 10.8 1.5 3.8 3.8 0 0 1-.4 7.1z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M3.2 12h17.6M12 3.2a13.5 13.5 0 0 1 0 17.6 13.5 13.5 0 0 1 0-17.6z"/></symbol>
+  <symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 3.4L20.6 12 12 20.6 3.4 12z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19.5V5M5.4 11.6L12 5l6.6 6.6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4.5V19M5.4 12.4L12 19l6.6-6.6"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5.5v6.9a2 2 0 0 1-2 2H4.6"/><path d="M9 9.9l-4.4 4.5L9 18.9"/></symbol>
+  <symbol id="i-face-easy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.3 14.6a4.6 4.6 0 0 0 7.4 0M7.6 9.8a2.4 2.4 0 0 1 2.8 0M13.6 9.8a2.4 2.4 0 0 1 2.8 0"/></symbol>
+  <symbol id="i-face-neutral" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.6 15.2h6.8M9.2 9.6h.01M14.8 9.6h.01"/></symbol>
+  <symbol id="i-face-hard" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.3 16.4a4.6 4.6 0 0 1 7.4 0M7.7 8.6l2.6 1.4M16.3 8.6l-2.6 1.4"/></symbol>
+</defs></svg>
+<script>
+/* single place that builds an icon reference, used by every template string
+   that renders markup dynamically */
+function ico(name, cls){
+  return '<svg class="ico' + (cls ? ' ' + cls : '') + '" aria-hidden="true" focusable="false"><use href="#i-' + name + '"></use></svg>';
+}
+</script>
 <div class="boot-screen" id="bootScreen">
   <div class="boot-ambient" id="bootAmbient">
     <div class="boot-aurora" aria-hidden="true">
@@ -1276,6 +1597,13 @@
   <div class="boot-panel" id="bootPanel">
     <div class="boot-panel-label">boot_log</div>
     <div class="boot-lines" id="bootLines"></div>
+    <div class="boot-progress" id="bootProgress" aria-hidden="true">
+      <div class="boot-progress-track"><div class="boot-progress-fill" id="bootProgressFill"></div></div>
+      <div class="boot-progress-meta">
+        <span class="boot-progress-pct" id="bootProgressPct">00%</span>
+        <span class="boot-progress-label" id="bootProgressLabel">standby</span>
+      </div>
+    </div>
     <div class="boot-hint" id="bootHint">[ tap or press any key to skip ]</div>
   </div>
 </div>
@@ -1297,13 +1625,13 @@
 <nav class="sidebar" id="sidebarNav" aria-hidden="true">
   <div class="sidebar-head">
     <span class="sidebar-title">&gt; buam</span>
-    <button type="button" class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" title="Close menu" data-fx-skip>&#10005;</button>
+    <button type="button" class="icon-btn sidebar-close-btn" id="sidebarCloseBtn" title="Close menu" aria-label="Close menu" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   </div>
   <div class="sidebar-nav-group">
-    <button type="button" class="sidebar-link active" data-view="home"><span class="sb-glyph">&#8962;</span><span>Home</span></button>
-    <button type="button" class="sidebar-link" data-view="tasks"><span class="sb-glyph">&#9636;</span><span>Tasks</span></button>
-    <button type="button" class="sidebar-link" data-view="calendar"><span class="sb-glyph">&#8862;</span><span>Calendar</span></button>
-    <button type="button" class="sidebar-link" data-view="analytics"><span class="sb-glyph">&#9638;</span><span>Stats</span></button>
+    <button type="button" class="sidebar-link active" data-view="home"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-home"></use></svg></span><span>Home</span></button>
+    <button type="button" class="sidebar-link" data-view="tasks"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg></span><span>Tasks</span></button>
+    <button type="button" class="sidebar-link" data-view="calendar"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-calendar"></use></svg></span><span>Calendar</span></button>
+    <button type="button" class="sidebar-link" data-view="analytics"><span class="sb-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-chart"></use></svg></span><span>Stats</span></button>
     <button type="button" class="sidebar-link" data-view="money"><span class="sb-glyph">&#3647;</span><span>Money</span></button>
   </div>
   <div class="sidebar-divider"></div>
@@ -1318,13 +1646,14 @@
 <div class="wrap">
   <header>
     <div class="header-left">
-      <button class="icon-btn menu-toggle-btn" id="menuToggleBtn" type="button" title="Menu" data-fx-skip>&#9776;</button>
+      <button class="icon-btn menu-toggle-btn" id="menuToggleBtn" type="button" title="Menu" aria-label="Menu" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg></button>
       <div class="logo"><span id="usernameText" class="username-edit" title="Click to edit name">CheeraBuam.exe</span><span class="cursor">_</span></div>
     </div>
     <div class="audio-controls">
-      <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen">◐</button>
-      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
-      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback">🤖 B.U.A.M.</button>
+      <button class="icon-btn theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle light/dark theme" aria-label="Toggle light/dark theme" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-moon"></use></svg></button>
+      <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen" aria-label="Ambient screen"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-contrast"></use></svg></button>
+      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
+      <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bot"></use></svg> B.U.A.M.</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
@@ -1336,20 +1665,23 @@
     </div>
 
     <div class="cc-hero">
-      <div class="cc-hero-orb" id="aiCoreOrb">
+      <div class="cc-hero-orb" id="aiCoreOrb"
+           role="button" tabindex="0" aria-label="Activate B.U.A.M." title="Tap the core to speak">
+        <span class="cc-core-ripple" id="ccCoreRipple" aria-hidden="true"></span>
         <canvas id="aiCoreCanvas"></canvas>
       </div>
       <div class="cc-hero-label">B.U.A.M.<span>CORE</span></div>
+      <div class="cc-core-hint" id="ccCoreHint">tap core to speak</div>
     </div>
 
     <div class="cc-grid">
       <div class="cc-card cc-overview">
         <div class="cc-card-title">core_overview</div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#127908;</span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9636;</span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9888;</span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-mic"></use></svg></span><span class="cc-stat-name">B.U.A.M.</span><span class="cc-stat-val" id="ccJarvisStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg></span><span class="cc-stat-name">Tasks active</span><span class="cc-stat-val" id="ccTasksStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warning"></use></svg></span><span class="cc-stat-name">Overdue</span><span class="cc-stat-val" id="ccOverdueStat">&mdash;</span></div>
         <div class="cc-stat-row"><span class="cc-stat-glyph">&#3647;</span><span class="cc-stat-name">Budget used</span><span class="cc-stat-val" id="ccBudgetStat">&mdash;</span></div>
-        <div class="cc-stat-row"><span class="cc-stat-glyph">&#9729;</span><span class="cc-stat-name">Sync</span><span class="cc-stat-val" id="ccSyncStat">&mdash;</span></div>
+        <div class="cc-stat-row"><span class="cc-stat-glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-cloud"></use></svg></span><span class="cc-stat-name">Sync</span><span class="cc-stat-val" id="ccSyncStat">&mdash;</span></div>
       </div>
 
       <div class="cc-card cc-feed">
@@ -1366,10 +1698,10 @@
 
       <div class="cc-card cc-quick">
         <div class="cc-card-title">quick_commands</div>
-        <button type="button" class="cc-cmd-btn" id="ccCmdAddTask"><span>+</span>Add Task</button>
-        <button type="button" class="cc-cmd-btn" id="ccCmdCalendar"><span>&#128197;</span>Calendar</button>
+        <button type="button" class="cc-cmd-btn cc-cmd-primary" id="ccCmdAddTask"><span>+</span>Add Task</button>
+        <button type="button" class="cc-cmd-btn" id="ccCmdCalendar"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-calendar"></use></svg>Calendar</button>
         <button type="button" class="cc-cmd-btn" id="ccCmdMoney"><span>&#3647;</span>Money</button>
-        <button type="button" class="cc-cmd-btn" id="ccCmdFocus"><span>&#9654;</span>Focus Timer</button>
+        <button type="button" class="cc-cmd-btn cc-cmd-wide" id="ccCmdFocus"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>Focus Timer</button>
       </div>
 
       <div class="cc-card cc-monitor">
@@ -1399,19 +1731,19 @@
         </div>
       </div>
 
-      <div class="cc-card cc-categories cc-span2">
+      <div class="cc-card cc-categories">
         <div class="cc-card-title">top_categories <span class="cc-card-sub">this month</span></div>
         <div class="cc-chip-row" id="ccCategoryChips"><span class="cc-chip">no spending yet</span></div>
       </div>
     </div>
 
     <div class="cc-jarvis-bar" id="ccJarvisBar">
-      <span class="cc-jarvis-chip" id="ccNetChip">&#127760; <b id="ccNetStat">online</b></span>
-      <button type="button" class="cc-jarvis-talk" id="ccBriefingBtn">
+      <span class="cc-jarvis-chip" id="ccNetChip"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-globe"></use></svg> <b id="ccNetStat">online</b></span>
+      <span class="cc-jarvis-talk" id="ccJarvisStatus" role="status" aria-live="polite">
         <span class="cc-jarvis-wave"><span></span><span></span><span></span><span></span><span></span></span>
         <span id="ccJarvisState">B.U.A.M. READY</span>
-      </button>
-      <span class="cc-jarvis-chip">Briefing</span>
+      </span>
+      <span class="cc-jarvis-chip">Status</span>
     </div>
   </div>
 
@@ -1600,7 +1932,7 @@
         </div>
       </div>
       <div class="add-row1" style="margin-bottom:12px;">
-        <span class="glyph">⌕</span>
+        <span class="glyph"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-search"></use></svg></span>
         <input type="text" id="moneySearchInput" placeholder="search note, category, amount, date...">
       </div>
 
@@ -1750,7 +2082,7 @@
 
       <div class="money-section">
         <div class="money-section-title">sync</div>
-        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (☰ menu → sync) — same account as tasks.</div>
+        <div class="money-sync-hint">money data syncs across devices automatically once you're signed in (<svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg> menu &rarr; sync) — same account as tasks.</div>
       </div>
 
       <div class="money-section">
@@ -1802,7 +2134,7 @@
 
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="doseWizardCancel" type="button">Cancel</button>
-      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled>▶ start this dose</button>
+      <button class="dose-start-btn" id="doseWizardStart" type="button" disabled><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> start this dose</button>
     </div>
   </div>
 
@@ -1822,9 +2154,9 @@
     <div class="prompt-label">how_was_it</div>
     <div class="dose-task-name" id="doseFeelingTaskName" style="margin-bottom:16px;"></div>
     <div class="dose-feeling-row" id="doseFeelingRow">
-      <button type="button" class="dose-feeling-btn" data-feeling="easy">😌<br>lighter than expected</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="asExpected">😐<br>about as expected</button>
-      <button type="button" class="dose-feeling-btn" data-feeling="hard">😣<br>harder than expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="easy"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-easy"></use></svg><br>lighter than expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="asExpected"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-neutral"></use></svg><br>about as expected</button>
+      <button type="button" class="dose-feeling-btn" data-feeling="hard"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-face-hard"></use></svg><br>harder than expected</button>
     </div>
     <button type="button" class="dose-feeling-skip" id="doseFeelingSkip">Skip</button>
   </div>
@@ -1850,13 +2182,13 @@
       <label>ambient sound</label>
       <div class="dose-size-row" id="timerAmbientRow">
         <button type="button" data-ambient="" class="active">none</button>
-        <button type="button" data-ambient="rain">🌧 rain</button>
-        <button type="button" data-ambient="forest">🌲 forest</button>
+        <button type="button" data-ambient="rain"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rain"></use></svg> rain</button>
+        <button type="button" data-ambient="forest"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-tree"></use></svg> forest</button>
       </div>
     </div>
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="timerSetupCancel" type="button">Cancel</button>
-      <button class="dose-start-btn" id="timerSetupStart" type="button">▶ start timer</button>
+      <button class="dose-start-btn" id="timerSetupStart" type="button"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> start timer</button>
     </div>
   </div>
 
@@ -2104,19 +2436,47 @@
     }
   })();
 
-  const STEPS = [
-    { text: "BUAM_OS v1.0 booting kernel" },
-    { text: "mounting /home/operator", ok: true },
-    { text: "loading task_engine", ok: true },
-    { text: "starting audio subsystem", ok: true },
-    { text: "initializing terminal", ok: true },
-    { text: "> welcome back, operator", final: true }
+  /* first launch gets the full initialization sequence; afterwards a trimmed
+     version so the intro never becomes something to sit through every time */
+  const BOOTED_KEY = "buam-booted";
+  let seenBoot = false;
+  try{ seenBoot = localStorage.getItem(BOOTED_KEY) === "1"; }catch(e){}
+
+  const FULL_STEPS = [
+    { text: "INITIALIZING BUAM SYSTEM...", label: "init" },
+    { text: "LOADING CORE...", ok: true, label: "core" },
+    { text: "CONNECTING MODULES...", ok: true, label: "modules" },
+    { text: "CALIBRATING SYSTEM...", ok: true, label: "calibrate" },
+    { text: "SYSTEM READY", ok: true, label: "ready" },
+    { text: "> welcome back, operator", final: true, label: "online" }
   ];
+  const SHORT_STEPS = [
+    { text: "INITIALIZING BUAM SYSTEM...", ok: true, label: "init" },
+    { text: "SYSTEM READY", ok: true, label: "ready" },
+    { text: "> welcome back, operator", final: true, label: "online" }
+  ];
+  const STEPS = seenBoot ? SHORT_STEPS : FULL_STEPS;
+  const TYPE_MS = seenBoot ? 5 : 10;      // per character
+  const TYPE_JITTER = seenBoot ? 10 : 22;
+  const STEP_GAP = seenBoot ? 90 : 280;   // between completed lines
+
+  const progressEl = document.getElementById("bootProgress");
+  const progressFill = document.getElementById("bootProgressFill");
+  const progressPct = document.getElementById("bootProgressPct");
+  const progressLabel = document.getElementById("bootProgressLabel");
+  function setProgress(done, label){
+    const pct = Math.round((done / STEPS.length) * 100);
+    if(progressFill) progressFill.style.width = pct + "%";
+    if(progressPct) progressPct.textContent = String(pct).padStart(2, "0") + "%";
+    if(progressLabel && label) progressLabel.textContent = label;
+  }
 
   let done = false;
   function finish(){
     if(done) return;
     done = true;
+    try{ localStorage.setItem(BOOTED_KEY, "1"); }catch(e){}
+    setProgress(STEPS.length, "online");
     boot.classList.add("boot-hide");
     setTimeout(()=>{ boot.remove(); }, 600);
     if(window.armIdleWatch) armIdleWatch();
@@ -2153,7 +2513,7 @@
         if(window.buamFx && ch !== " "){
           buamFx.tone(760 + Math.random() * 420, 0.02, "square", 0.06);
         }
-        setTimeout(typeChar, 10 + Math.random() * 22);
+        setTimeout(typeChar, TYPE_MS + Math.random() * TYPE_JITTER);
       } else if(step.ok){
         setTimeout(()=>{
           if(skipped) return;
@@ -2164,16 +2524,19 @@
           cursor.remove();
           if(window.buamFx) buamFx.tone(1000, 0.05, "square", 0.09);
           si++;
-          setTimeout(nextStep, 280 + Math.random() * 220);
-        }, 220 + Math.random() * 260);
+          setProgress(si, step.label);
+          setTimeout(nextStep, STEP_GAP + Math.random() * 220);
+        }, (seenBoot ? 90 : 220) + Math.random() * (seenBoot ? 90 : 260));
       } else if(step.final){
         cursor.remove();
         si++;
-        setTimeout(finish, 1100);
+        setProgress(si, step.label);
+        setTimeout(finish, seenBoot ? 520 : 1100);
       } else {
         cursor.remove();
         si++;
-        setTimeout(nextStep, 280 + Math.random() * 220);
+        setProgress(si, step.label);
+        setTimeout(nextStep, STEP_GAP + Math.random() * 220);
       }
     }
     typeChar();
@@ -2190,7 +2553,7 @@
   btn.type = "button";
   btn.className = "boot-enter-btn";
   btn.setAttribute("data-fx-skip", "");
-  btn.textContent = "[ ENTER ↵ ]";
+  btn.innerHTML = '[ ENTER ' + ico("enter") + ' ]';
   gate.appendChild(q);
   gate.appendChild(btn);
   linesWrap.appendChild(gate);
@@ -2209,6 +2572,7 @@
     boot.classList.add("boot-ignited");
     if(ignite) ignite.classList.add("ignite-active");
     if(panel) panel.classList.add("ignite-kick");
+    if(progressEl){ progressEl.classList.add("on"); setProgress(0, "init"); }
     window.addEventListener("pointerdown", skip, { once: true });
     window.addEventListener("keydown", skip, { once: true });
     window.addEventListener("touchstart", skip, { once: true, passive: true });
@@ -2692,7 +3056,7 @@ function taskRowHtml(t, today){
   const notesTag = (t.notes && t.notes.length) ? `<span class="tag notes">≡ ${t.notes.length}</span>` : "";
   return `
     <div class="task ${catClass} ${isOverdueClass} ${doneClass}" data-id="${t.id}">
-      <button class="check" data-fx-skip onclick="toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <button class="check" data-fx-skip onclick="toggleDone('${t.id}')">${t.done ? ico("check") : ""}</button>
       <div class="task-body">
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">
@@ -2702,10 +3066,10 @@ function taskRowHtml(t, today){
         </div>
       </div>
       <div class="task-actions">
-        ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it">▶</button>`}
+        ${t.done ? "" : `<button class="icon-btn dose-btn" data-fx-skip onclick="openDoseWizard('${t.id}')" title="Dose it" aria-label="Dose it">${ico("play")}</button>`}
         <button class="icon-btn" onclick="openNotesModal('${t.id}')" title="Notes">≡</button>
-        <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">✎</button>
-        <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete">✕</button>
+        <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        <button class="icon-btn" data-fx-skip onclick="deleteTask('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
       </div>
     </div>
   `;
@@ -2743,7 +3107,7 @@ let activeDose = null; // { taskId, step, minutes, totalSeconds, endTime, interv
 function doseBarHtml(count){
   const filled = Math.min(count, DOSE_SCALE);
   let s = "";
-  for(let i=0;i<DOSE_SCALE;i++) s += i<filled ? '<span class="fill">▮</span>' : '<span class="bar-empty">▯</span>';
+  for(let i=0;i<DOSE_SCALE;i++) s += i<filled ? '<span class="meter-seg on"></span>' : '<span class="meter-seg"></span>';
   return s;
 }
 
@@ -3249,7 +3613,7 @@ function reportBar(count, total){
   const scale = 10;
   const filled = total ? Math.round(count/total*scale) : 0;
   let s = "";
-  for(let i=0;i<scale;i++) s += i<filled ? '<span class="fill">▮</span>' : '<span class="bar-empty">▯</span>';
+  for(let i=0;i<scale;i++) s += i<filled ? '<span class="meter-seg on"></span>' : '<span class="meter-seg"></span>';
   return s;
 }
 function reportRow(label, count, total){
@@ -3267,9 +3631,9 @@ function renderReportHtml(s, rangeLabel){
   let html = `<div style="font-size:0.85rem;margin-bottom:14px;"><b style="color:var(--accent)">${s.total}</b> total doses ${rangeLabel}</div>`;
   if(s.rated>0){
     html += `<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:6px;">feeling after doses (${s.rated} rated)</div>`;
-    html += reportRow("😌 lighter than expected", s.feel.easy, s.rated);
-    html += reportRow("😐 about as expected", s.feel.asExpected, s.rated);
-    html += reportRow("😣 harder than expected", s.feel.hard, s.rated);
+    html += reportRow(ico("face-easy") + " lighter than expected", s.feel.easy, s.rated);
+    html += reportRow(ico("face-neutral") + " about as expected", s.feel.asExpected, s.rated);
+    html += reportRow(ico("face-hard") + " harder than expected", s.feel.hard, s.rated);
     if(s.notAsBadPct!==null){
       html += `<div style="margin-top:12px;padding:10px 12px;background:var(--panel-2);border:1px dashed var(--border);border-radius:3px;font-size:0.8rem;color:var(--ink);">
         <b style="color:var(--accent);">${s.notAsBadPct}%</b> of rated doses weren't as bad as feared going in
@@ -3493,11 +3857,11 @@ function calTaskRowHtml(t, today){
   const isLate = !t.done && t.due && t.due<today;
   return `
     <div class="cal-task-row ${t.done?'done':''}" data-id="${t.id}" onclick="editTask('${t.id}')">
-      <button class="check" data-fx-skip onclick="event.stopPropagation(); toggleDone('${t.id}')">${t.done ? "✓" : ""}</button>
+      <button class="check" data-fx-skip onclick="event.stopPropagation(); toggleDone('${t.id}')">${t.done ? ico("check") : ""}</button>
       <span class="cal-task-catbar cat-${t.cat}"></span>
       <span class="cal-task-title">${escapeHtml(t.title)}</span>
       ${isLate ? `<span class="cal-task-overdue">overdue</span>` : ""}
-      <button class="icon-btn" data-fx-skip onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>
   `;
 }
@@ -3565,9 +3929,9 @@ function renderGoals(){
   goalRingLabel.textContent = `${done} / ${total} done`;
   goalList.innerHTML = total ? monthGoals.map(g => `
     <div class="goal-row ${g.done?'done':''}" data-id="${g.id}">
-      <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?"✓":""}</button>
+      <button class="check" data-fx-skip onclick="toggleGoalDone('${g.id}')">${g.done?ico("check"):""}</button>
       <div class="goal-title">${escapeHtml(g.title)}</div>
-      <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="deleteGoal('${g.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>
   `).join("") : `<div class="notes-log-empty">no goals for this month yet</div>`;
 }
@@ -3727,7 +4091,7 @@ if("serviceWorker" in navigator){
 const sndBtn = document.getElementById("sndToggle");
 function updateSndBtn(){
   const m = window.buamFx ? buamFx.isMuted() : false;
-  sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
+  sndBtn.innerHTML = (m ? ico("volume-off") : ico("volume")) + " snd";
   sndBtn.classList.toggle("muted", m);
 }
 const volSlider = document.getElementById("musicVolInput");
@@ -3910,7 +4274,7 @@ updateJarvisBtn();
     layer = new Array(cols).fill(0).map(()=> Math.random() < 0.45 ? 0 : 1);
     speeds = new Array(cols).fill(0).map((_, i)=> layer[i] === 0 ? 0.18 + Math.random()*0.35 : 0.45 + Math.random()*0.95);
 
-    ctx.fillStyle = "#05070a";
+    ctx.fillStyle = "#151a18";
     ctx.fillRect(0,0,w,h);
   }
 
@@ -3919,7 +4283,7 @@ updateJarvisBtn();
     if(now-lastT < 33) return; // cap ~30fps, plenty smooth for falling glyphs
     lastT = now;
     const w = window.innerWidth, h = window.innerHeight;
-    ctx.fillStyle = "rgba(5,7,10,0.11)";
+    ctx.fillStyle = "rgba(21,26,24,0.11)";
     ctx.fillRect(0,0,w,h);
 
     // smooth rise-then-fall bell curve over PULSE_MS, instead of an on/off cutoff
@@ -4012,7 +4376,7 @@ updateJarvisBtn();
   const UNIQUE_CHARS = Array.from(new Set(CHARS.split("")));
   const HEAD_COLORS = [0x39d6ff, 0xffd23f, 0xff3fd6, 0xbaffc9];
   const TRAIL_COLOR = 0x00ff66;
-  const BG_COLOR = 0x05070a;
+  const BG_COLOR = 0x151a18;
 
   function makeGlyphTexture(ch){
     const c = document.createElement("canvas");
@@ -4226,7 +4590,7 @@ window.buamAmbientShip = (function(){
     if(!renderer) return false;
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x05070a, 0.01);
+    scene.fog = new THREE.FogExp2(0x151a18, 0.01);
     camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
     camera.position.set(0, 0, 100);
 
@@ -4437,8 +4801,18 @@ window.buamAICore = (function(){
   const orbEl = document.getElementById("aiCoreOrb");
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
-  let renderer, scene, camera, controls, core, coreGlow, orbits = [], electrons = [], animId = null, frame;
+  let renderer, scene, camera, controls, core, coreGlow, coreHot, nucleus, shell, dust,
+      orbits = [], electrons = [], animId = null, frame;
   let ready = false;
+  // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
+  // speaks, so the core visibly reacts instead of always idling identically
+  let activity = 0;
+  // interaction state, each 0..1 and eased toward its target every frame so
+  // hover/press never snap. `speaking` is a sustained latch, not a decay.
+  let hover = 0, hoverTarget = 0;
+  let press = 0, pressTarget = 0;
+  let speaking = false;
+  window.addEventListener("buam-jarvis-speak", ()=>{ activity = 1; });
 
   function makeGlowTexture(){
     const c = document.createElement("canvas");
@@ -4457,18 +4831,53 @@ window.buamAICore = (function(){
 
   // evenly-spaced sphere surface — used for the core so it reads as a solid
   // glowing ball of particles rather than a random scatter
-  function fibonacciSphere(n, radius){
+  function fibonacciSphere(n, radius, jitter){
     const positions = new Float32Array(n*3);
     const golden = Math.PI * (3 - Math.sqrt(5));
     for(let i=0;i<n;i++){
       const y = 1 - (i/(n-1))*2;
       const r = Math.sqrt(Math.max(0, 1 - y*y));
       const theta = golden * i;
-      positions[i*3] = Math.cos(theta) * r * radius;
-      positions[i*3+1] = y * radius;
-      positions[i*3+2] = Math.sin(theta) * r * radius;
+      const rad = jitter ? radius * (1 + (Math.random()-0.5) * jitter) : radius;
+      positions[i*3] = Math.cos(theta) * r * rad;
+      positions[i*3+1] = y * rad;
+      positions[i*3+2] = Math.sin(theta) * r * rad;
     }
     return positions;
+  }
+
+  // volumetric fill — random directions with a radius curve, so density piles
+  // up toward the middle and thins out near the surface. this is what gives the
+  // core real 3D depth instead of reading as a hollow shell of dots.
+  function volumeCloud(n, rMin, rMax, bias){
+    const positions = new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      // uniform direction on the sphere
+      const u = Math.random()*2 - 1;
+      const theta = Math.random() * Math.PI * 2;
+      const s = Math.sqrt(Math.max(0, 1 - u*u));
+      const r = rMin + (rMax - rMin) * Math.pow(Math.random(), bias);
+      positions[i*3] = Math.cos(theta) * s * r;
+      positions[i*3+1] = u * r;
+      positions[i*3+2] = Math.sin(theta) * s * r;
+    }
+    return positions;
+  }
+
+  function pointsLayer(positions, opts){
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      size: opts.size,
+      map: opts.map,
+      color: opts.color,
+      opacity: opts.opacity,
+      transparent: true,
+      depthWrite: false,
+      sizeAttenuation: true,
+      blending: THREE.AdditiveBlending
+    });
+    return new THREE.Points(geo, mat);
   }
 
   // a faint circular guide line for each orbit — the actual "electron" is a
@@ -4504,17 +4913,44 @@ window.buamAICore = (function(){
     const lineColor = 0x00ff66;     // faint orbit-path guide, matches the app accent exactly
     const electronColor = 0x9dffc0; // brighter, still clearly green — the moving electron stands out without going white
 
+    // particle budget scales down on small/low-core devices so the core stays
+    // smooth on phones; the visual reads the same, just less dense
+    const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 520;
+    const lowPower = smallScreen || (navigator.hardwareConcurrency || 4) <= 4;
+    const N_NUCLEUS = lowPower ? 460 : 950;
+    const N_SHELL   = lowPower ? 240 : 460;
+    const N_DUST    = lowPower ? 170 : 340;
+
     // soft glow halo behind the core — a cheap stand-in for real bloom that
     // doesn't fight the canvas's transparency the way EffectComposer does
-    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.45, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreGlow.scale.setScalar(2.6);
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.5, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(2.9);
     scene.add(coreGlow);
 
-    const coreGeo = new THREE.BufferGeometry();
-    coreGeo.setAttribute("position", new THREE.BufferAttribute(fibonacciSphere(280, 1.05), 3));
-    const coreMat = new THREE.PointsMaterial({ size:0.16, map:glowTex, color:coreColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
-    core = new THREE.Points(coreGeo, coreMat);
+    // tight inner bloom, so the very centre reads as the hottest point
+    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:0xd6ffe6, transparent:true, opacity:0.4, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHot.scale.setScalar(1.25);
+    scene.add(coreHot);
+
+    // core = three stacked layers: a dense volumetric nucleus, a crisp surface
+    // shell for silhouette, and a loose halo that orbits on its own axis
+    core = new THREE.Object3D();
     scene.add(core);
+
+    nucleus = pointsLayer(volumeCloud(N_NUCLEUS, 0.05, 1.02, 1.7), {
+      size:0.085, map:glowTex, color:coreColor, opacity:0.95
+    });
+    core.add(nucleus);
+
+    shell = pointsLayer(fibonacciSphere(N_SHELL, 1.12, 0.06), {
+      size:0.055, map:glowTex, color:0xbdffd6, opacity:0.7
+    });
+    core.add(shell);
+
+    dust = pointsLayer(volumeCloud(N_DUST, 1.45, 2.65, 0.85), {
+      size:0.045, map:glowTex, color:lineColor, opacity:0.5
+    });
+    scene.add(dust);
 
     // three "electron shell" orbits at different tilts/speeds/radii, each a
     // faint guide ring plus one bright particle actually traveling around it
@@ -4570,11 +5006,40 @@ window.buamAICore = (function(){
       animId = requestAnimationFrame(frame);
       const dt = clock.getDelta();
       const t = clock.getElapsedTime();
-      core.rotation.y += dt * 0.15;
-      const breathe = 1 + Math.sin(t * 1.3) * 0.04;
+
+      // while speaking the core stays energised; otherwise energy bleeds off
+      if(speaking) activity = Math.min(1, activity + dt * 1.4);
+      else activity *= Math.exp(-dt * 0.9);
+
+      // ease interaction states toward their targets so nothing snaps
+      hover += (hoverTarget - hover) * Math.min(1, dt * 8);
+      press += (pressTarget - press) * Math.min(1, dt * 12);
+      if(pressTarget > 0 && press > 0.92) pressTarget = 0; // auto-release the tap kick
+
+      const energy = Math.max(activity, hover * 0.45);
+
+      // layers turn at slightly different rates — the parallax between them is
+      // what sells the depth, more than any single layer's motion does
+      core.rotation.y += dt * (0.12 + energy * 0.22);
+      shell.rotation.y -= dt * (0.05 + hover * 0.05);
+      shell.rotation.x += dt * 0.02;
+      dust.rotation.y -= dt * (0.045 + energy * 0.05);
+      dust.rotation.z += dt * 0.015;
+
+      // press pulls the particle layers inward, then they spring back out
+      const squeeze = 1 - press * 0.16;
+      const breathe = (1 + Math.sin(t * 1.3) * 0.035 + activity * 0.05 + hover * 0.03) * squeeze;
       core.scale.setScalar(breathe);
-      coreGlow.scale.setScalar(2.6 * breathe);
-      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed; });
+      dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
+
+      coreGlow.scale.setScalar(2.9 * breathe);
+      coreGlow.material.opacity = 0.5 + energy * 0.22 + hover * 0.12 + press * 0.25;
+      coreHot.scale.setScalar(1.25 * breathe * (1 + press * 0.5));
+      coreHot.material.opacity = 0.4 + Math.sin(t * 1.9) * 0.06 + activity * 0.25 + hover * 0.18 + press * 0.35;
+      nucleus.material.opacity = 0.95 + hover * 0.05;
+      shell.material.opacity = 0.7 + hover * 0.2 + press * 0.2;
+
+      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5); });
       if(controls) controls.update();
       renderer.render(scene, camera);
     };
@@ -4596,7 +5061,13 @@ window.buamAICore = (function(){
     if(animId){ cancelAnimationFrame(animId); animId = null; }
   }
 
-  return { start, stop };
+  return {
+    start, stop,
+    setHover(on){ hoverTarget = on ? 1 : 0; },
+    // one-shot inward compression + brightness kick on activation
+    kick(){ press = 0; pressTarget = 1; activity = 1; },
+    setSpeaking(on){ speaking = !!on; if(on) activity = 1; }
+  };
 })();
 
 /* ---------------- ambient/idle showcase screen ---------------- */
@@ -4749,6 +5220,29 @@ document.getElementById("sidebarCloseBtn").addEventListener("click", closeSideba
 sidebarBackdrop.addEventListener("click", closeSidebar);
 document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSidebar(); });
 
+/* ---------------- Theme toggle (dark/light) ---------------- */
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+const metaThemeColor = document.getElementById("metaThemeColor");
+function applyThemeUI(){
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  themeToggleBtn.innerHTML = isLight ? ico("sun") : ico("moon");
+  themeToggleBtn.title = isLight ? "Switch to dark theme" : "Switch to light theme";
+  if(metaThemeColor) metaThemeColor.setAttribute("content", isLight ? "#e8ecea" : "#151a18");
+}
+themeToggleBtn.addEventListener("click", ()=>{
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  if(isLight){
+    document.documentElement.removeAttribute("data-theme");
+    localStorage.setItem("buam-theme", "dark");
+  }else{
+    document.documentElement.setAttribute("data-theme", "light");
+    localStorage.setItem("buam-theme", "light");
+  }
+  applyThemeUI();
+  if(window.buamFx) buamFx.blip();
+});
+applyThemeUI();
+
 /* ---------------- Command Center: quick commands, live clock, Jarvis bar ---------------- */
 document.getElementById("ccCmdAddTask").addEventListener("click", ()=>{
   switchView("tasks");
@@ -4780,8 +5274,14 @@ window.addEventListener("buam-jarvis-speak", e=>{
   if(!bar || !stateEl) return;
   bar.classList.add("talking");
   stateEl.textContent = "B.U.A.M. SPEAKING…";
-  e.detail.utterance.addEventListener("end", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
-  e.detail.utterance.addEventListener("error", ()=>{ bar.classList.remove("talking"); updateCcJarvisBar(); });
+  if(window.buamAICore) buamAICore.setSpeaking(true);
+  const settle = ()=>{
+    bar.classList.remove("talking");
+    if(window.buamAICore) buamAICore.setSpeaking(false);
+    updateCcJarvisBar();
+  };
+  e.detail.utterance.addEventListener("end", settle);
+  e.detail.utterance.addEventListener("error", settle);
 });
 document.getElementById("jarvisToggle").addEventListener("click", updateCcJarvisBar);
 
@@ -4793,8 +5293,11 @@ updateCcNetStat();
 window.addEventListener("online", updateCcNetStat);
 window.addEventListener("offline", updateCcNetStat);
 
-document.getElementById("ccBriefingBtn").addEventListener("click", ()=>{
-  if(!window.buamFx) return;
+/* ---------------- B.U.A.M. Core: the primary voice interaction ----------------
+   The briefing used to be triggered by the "B.U.A.M. READY" pill. That element
+   is now a status readout only; the 3D Core is the control. The voice logic
+   itself is unchanged — only the trigger moved. */
+function buildBriefingText(){
   const today = todayStr();
   const overdueCount = tasks.filter(t=>!t.done && t.due && t.due<today).length;
   const dueTodayCount = tasks.filter(t=>!t.done && t.due===today).length;
@@ -4808,7 +5311,79 @@ document.getElementById("ccBriefingBtn").addEventListener("click", ()=>{
     : "No overdue tasks, nicely done.");
   if(dueTodayCount>0) parts.push(`${dueTodayCount} task${dueTodayCount>1?'s are':' is'} due today.`);
   if(budgetPct!=null) parts.push(budgetPct>=100 ? `You're over budget this month, at ${budgetPct}%.` : `You're at ${budgetPct}% of this month's budget.`);
-  buamFx.jarvisSayCustom(parts.join(" "));
+  return parts.join(" ");
+}
+
+const coreOrb = document.getElementById("aiCoreOrb");
+const coreRipple = document.getElementById("ccCoreRipple");
+const coreHint = document.getElementById("ccCoreHint");
+const CORE_USED_KEY = "buam-core-used";
+try{ if(localStorage.getItem(CORE_USED_KEY) === "1") coreHint.classList.add("retired"); }catch(e){}
+
+let lastCoreActivate = 0;
+function activateBuamCore(){
+  const bar = document.getElementById("ccJarvisBar");
+  // state protection: never stack a second briefing onto one already speaking,
+  // and swallow double-taps that would otherwise queue two utterances
+  if(bar && bar.classList.contains("talking")) return;
+  const now = Date.now();
+  if(now - lastCoreActivate < 700) return;
+  lastCoreActivate = now;
+
+  // visual acknowledgement fires even when the voice is muted, so a tap is
+  // never silently ignored
+  if(window.buamAICore) buamAICore.kick();
+  if(coreRipple){
+    coreRipple.classList.remove("go");
+    void coreRipple.offsetWidth; // restart the animation
+    coreRipple.classList.add("go");
+  }
+  if(coreHint && !coreHint.classList.contains("retired")){
+    coreHint.classList.add("retired");
+    try{ localStorage.setItem(CORE_USED_KEY, "1"); }catch(e){}
+  }
+
+  if(window.buamFx) buamFx.jarvisSayCustom(buildBriefingText());
+}
+
+/* tap vs. orbit-drag: OrbitControls owns dragging on this same canvas, so only
+   a press that stayed put and ended inside the orb counts as an activation */
+let coreDown = false, coreMoved = false, coreDownX = 0, coreDownY = 0, coreDownT = 0;
+coreOrb.addEventListener("pointerdown", e=>{
+  coreDown = true; coreMoved = false;
+  coreDownX = e.clientX; coreDownY = e.clientY; coreDownT = Date.now();
+});
+window.addEventListener("pointermove", e=>{
+  if(!coreDown) return;
+  if(Math.hypot(e.clientX - coreDownX, e.clientY - coreDownY) > 10) coreMoved = true;
+});
+window.addEventListener("pointerup", e=>{
+  if(!coreDown) return;
+  coreDown = false;
+  if(coreMoved) return;                      // that was a rotate gesture
+  if(Date.now() - coreDownT > 700) return;   // long-press, not a tap
+  const r = coreOrb.getBoundingClientRect();
+  if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+  activateBuamCore();
+});
+window.addEventListener("pointercancel", ()=>{ coreDown = false; });
+// belt-and-braces: some pointer-event sequences (synthetic input, odd touch
+// stacks) can swallow the pointerup above, but a plain click still lands.
+// coreMoved still holds the last gesture's verdict, so drags stay excluded,
+// and the debounce inside activateBuamCore keeps this from double-firing.
+coreOrb.addEventListener("click", ()=>{ if(!coreMoved) activateBuamCore(); });
+
+// hover is a mouse-only affordance — touch would leave it stuck on
+coreOrb.addEventListener("pointerenter", e=>{
+  if(e.pointerType === "mouse" && window.buamAICore) buamAICore.setHover(true);
+});
+coreOrb.addEventListener("pointerleave", ()=>{ if(window.buamAICore) buamAICore.setHover(false); });
+
+coreOrb.addEventListener("keydown", e=>{
+  if(e.key === "Enter" || e.key === " " || e.key === "Spacebar"){
+    e.preventDefault(); // Space would otherwise scroll the dashboard
+    activateBuamCore();
+  }
 });
 
 let taskViewMode = "list";
@@ -5050,7 +5625,7 @@ function openMoneyModal(label, text, opts){
   cancelBtn.style.display = opts.showCancel===false ? "none" : "";
   okBtn.textContent = opts.confirmLabel || "Confirm";
   if(opts.danger===false){
-    okBtn.style.background = "var(--accent)"; okBtn.style.borderColor = "var(--accent)"; okBtn.style.color = "#00170a";
+    okBtn.style.background = "var(--accent)"; okBtn.style.borderColor = "var(--accent)"; okBtn.style.color = "var(--accent-ink)";
   } else {
     okBtn.style.background = "var(--red)"; okBtn.style.borderColor = "var(--red)"; okBtn.style.color = "";
   }
@@ -5071,10 +5646,10 @@ function closeMoneyConfirm(){
 
 /* ---- dashboard ---- */
 const MONEY_STATUS_LABELS = {
-  normal: "◈ ปกติ",
-  near: "⚠ ใกล้ถึงงบ",
-  reached: "✪ ถึงงบแล้ว",
-  over: "✕ เกินงบ"
+  normal: ico("diamond") + " ปกติ",
+  near: ico("warning") + " ใกล้ถึงงบ",
+  reached: ico("target") + " ถึงงบแล้ว",
+  over: ico("close") + " เกินงบ"
 };
 function moneyStatusLabel(status){ return MONEY_STATUS_LABELS[status] || MONEY_STATUS_LABELS.normal; }
 
@@ -5097,8 +5672,8 @@ function checkMoneyBudgetAlerts(mKey, beforeMap){
     ensureNotifyPermission();
     let title = "Budget alert", msg;
     if(after.status==="reached"){
-      title = "✪ Budget reached!";
-      msg = `หมวด "${after.name}" ถึงงบพอดี ฿${BuamMoney.formatBaht(after.budget)} — ใช้ครบตามเป้าเป๊ะ ✪`;
+      title = "Budget reached!";
+      msg = `หมวด "${after.name}" ถึงงบพอดี ฿${BuamMoney.formatBaht(after.budget)} — ใช้ครบตามเป้าเป๊ะ`;
     } else if(after.status==="over"){
       msg = `หมวด "${after.name}" เกินงบไปแล้ว ฿${BuamMoney.formatBaht(Math.abs(after.remaining))}`;
     } else {
@@ -5144,7 +5719,7 @@ function renderMoneyDashboard(){
     if(delta==null) return "";
     const up = delta >= 0;
     const goodUp = positiveIsGood ? up : !up;
-    return `<div class="money-stat-tile-delta ${goodUp?'up':'down'}">${up?'▲':'▼'} ${BuamMoney.formatPct(Math.abs(delta))} vs last month</div>`;
+    return `<div class="money-stat-tile-delta ${goodUp?'up':'down'}">${up?ico("up"):ico("down")} ${BuamMoney.formatPct(Math.abs(delta))} vs last month</div>`;
   }
 
   const heroVal = document.getElementById("moneyHeroValue");
@@ -5212,8 +5787,8 @@ function txnRowHtml(t){
         ${t.note ? `<div class="txn-note">${escapeHtml(t.note)}</div>` : ""}
       </div>
       <div class="task-actions">
-        <button class="icon-btn" data-fx-skip onclick="openMoneyEditTxn('${t.id}')" title="Edit">✎</button>
-        <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteTxn('${t.id}')" title="Delete">✕</button>
+        <button class="icon-btn" data-fx-skip onclick="openMoneyEditTxn('${t.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteTxn('${t.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
       </div>
     </div>`;
 }
@@ -5272,7 +5847,7 @@ function renderMoneyBudgetView(){
     <div class="budget-group-card">
       <div class="budget-group-head">
         <div class="budget-group-name">${escapeHtml(g.name)}${g.isInvestmentGroup?' <span style="color:var(--cyan);font-size:0.68rem;">(auto: investment txns)</span>':''}</div>
-        <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit">✎</button>
+        <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
       </div>
       <div class="budget-group-amounts" style="margin-bottom:8px;">฿${BuamMoney.formatBaht(g.spent)} / ฿${BuamMoney.formatBaht(g.budget)}</div>
       <div class="budget-bar"><div class="budget-bar-fill status-${g.status}" style="width:${fillPct}%"></div></div>
@@ -5468,7 +6043,7 @@ function renderMoneyCategoryList(){
     return `
     <div class="goal-row">
       <div class="goal-title">${escapeHtml(c.name)}${group?` <span style="color:var(--ink-dim); font-size:0.7rem;">— ${escapeHtml(group.name)}</span>`:""}</div>
-      <button class="icon-btn" data-fx-skip onclick="openMoneyEditCat('${c.id}')" title="Edit">✎</button>
+      <button class="icon-btn" data-fx-skip onclick="openMoneyEditCat('${c.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
     </div>`;
   }).join("") : `<div class="empty">no_categories</div>`;
 }
@@ -5497,8 +6072,8 @@ function renderMoneyRecurringList(){
     return `
     <div class="goal-row">
       <div class="goal-title">฿${BuamMoney.formatBaht(r.amount)} · ${escapeHtml(cat?cat.name:"?")} · ${r.frequency}${r.endDate?` (until ${r.endDate})`:""}</div>
-      <button class="icon-btn" data-fx-skip onclick="openMoneyEditRecurring('${r.id}')" title="Edit">✎</button>
-      <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteRecurring('${r.id}')" title="Delete">✕</button>
+      <button class="icon-btn" data-fx-skip onclick="openMoneyEditRecurring('${r.id}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+      <button class="icon-btn" data-fx-skip onclick="confirmMoneyDeleteRecurring('${r.id}')" title="Delete" aria-label="Delete">${ico("close")}</button>
     </div>`;
   }).join("") : `<div class="empty">no_recurring_income</div>`;
 }

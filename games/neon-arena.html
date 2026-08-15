@@ -164,9 +164,18 @@
   #sndToggle:hover{ border-color:var(--cyan); }
   #sndToggle.muted{ opacity:.55; }
   @media (pointer:coarse){ #sndToggle{ top:calc(58px + env(safe-area-inset-top)); } }
+  .ico{ width:1em; height:1em; display:inline-block; vertical-align:middle;
+    fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .classCard .icon{ color:var(--cyan); }
 </style>
 </head>
 <body>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 2.5L4.6 13.4h5.6l-1.4 8.1 8.6-10.9h-5.6z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2.6l7.6 3v6.1c0 4.4-3 8.2-7.6 9.7-4.6-1.5-7.6-5.3-7.6-9.7V5.6z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1.9 12S5.7 5.2 12 5.2 22.1 12 22.1 12 18.3 18.8 12 18.8 1.9 12 1.9 12z"/><circle cx="12" cy="12" r="3.1"/></symbol>
+</defs></svg>
+
 
 <a href="./index.html" style="position:fixed;top:10px;left:10px;z-index:999;font:12px/1 Consolas,monospace;color:#baffc9;background:rgba(5,7,10,.75);border:1px solid #144024;border-radius:3px;padding:6px 10px;text-decoration:none;">&larr; arcade</a>
 <button id="sndToggle" type="button" data-fx-skip>SND:ON</button>
@@ -181,19 +190,19 @@
   <div class="subtitle">5v5 TEAM DEATHMATCH &mdash; FIRST TO 50 KILLS</div>
   <div id="classCards">
     <div class="classCard" data-class="assault">
-      <div class="icon">⚡</div>
+      <div class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bolt"></use></svg></div>
       <h3>Assault</h3>
       <p>High mobility, balanced damage. Built for aggression.</p>
       <span class="ability">Super Dash — 4s CD</span>
     </div>
     <div class="classCard" data-class="support">
-      <div class="icon">🛡</div>
+      <div class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-shield"></use></svg></div>
       <h3>Support</h3>
       <p>Tougher, protects allies from incoming fire.</p>
       <span class="ability">Energy Dome — 10s CD</span>
     </div>
     <div class="classCard" data-class="recon">
-      <div class="icon">👁</div>
+      <div class="icon"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"></use></svg></div>
       <h3>Recon</h3>
       <p>Fragile but hits hard. Sees through walls.</p>
       <span class="ability">X-Ray Scan — 12s CD</span>

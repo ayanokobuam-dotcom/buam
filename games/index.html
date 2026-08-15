@@ -102,14 +102,24 @@
     padding:2px 7px;
   }
   footer{ text-align:center; color:var(--ink-dim); font-size:0.68rem; margin-top:28px; opacity:0.6; }
+  .ico{ width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0;
+    fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 </style>
 </head>
 <body>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16 9a4.2 4.2 0 0 1 0 6M18.8 6.2a8 8 0 0 1 0 11.6"/></symbol>
+  <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M16.5 9.8l5 4.4M21.5 9.8l-5 4.4"/></symbol>
+</defs></svg>
+<script>
+function ico(name){ return '<svg class="ico" aria-hidden="true" focusable="false"><use href="#i-'+name+'"></use></svg>'; }
+</script>
+
 <div class="wrap">
   <header>
     <div class="logo">arcade.exe</div>
     <div class="header-actions">
-      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip>🔊 snd</button>
+      <button class="snd-toggle" id="sndToggle" type="button" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
       <a class="back" href="../index.html">&larr; back to tasks</a>
     </div>
   </header>
@@ -135,7 +145,7 @@
   var sndBtn = document.getElementById("sndToggle");
   function updateSndBtn(){
     var m = window.buamFx ? buamFx.isMuted() : false;
-    sndBtn.textContent = m ? "🔇 snd" : "🔊 snd";
+    sndBtn.innerHTML = (m ? ico("volume-off") : ico("volume")) + " snd";
     sndBtn.classList.toggle("muted", m);
   }
   sndBtn.addEventListener("click", function(){
