@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>buam — task terminal</title>
 <meta name="description" content="Manage tasks and homework, hacker-terminal style">
-<meta name="theme-color" content="#151a18" id="metaThemeColor">
+<meta name="theme-color" content="#070b09" id="metaThemeColor">
 <script>
   try{
     if(localStorage.getItem("buam-theme") === "light"){
@@ -22,20 +22,20 @@
   :root{
     /* ---- matte charcoal base surface. the whole UI is one continuous
        physical material; depth comes from elevation, not outlines. ---- */
-    --bg:#151a18;
-    --surface:#1a201d;
-    --panel:#1e2522;        /* raised surface  */
-    --panel-2:#161c1a;      /* inset / recessed surface */
-    --panel-dk:#111614;     /* deep well */
-    --panel-lt:#252d29;     /* lit edge of a raised surface */
+    --bg:#070b09;           /* ground sits well below the panels now */
+    --surface:#0d1310;
+    --panel:#1d2821;        /* raised surface  */
+    --panel-2:#0f1613;      /* inset / recessed surface */
+    --panel-dk:#161f1a;     /* dark edge of a raised surface — still above --bg */
+    --panel-lt:#253128;     /* lit edge of a raised surface */
 
     /* borders are no longer the shape-defining element — they are a whisper.
        shape is communicated by elevation + surface contrast instead. */
-    --border:rgba(255,255,255,0.05);
+    --border:rgba(150,235,190,0.10);
     --border-bright:#00ff66;
 
-    --ink:#dcece1;
-    --ink-dim:#8ba396;
+    --ink:#e8f6ec;
+    --ink-dim:#a3c0b0;
     --accent:#00ff66;
     --accent-dim:rgba(0,255,102,0.12);
     --cyan:#39d6ff;
@@ -63,7 +63,7 @@
     --radius-tile:26px;     /* cards */
     --neu-radius-lg:30px;   /* large panels */
 
-    --header-scrim: rgba(21,26,24,0.88);
+    --header-scrim: rgba(7,11,9,0.88);
     --accent-ink: #06170d;
     --boot-blue:#39d6ff;   /* electric-blue secondary accent (boot HUD, core rim) */
     /* used by .task.overdue::after via mask(), so the marker still takes --red */
@@ -126,7 +126,7 @@
     inset:0;
     z-index:-2;
     pointer-events:none;
-    background: radial-gradient(circle at 50% 0%, #1d2522 0%, var(--bg) 62%);
+    background: radial-gradient(circle at 50% 0%, #101a14 0%, var(--bg) 62%);
     transform-origin:50% 0%;
     animation:bgVignetteBreathe 16s ease-in-out infinite;
   }
@@ -580,6 +580,27 @@
   }
 
 
+  /* ---- mobile contrast lift ----
+     Phones are used in brighter surroundings and pack the UI denser, so the
+     dark theme gets a small extra push on panel lightness, text and icon
+     weight below 520px. Scoped away from the light theme, and desktop is
+     untouched, so this cannot over-brighten anything else. ---- */
+  @media (max-width:520px){
+    :root:not([data-theme="light"]){
+      --panel:#243027;
+      --panel-2:#131c17;
+      --panel-dk:#1a241e;
+      --panel-lt:#2c3a30;
+      --border:rgba(150,235,190,0.14);
+      --ink:#f1fcf4;
+      --ink-dim:#b2cfbe;
+    }
+    :root:not([data-theme="light"]) .ico{ stroke-width:2.1; }
+    /* the ambient texture competes much harder on a small screen */
+    :root:not([data-theme="light"]) #bgCanvas{ opacity:0.16; }
+    :root:not([data-theme="light"]) #bgCanvas3D{ opacity:0.20; }
+  }
+
   /* ---- icon system ---- */
   .ico-sprite{ position:absolute; width:0; height:0; overflow:hidden; }
   .ico{
@@ -651,9 +672,21 @@
      glyphs bleeding through the gaps between particles */
   .cc-hero-orb::before{
     content:""; position:absolute; inset:20%; border-radius:50%;
-    background:radial-gradient(circle, var(--panel) 0%, var(--panel) 55%, transparent 78%);
+    background:radial-gradient(circle, var(--surface) 0%, var(--surface) 40%, transparent 72%);
   }
   #aiCoreCanvas{ position:relative; width:100%; height:100%; display:block; touch-action:none; }
+  /* broad green bloom behind the canvas — extends the falloff past the WebGL
+     viewport so the glow does not stop at a hard square edge */
+  .cc-hero-orb::after{
+    content:""; position:absolute; inset:-8%; z-index:0;
+    border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle,
+      rgba(0,255,106,0.02) 0%,
+      rgba(0,255,106,0.05) 42%,
+      rgba(0,255,106,0.02) 60%,
+      transparent 74%);
+    filter:blur(14px);
+  }
 
   /* ---- the Core is the primary voice control. the orb box is deliberately
      larger than the particle sphere, so it doubles as a generous touch target
@@ -732,7 +765,7 @@
   }
   .cc-stat-row:last-child{ border-bottom:none; }
   .cc-stat-glyph{ width:20px; text-align:center; color:var(--accent); }
-  .cc-stat-name{ flex:1; color:var(--ink-dim); }
+  .cc-stat-name{ flex:1; color:var(--ink); }
   .cc-stat-val{ font-variant-numeric:tabular-nums; color:var(--ink); font-weight:700; }
   .cc-stat-val.cc-warn{ color:var(--red); }
 
@@ -4274,7 +4307,7 @@ updateJarvisBtn();
     layer = new Array(cols).fill(0).map(()=> Math.random() < 0.45 ? 0 : 1);
     speeds = new Array(cols).fill(0).map((_, i)=> layer[i] === 0 ? 0.18 + Math.random()*0.35 : 0.45 + Math.random()*0.95);
 
-    ctx.fillStyle = "#151a18";
+    ctx.fillStyle = "#070b09";
     ctx.fillRect(0,0,w,h);
   }
 
@@ -4283,7 +4316,7 @@ updateJarvisBtn();
     if(now-lastT < 33) return; // cap ~30fps, plenty smooth for falling glyphs
     lastT = now;
     const w = window.innerWidth, h = window.innerHeight;
-    ctx.fillStyle = "rgba(21,26,24,0.11)";
+    ctx.fillStyle = "rgba(7,11,9,0.11)";
     ctx.fillRect(0,0,w,h);
 
     // smooth rise-then-fall bell curve over PULSE_MS, instead of an on/off cutoff
@@ -4376,7 +4409,7 @@ updateJarvisBtn();
   const UNIQUE_CHARS = Array.from(new Set(CHARS.split("")));
   const HEAD_COLORS = [0x39d6ff, 0xffd23f, 0xff3fd6, 0xbaffc9];
   const TRAIL_COLOR = 0x00ff66;
-  const BG_COLOR = 0x151a18;
+  const BG_COLOR = 0x070b09;
 
   function makeGlyphTexture(ch){
     const c = document.createElement("canvas");
@@ -4590,7 +4623,7 @@ window.buamAmbientShip = (function(){
     if(!renderer) return false;
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x151a18, 0.01);
+    scene.fog = new THREE.FogExp2(0x070b09, 0.01);
     camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
     camera.position.set(0, 0, 100);
 
@@ -4801,7 +4834,7 @@ window.buamAICore = (function(){
   const orbEl = document.getElementById("aiCoreOrb");
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
-  let renderer, scene, camera, controls, core, coreGlow, coreHot, nucleus, shell, dust,
+  let renderer, scene, camera, controls, core, coreGlow, coreHalo, coreHot, nucleus, shell, dust,
       orbits = [], electrons = [], animId = null, frame;
   let ready = false;
   // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
@@ -4894,7 +4927,7 @@ window.buamAICore = (function(){
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.28 });
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.8 });
     return new THREE.LineLoop(geo, mat);
   }
 
@@ -4909,9 +4942,16 @@ window.buamAICore = (function(){
     camera.position.set(0, 1.2, 6);
 
     const glowTex = makeGlowTexture();
-    const coreColor = 0x22ff77;     // vivid saturated green — the core itself
-    const lineColor = 0x00ff66;     // faint orbit-path guide, matches the app accent exactly
-    const electronColor = 0x9dffc0; // brighter, still clearly green — the moving electron stands out without going white
+    // additive blending stacks these, so anything near-white washes the centre
+    // out to white. Every layer stays saturated green and lets the *density* of
+    // overlapping particles create the hot centre instead of a pale colour.
+    const coreColor = 0x00ff6a;     // saturated green — the core itself
+    const lineColor = 0x1aff77;     // orbit-path guide, a touch above the app accent so the rings read
+    const hotColor  = 0x6effa8;     // hottest point: bright, still unmistakably green
+    const particleColor = 0x2bff85; // nucleus points — brighter than the core wash
+    const shellColor = 0x66ffa8;    // surface shell
+    const dustColor  = 0x33ff8a;    // orbiting halo points
+    const electronColor = 0x9dffca; // the travelling electrons
 
     // particle budget scales down on small/low-core devices so the core stays
     // smooth on phones; the visual reads the same, just less dense
@@ -4923,13 +4963,19 @@ window.buamAICore = (function(){
 
     // soft glow halo behind the core — a cheap stand-in for real bloom that
     // doesn't fight the canvas's transparency the way EffectComposer does
-    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.5, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreGlow.scale.setScalar(2.9);
+    // broad outer bloom — carries the "energy field" read without brightening
+    // the particles themselves
+    coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.15, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHalo.scale.setScalar(5.0);
+    scene.add(coreHalo);
+
+    coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:coreColor, transparent:true, opacity:0.22, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreGlow.scale.setScalar(2.75);
     scene.add(coreGlow);
 
     // tight inner bloom, so the very centre reads as the hottest point
-    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:0xd6ffe6, transparent:true, opacity:0.4, depthWrite:false, blending:THREE.AdditiveBlending }));
-    coreHot.scale.setScalar(1.25);
+    coreHot = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:hotColor, transparent:true, opacity:0.20, depthWrite:false, blending:THREE.AdditiveBlending }));
+    coreHot.scale.setScalar(0.95);
     scene.add(coreHot);
 
     // core = three stacked layers: a dense volumetric nucleus, a crisp surface
@@ -4938,17 +4984,17 @@ window.buamAICore = (function(){
     scene.add(core);
 
     nucleus = pointsLayer(volumeCloud(N_NUCLEUS, 0.05, 1.02, 1.7), {
-      size:0.085, map:glowTex, color:coreColor, opacity:0.95
+      size:0.125, map:glowTex, color:particleColor, opacity:1
     });
     core.add(nucleus);
 
     shell = pointsLayer(fibonacciSphere(N_SHELL, 1.12, 0.06), {
-      size:0.055, map:glowTex, color:0xbdffd6, opacity:0.7
+      size:0.076, map:glowTex, color:shellColor, opacity:1
     });
     core.add(shell);
 
     dust = pointsLayer(volumeCloud(N_DUST, 1.45, 2.65, 0.85), {
-      size:0.045, map:glowTex, color:lineColor, opacity:0.5
+      size:0.063, map:glowTex, color:dustColor, opacity:1
     });
     scene.add(dust);
 
@@ -4971,7 +5017,7 @@ window.buamAICore = (function(){
       pivot.add(electronPivot);
 
       const electron = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:electronColor, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
-      electron.scale.setScalar(0.32);
+      electron.scale.setScalar(0.46);
       electron.position.set(def.radius, 0, 0);
       electronPivot.add(electron);
 
@@ -5032,12 +5078,14 @@ window.buamAICore = (function(){
       core.scale.setScalar(breathe);
       dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
-      coreGlow.scale.setScalar(2.9 * breathe);
-      coreGlow.material.opacity = 0.5 + energy * 0.22 + hover * 0.12 + press * 0.25;
-      coreHot.scale.setScalar(1.25 * breathe * (1 + press * 0.5));
-      coreHot.material.opacity = 0.4 + Math.sin(t * 1.9) * 0.06 + activity * 0.25 + hover * 0.18 + press * 0.35;
-      nucleus.material.opacity = 0.95 + hover * 0.05;
-      shell.material.opacity = 0.7 + hover * 0.2 + press * 0.2;
+      coreHalo.scale.setScalar(5.0 * (1 + (breathe - 1) * 0.6));
+      coreHalo.material.opacity = 0.15 + energy * 0.1 + hover * 0.05 + press * 0.12;
+      coreGlow.scale.setScalar(2.75 * breathe);
+      coreGlow.material.opacity = 0.22 + energy * 0.12 + hover * 0.06 + press * 0.14;
+      coreHot.scale.setScalar(0.95 * breathe * (1 + press * 0.5));
+      coreHot.material.opacity = 0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22;
+      nucleus.material.opacity = 1;
+      shell.material.opacity = 1;
 
       electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5); });
       if(controls) controls.update();
@@ -5227,7 +5275,7 @@ function applyThemeUI(){
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
   themeToggleBtn.innerHTML = isLight ? ico("sun") : ico("moon");
   themeToggleBtn.title = isLight ? "Switch to dark theme" : "Switch to light theme";
-  if(metaThemeColor) metaThemeColor.setAttribute("content", isLight ? "#e8ecea" : "#151a18");
+  if(metaThemeColor) metaThemeColor.setAttribute("content", isLight ? "#e8ecea" : "#070b09");
 }
 themeToggleBtn.addEventListener("click", ()=>{
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
