@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>B.U.A.M. — Mic Diagnostic</title>
+<meta name="theme-color" content="#070b09">
+<link rel="icon" href="./icon-192.png">
+<style>
+  :root{
+    --bg:#070b09; --panel:#1d2821; --panel-2:#0f1613;
+    --ink:#e8f6ec; --ink-dim:#a3c0b0; --accent:#00ff66;
+    --red:#ff5c5c; --amber:#ffc65c; --cyan:#39d6ff;
+    --radius:20px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding:calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{ max-width:640px; margin:0 auto; }
+  h1{ font-size:1.05rem; letter-spacing:0.18em; margin:0 0 4px; }
+  h1 span{ color:var(--accent); }
+  .sub{ color:var(--ink-dim); font-size:0.74rem; margin:0 0 20px; line-height:1.6; }
+  .card{
+    background:linear-gradient(145deg, #253128, #161f1a);
+    border-radius:var(--radius); padding:16px; margin-bottom:14px;
+    box-shadow:-3px -3px 10px rgba(60,90,72,0.10), 6px 6px 18px rgba(0,0,0,0.55);
+  }
+  .card h2{
+    font-size:0.68rem; letter-spacing:0.2em; text-transform:uppercase;
+    color:var(--ink-dim); margin:0 0 12px; font-weight:600;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:0.76rem; }
+  td{ padding:7px 0; border-bottom:1px solid rgba(150,235,190,0.08); vertical-align:top; }
+  td:first-child{ color:var(--ink-dim); white-space:nowrap; padding-right:12px; }
+  td:last-child{ text-align:right; word-break:break-word; }
+  tr:last-child td{ border-bottom:none; }
+  .ok{ color:var(--accent); } .bad{ color:var(--red); } .warn{ color:var(--amber); }
+  button{
+    font:inherit; font-size:0.8rem; letter-spacing:0.08em;
+    color:var(--ink); background:linear-gradient(145deg, #2c3a30, #1a241e);
+    border:none; border-radius:14px; padding:14px 16px; cursor:pointer;
+    box-shadow:-2px -2px 6px rgba(60,90,72,0.12), 4px 4px 12px rgba(0,0,0,0.5);
+    -webkit-tap-highlight-color:transparent; width:100%;
+  }
+  button:active{ box-shadow:inset 2px 2px 6px rgba(0,0,0,0.5), inset -2px -2px 6px rgba(60,90,72,0.10); }
+  button.primary{ color:#06170d; background:linear-gradient(145deg, #2bff85, #00cc52); font-weight:700; }
+  button:disabled{ opacity:0.4; }
+  .row{ display:flex; gap:10px; margin-top:10px; }
+  .row button{ flex:1; }
+  .meter{
+    height:12px; border-radius:8px; margin-top:12px; overflow:hidden;
+    background:var(--panel-2); box-shadow:inset 2px 2px 5px rgba(0,0,0,0.55);
+  }
+  .meter i{ display:block; height:100%; width:0%; background:var(--accent); transition:width 0.06s linear; }
+  .langs{ display:flex; gap:8px; margin-bottom:12px; }
+  .langs button{ font-size:0.72rem; padding:10px 8px; }
+  .langs button[aria-pressed="true"]{ color:#06170d; background:linear-gradient(145deg, #2bff85, #00cc52); font-weight:700; }
+  .transcript{
+    min-height:78px; border-radius:14px; padding:12px; margin-top:12px;
+    background:var(--panel-2); box-shadow:inset 2px 2px 6px rgba(0,0,0,0.55);
+    font-size:0.9rem; line-height:1.55; word-break:break-word;
+  }
+  .transcript .interim{ color:var(--ink-dim); font-style:italic; }
+  .transcript .empty{ color:var(--ink-dim); font-size:0.76rem; }
+  .verdict{ margin-top:12px; font-size:0.78rem; line-height:1.6; }
+  pre#log{
+    background:var(--panel-2); border-radius:14px; padding:12px; margin:0;
+    box-shadow:inset 2px 2px 6px rgba(0,0,0,0.55);
+    font-size:0.68rem; line-height:1.6; max-height:260px; overflow:auto;
+    white-space:pre-wrap; word-break:break-word; color:var(--ink-dim);
+  }
+  .note{ font-size:0.7rem; color:var(--ink-dim); line-height:1.65; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>B.U.A.M. <span>MIC DIAGNOSTIC</span></h1>
+  <p class="sub">
+    หน้าทดสอบชั่วคราว ไม่เกี่ยวกับตัวแอป — ใช้พิสูจน์ว่าไมโครโฟนและการถอดเสียงทำงานจริงบนเครื่องนี้หรือไม่<br>
+    <strong>เปิด 2 รอบ</strong>: รอบแรกในแท็บ Safari ปกติ รอบสองจากไอคอนบนหน้าจอโฮม (โหมด PWA) แล้วกดปุ่มคัดลอกท้ายหน้าส่งผลกลับมา
+  </p>
+
+  <div class="card">
+    <h2>1 — สภาพแวดล้อม</h2>
+    <table id="envTable"></table>
+  </div>
+
+  <div class="card">
+    <h2>2 — ไมโครโฟน (getUserMedia)</h2>
+    <p class="note" style="margin-top:0">
+      ทดสอบว่าเบราว์เซอร์ยอมให้เข้าถึงไมค์ในบริบทนี้ไหม แยกจากการถอดเสียง เพื่อให้รู้ว่าถ้าพังคือพังตรงไหน
+    </p>
+    <button id="micBtn" class="primary">เริ่มทดสอบไมค์ แล้วพูดใส่</button>
+    <div class="meter"><i id="micMeter"></i></div>
+    <div class="verdict" id="micVerdict"></div>
+  </div>
+
+  <div class="card">
+    <h2>3 — ถอดเสียงเป็นข้อความ (SpeechRecognition)</h2>
+    <div class="langs">
+      <button type="button" data-lang="th-TH" aria-pressed="true">ไทย th-TH</button>
+      <button type="button" data-lang="en-US" aria-pressed="false">English en-US</button>
+    </div>
+    <button id="recBtn" class="primary">กดแล้วพูด</button>
+    <div class="transcript" id="transcript"><span class="empty">ยังไม่มีข้อความ</span></div>
+    <div class="verdict" id="recVerdict"></div>
+    <p class="note">
+      ลองพูดประโยคทดสอบ เช่น &ldquo;เปิดปฏิทิน&rdquo; หรือ &ldquo;กาแฟ หกสิบบาท&rdquo;
+      เพื่อดูว่าคำสั่งกับตัวเลขถอดออกมาแม่นแค่ไหน
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>4 — บันทึกผล</h2>
+    <pre id="log"></pre>
+    <div class="row">
+      <button id="copyBtn">คัดลอกผลทั้งหมด</button>
+      <button id="clearBtn">ล้าง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var logEl = document.getElementById("log");
+  var lines = [];
+  function log(msg){
+    var t = new Date().toTimeString().slice(0,8);
+    lines.push("[" + t + "] " + msg);
+    logEl.textContent = lines.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  /* ---------- 1. environment ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  var standalone =
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    navigator.standalone === true;
+
+  var env = [
+    ["โหมดที่เปิด", standalone ? "PWA (หน้าจอโฮม)" : "แท็บเบราว์เซอร์", standalone ? "ok" : "warn"],
+    ["Secure context", window.isSecureContext ? "ใช่ (HTTPS)" : "ไม่ใช่", window.isSecureContext ? "ok" : "bad"],
+    ["SpeechRecognition", SR ? (window.SpeechRecognition ? "มี (มาตรฐาน)" : "มี (webkit)") : "ไม่มี", SR ? "ok" : "bad"],
+    ["getUserMedia", (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? "มี" : "ไม่มี",
+      (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? "ok" : "bad"],
+    ["AudioContext", (window.AudioContext || window.webkitAudioContext) ? "มี" : "ไม่มี",
+      (window.AudioContext || window.webkitAudioContext) ? "ok" : "bad"],
+    ["Service worker", ("serviceWorker" in navigator) ? (navigator.serviceWorker.controller ? "ควบคุมหน้านี้อยู่" : "มี แต่ยังไม่ควบคุม") : "ไม่มี", ""],
+    ["หน้าจอ", window.innerWidth + "×" + window.innerHeight + " @" + (window.devicePixelRatio || 1) + "x", ""],
+    ["User agent", navigator.userAgent, ""]
+  ];
+  var envTable = document.getElementById("envTable");
+  env.forEach(function(r){
+    var tr = document.createElement("tr");
+    var a = document.createElement("td"); a.textContent = r[0];
+    var b = document.createElement("td"); b.textContent = r[1]; if(r[2]) b.className = r[2];
+    tr.appendChild(a); tr.appendChild(b); envTable.appendChild(tr);
+    log(r[0] + ": " + r[1]);
+  });
+
+  // permission state, where the browser exposes it (Chrome/Edge; Safari does not)
+  if(navigator.permissions && navigator.permissions.query){
+    try{
+      navigator.permissions.query({ name: "microphone" }).then(function(st){
+        log("permission.microphone = " + st.state);
+      }).catch(function(e){ log("permission.query ไม่รองรับ: " + e.message); });
+    }catch(e){ log("permission.query ไม่รองรับ: " + e.message); }
+  }
+
+  /* ---------- 2. raw microphone ---------- */
+  var micBtn = document.getElementById("micBtn");
+  var micMeter = document.getElementById("micMeter");
+  var micVerdict = document.getElementById("micVerdict");
+  var micStream = null, micCtx = null, micRaf = null, micPeak = 0;
+
+  function stopMic(){
+    if(micRaf){ cancelAnimationFrame(micRaf); micRaf = null; }
+    if(micStream){ micStream.getTracks().forEach(function(t){ t.stop(); }); micStream = null; }
+    if(micCtx){ micCtx.close(); micCtx = null; }
+    micMeter.style.width = "0%";
+    micBtn.textContent = "เริ่มทดสอบไมค์ แล้วพูดใส่";
+    micBtn.disabled = false;
+  }
+
+  micBtn.addEventListener("click", function(){
+    if(micStream){ stopMic(); return; }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      micVerdict.innerHTML = '<span class="bad">เบราว์เซอร์นี้ไม่มี getUserMedia</span>';
+      log("MIC: ไม่มี getUserMedia");
+      return;
+    }
+    micBtn.disabled = true;
+    micVerdict.textContent = "กำลังขอสิทธิ์…";
+    log("MIC: ขอสิทธิ์ไมโครโฟน");
+    micPeak = 0;
+
+    navigator.mediaDevices.getUserMedia({ audio:true }).then(function(stream){
+      micStream = stream;
+      micBtn.disabled = false;
+      micBtn.textContent = "หยุดทดสอบไมค์";
+      var track = stream.getAudioTracks()[0];
+      log("MIC: ได้สิทธิ์แล้ว — device=\"" + (track ? track.label || "(ไม่มีชื่อ)" : "?") + "\"");
+      micVerdict.innerHTML = '<span class="ok">ได้สิทธิ์แล้ว</span> — ลองพูดดู แถบด้านบนควรขยับ';
+
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      micCtx = new Ctx();
+      if(micCtx.state === "suspended") micCtx.resume();
+      var src = micCtx.createMediaStreamSource(stream);
+      var an = micCtx.createAnalyser();
+      an.fftSize = 1024;
+      src.connect(an);
+      var buf = new Uint8Array(an.fftSize);
+
+      (function tick(){
+        micRaf = requestAnimationFrame(tick);
+        an.getByteTimeDomainData(buf);
+        var sum = 0;
+        for(var i=0;i<buf.length;i++){ var v = (buf[i]-128)/128; sum += v*v; }
+        var rms = Math.sqrt(sum/buf.length);
+        var pct = Math.min(100, Math.round(rms * 320));
+        micMeter.style.width = pct + "%";
+        if(rms > micPeak){
+          micPeak = rms;
+          if(micPeak > 0.02){
+            micVerdict.innerHTML = '<span class="ok">ไมค์รับเสียงได้จริง</span> — ระดับสูงสุด ' +
+              micPeak.toFixed(3) + ' (ต้องมากกว่า 0.020 ถึงนับว่าได้ยิน)';
+          }
+        }
+      })();
+    }).catch(function(err){
+      micBtn.disabled = false;
+      micVerdict.innerHTML = '<span class="bad">เข้าถึงไมค์ไม่ได้</span> — ' + err.name + ": " + err.message;
+      log("MIC ล้มเหลว: " + err.name + " — " + err.message);
+    });
+  });
+
+  window.addEventListener("pagehide", stopMic);
+
+  /* ---------- 3. speech recognition ---------- */
+  var recBtn = document.getElementById("recBtn");
+  var transcriptEl = document.getElementById("transcript");
+  var recVerdict = document.getElementById("recVerdict");
+  var lang = "th-TH";
+  var rec = null, listening = false, gotAnything = false;
+
+  Array.prototype.forEach.call(document.querySelectorAll(".langs button"), function(b){
+    b.addEventListener("click", function(){
+      lang = b.dataset.lang;
+      Array.prototype.forEach.call(document.querySelectorAll(".langs button"), function(o){
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+      log("ภาษา = " + lang);
+    });
+  });
+
+  if(!SR){
+    recBtn.disabled = true;
+    recBtn.textContent = "เบราว์เซอร์นี้ไม่รองรับ";
+    recVerdict.innerHTML = '<span class="bad">ไม่มี SpeechRecognition — ฟีเจอร์นี้ใช้บนเบราว์เซอร์นี้ไม่ได้</span>';
+  }
+
+  function setListening(on){
+    listening = on;
+    recBtn.textContent = on ? "กำลังฟัง… (กดเพื่อหยุด)" : "กดแล้วพูด";
+    recBtn.classList.toggle("primary", !on);
+  }
+
+  recBtn.addEventListener("click", function(){
+    if(!SR) return;
+    if(listening){ try{ rec.stop(); }catch(e){} return; }
+
+    gotAnything = false;
+    transcriptEl.innerHTML = '<span class="empty">กำลังฟัง…</span>';
+    recVerdict.textContent = "";
+
+    rec = new SR();
+    rec.lang = lang;
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function(){ setListening(true); log("REC: เริ่มฟัง (" + lang + ")"); };
+
+    rec.onresult = function(e){
+      var finalText = "", interim = "", conf = null;
+      for(var i = e.resultIndex; i < e.results.length; i++){
+        var r = e.results[i];
+        if(r.isFinal){ finalText += r[0].transcript; conf = r[0].confidence; }
+        else interim += r[0].transcript;
+      }
+      gotAnything = true;
+      transcriptEl.innerHTML = "";
+      if(finalText){
+        transcriptEl.appendChild(document.createTextNode(finalText));
+        log('REC ผลลัพธ์: "' + finalText + '"' + (conf != null ? " (ความมั่นใจ " + conf.toFixed(2) + ")" : ""));
+      }
+      if(interim){
+        var s = document.createElement("span");
+        s.className = "interim";
+        s.textContent = (finalText ? " " : "") + interim;
+        transcriptEl.appendChild(s);
+      }
+    };
+
+    rec.onerror = function(e){
+      var why = {
+        "not-allowed": "ผู้ใช้หรือระบบปฏิเสธสิทธิ์ไมค์",
+        "service-not-allowed": "ระบบไม่อนุญาตให้ใช้บริการถอดเสียงในบริบทนี้",
+        "no-speech": "ไม่ได้ยินเสียงพูด",
+        "audio-capture": "หาไมโครโฟนไม่เจอ",
+        "network": "ต่อบริการถอดเสียงไม่ได้ (ต้องมีเน็ต)",
+        "aborted": "ถูกยกเลิก"
+      }[e.error] || e.error;
+      recVerdict.innerHTML = '<span class="bad">ผิดพลาด: ' + e.error + '</span> — ' + why;
+      log("REC ผิดพลาด: " + e.error + " — " + why + (e.message ? " | " + e.message : ""));
+    };
+
+    rec.onend = function(){
+      setListening(false);
+      log("REC: จบรอบ" + (gotAnything ? "" : " (ไม่ได้ข้อความ)"));
+      if(gotAnything && !recVerdict.textContent){
+        recVerdict.innerHTML = '<span class="ok">ถอดเสียงได้สำเร็จ</span> — ฟีเจอร์นี้ใช้ได้บนเครื่องนี้';
+      }
+      if(!gotAnything && !recVerdict.textContent){
+        recVerdict.innerHTML = '<span class="warn">จบรอบโดยไม่ได้ข้อความ</span> — ลองใหม่แล้วพูดให้ดังขึ้นหรือใกล้ขึ้น';
+      }
+    };
+
+    try{ rec.start(); }
+    catch(err){
+      setListening(false);
+      recVerdict.innerHTML = '<span class="bad">เริ่มไม่ได้</span> — ' + err.name + ": " + err.message;
+      log("REC start() โยน error: " + err.name + " — " + err.message);
+    }
+  });
+
+  /* ---------- 4. log export ---------- */
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var text = lines.join("\n");
+    var done = function(){ document.getElementById("copyBtn").textContent = "คัดลอกแล้ว"; };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
+    function fallback(){
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, text.length);
+      try{ document.execCommand("copy"); done(); }
+      catch(e){ document.getElementById("copyBtn").textContent = "คัดลอกไม่ได้ — เลือกข้อความเอง"; }
+      document.body.removeChild(ta);
+    }
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function(){
+    lines = []; logEl.textContent = "";
+    document.getElementById("copyBtn").textContent = "คัดลอกผลทั้งหมด";
+  });
+
+  log("หน้าทดสอบพร้อมใช้งาน");
+})();
+</script>
+</body>
+</html>
