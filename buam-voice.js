@@ -83,6 +83,17 @@
     return false;
   }
 
+  /* Removes a phrase that was recognised inside a longer string — used to lift
+     a date out of a task title. The phrase may have been matched against the
+     whitespace-stripped copy, so a second pass compares compacted text. */
+  function stripPhrase(text, phrase) {
+    var result = normalize(String(text).replace(phrase, " "));
+    if (compact(result).indexOf(compact(phrase)) !== -1) {
+      result = normalize(compact(result).replace(compact(phrase), " "));
+    }
+    return result;
+  }
+
   /* ================================================================
    * Thai numerals
    * ================================================================ */
@@ -158,53 +169,211 @@
     { names: ["วันเสาร์", "เสาร์"], dow: 6 }
   ];
 
+  var MONTHS = [
+    { names: ["มกราคม", "มกรา", "ม.ค."], m: 0 },
+    { names: ["กุมภาพันธ์", "กุมภา", "ก.พ."], m: 1 },
+    { names: ["มีนาคม", "มีนา", "มี.ค."], m: 2 },
+    { names: ["เมษายน", "เมษา", "เม.ย."], m: 3 },
+    { names: ["พฤษภาคม", "พฤษภา", "พ.ค."], m: 4 },
+    { names: ["มิถุนายน", "มิถุนา", "มิ.ย."], m: 5 },
+    { names: ["กรกฎาคม", "กรกฎา", "ก.ค."], m: 6 },
+    { names: ["สิงหาคม", "สิงหา", "ส.ค."], m: 7 },
+    { names: ["กันยายน", "กันยา", "ก.ย."], m: 8 },
+    { names: ["ตุลาคม", "ตุลา", "ต.ค."], m: 9 },
+    { names: ["พฤศจิกายน", "พฤศจิกา", "พ.ย."], m: 10 },
+    { names: ["ธันวาคม", "ธันวา", "ธ.ค."], m: 11 }
+  ];
+
+  /* Speech recognition writes numbers as digits most of the time, but not
+     always — "วันที่ยี่สิบ" comes back spelled out often enough to matter. */
+  var THAI_UNITS = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+  var THAI_NUMBERS = (function () {
+    var map = {}, n;
+    for (n = 1; n <= 9; n++) map[THAI_UNITS[n]] = n;
+    map["สิบ"] = 10;
+    for (n = 11; n <= 19; n++) map["สิบ" + THAI_UNITS[n - 10]] = n;
+    map["สิบเอ็ด"] = 11;
+    map["ยี่สิบ"] = 20;
+    for (n = 21; n <= 29; n++) map["ยี่สิบ" + THAI_UNITS[n - 20]] = n;
+    map["ยี่สิบเอ็ด"] = 21;
+    map["สามสิบ"] = 30;
+    map["สามสิบหนึ่ง"] = 31;
+    map["สามสิบเอ็ด"] = 31;
+    return map;
+  })();
+
+  function escapeRe(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  function alternation(words) {
+    return words.slice().sort(function (a, b) { return b.length - a.length; })
+      .map(escapeRe).join("|");
+  }
+
+  var MONTH_NAMES = MONTHS.reduce(function (acc, mo) { return acc.concat(mo.names); }, []);
+  var MONTH_RE = alternation(MONTH_NAMES);
+  var COUNT_RE = "\\d{1,2}|" + alternation(Object.keys(THAI_NUMBERS));
+  var WEEKDAY_NAMES = WEEKDAYS.reduce(function (acc, w) { return acc.concat(w.names); }, []);
+  var WEEKDAY_RE = alternation(WEEKDAY_NAMES);
+
+  function readCount(token) {
+    if (/^\d+$/.test(token)) return parseInt(token, 10);
+    var n = THAI_NUMBERS[token];
+    return typeof n === "number" ? n : NaN;
+  }
+
+  function monthIndex(name) {
+    for (var i = 0; i < MONTHS.length; i++) {
+      if (MONTHS[i].names.indexOf(name) !== -1) return MONTHS[i].m;
+    }
+    return -1;
+  }
+
+  /* People write years three ways: CE in full (2026), BE in full (2569) and BE
+     shortened to two digits (69). A two-digit year is genuinely ambiguous, so
+     both readings are computed and the one that lands in a sensible window
+     around today wins — "26" is 2026, "69" is 2569 = 2026. */
+  function resolveYear(digits, base) {
+    var y = parseInt(digits, 10);
+    if (isNaN(y)) return base.getFullYear();
+    if (digits.length >= 3) return y >= 2400 ? y - 543 : y;
+    var cur = base.getFullYear();
+    var ce = 2000 + y, be = 1957 + y;          // 2500 + y - 543
+    var okCe = ce >= cur - 1 && ce <= cur + 50;
+    var okBe = be >= cur - 1 && be <= cur + 50;
+    if (okCe && okBe) return Math.min(ce, be);
+    return okBe ? be : ce;
+  }
+
   /* Finds a date expression anywhere in the text.
      Returns { date: "YYYY-MM-DD", matched: "<the phrase>" } or null, so the
-     caller can strip the phrase out of a task title. */
+     caller can strip the phrase out of a task title. `matched` is always the
+     literal run of text that was consumed, so stripping it never leaves half a
+     phrase — or eats a character the user meant to keep — behind. */
   function parseThaiDate(text, now) {
     var raw = normalize(text);
     var s = compact(raw);
     if (!s) return null;
     var base = now instanceof Date ? now : new Date();
+    var today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    var m, day, mon, year, target;
 
     function found(d, phrase) { return { date: toDateStr(d), matched: phrase }; }
 
+    function valid(d, expectDay, expectMon) {
+      return d.getDate() === expectDay && (expectMon == null || d.getMonth() === expectMon);
+    }
+
+    // try the text as spoken, then with the spaces closed up — speech
+    // recognition is inconsistent about where it puts them
+    function scan(re) { return raw.match(re) || s.match(re); }
+
+    /* ---- fully written out: 2026-08-20 ---- */
+    m = scan(/(\d{4})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})/);
+    if (m) {
+      year = parseInt(m[1], 10);
+      target = new Date(year >= 2400 ? year - 543 : year, parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      if (valid(target, parseInt(m[3], 10), parseInt(m[2], 10) - 1)) return found(target, m[0]);
+    }
+
+    /* ---- numeric, Thai order: 20/8, 20/8/2569, 20-8-2569.
+       A dash is only read as a date separator when a year is there too: plain
+       "3-4" is far more often a range ("อ่านบทที่ 3-4") than the 3rd of April. */
+    m = scan(/(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/)
+      || scan(/(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{2,4})/);
+    if (m) {
+      day = parseInt(m[1], 10);
+      mon = parseInt(m[2], 10) - 1;
+      if (day >= 1 && day <= 31 && mon >= 0 && mon <= 11) {
+        year = m[3] ? resolveYear(m[3], base) : base.getFullYear();
+        target = new Date(year, mon, day);
+        if (valid(target, day, mon)) {
+          // a bare day/month that has already gone by means next year
+          if (!m[3] && target < today) target = new Date(year + 1, mon, day);
+          return found(target, m[0]);
+        }
+      }
+    }
+
+    /* ---- day + month name: "20 สิงหาคม", "วันที่ 5 ก.พ. 2569" ---- */
+    m = scan(new RegExp(
+      "(?:วันที่\\s*)?(" + COUNT_RE + ")\\s*(?:เดือน\\s*)?(" + MONTH_RE + ")(?:\\s*(?:ปี\\s*)?(\\d{2,4}))?"
+    ));
+    if (m) {
+      day = readCount(m[1]);
+      mon = monthIndex(m[2]);
+      if (day >= 1 && day <= 31 && mon >= 0) {
+        year = m[3] ? resolveYear(m[3], base) : base.getFullYear();
+        target = new Date(year, mon, day);
+        if (valid(target, day, mon)) {
+          if (!m[3] && target < today) target = new Date(year + 1, mon, day);
+          return found(target, m[0]);
+        }
+      }
+    }
+
+    /* ---- counted offsets: "อีก 3 วัน", "อีกสองอาทิตย์" ---- */
+    m = scan(new RegExp("อีก\\s*(" + COUNT_RE + ")\\s*(วัน|สัปดาห์|อาทิตย์|เดือน)"));
+    if (m) {
+      var n = readCount(m[1]);
+      if (n >= 1) {
+        if (m[2] === "วัน") return found(addDays(base, n), m[0]);
+        if (m[2] === "เดือน") {
+          return found(new Date(base.getFullYear(), base.getMonth() + n, base.getDate()), m[0]);
+        }
+        return found(addDays(base, n * 7), m[0]);
+      }
+    }
+
+    /* ---- a day inside next month: "วันที่ 5 เดือนหน้า" ---- */
+    m = scan(new RegExp("(?:วันที่\\s*)?(" + COUNT_RE + ")\\s*เดือนหน้า"))
+      || scan(new RegExp("เดือนหน้า\\s*(?:วันที่\\s*)?(" + COUNT_RE + ")"));
+    if (m) {
+      day = readCount(m[1]);
+      if (day >= 1 && day <= 31) {
+        target = new Date(base.getFullYear(), base.getMonth() + 1, day);
+        if (target.getDate() === day) return found(target, m[0]);
+      }
+    }
+
     // relative days — check the longer phrases first
-    if (s.indexOf("มะรืน") !== -1) return found(addDays(base, 2), "มะรืนนี้");
-    if (s.indexOf("พรุ่งนี้") !== -1) return found(addDays(base, 1), "พรุ่งนี้");
-    if (s.indexOf("เมื่อวาน") !== -1) return found(addDays(base, -1), "เมื่อวาน");
-    if (s.indexOf("วันนี้") !== -1) return found(base, "วันนี้");
+    m = scan(/มะรืน(?:นี้)?/);
+    if (m) return found(addDays(base, 2), m[0]);
+    m = scan(/พรุ่งนี้/);
+    if (m) return found(addDays(base, 1), m[0]);
+    m = scan(/เมื่อวาน(?:นี้)?/);
+    if (m) return found(addDays(base, -1), m[0]);
+    m = scan(/วันนี้/);
+    if (m) return found(base, m[0]);
 
-    if (hasAny(s, ["อาทิตย์หน้า", "สัปดาห์หน้า", "อาทิตย์ถัดไป"])) {
-      return found(addDays(base, 7), "สัปดาห์หน้า");
-    }
-    if (s.indexOf("สิ้นเดือน") !== -1) {
-      return found(new Date(base.getFullYear(), base.getMonth() + 1, 0), "สิ้นเดือน");
-    }
-    if (s.indexOf("เดือนหน้า") !== -1) {
-      var nm = new Date(base.getFullYear(), base.getMonth() + 1, base.getDate());
-      return found(nm, "เดือนหน้า");
-    }
+    m = scan(/(?:อาทิตย์|สัปดาห์)\s*(?:หน้า|ถัดไป)/);
+    if (m) return found(addDays(base, 7), m[0]);
 
-    // named weekday -> the next time that day comes round (never today)
-    for (var i = 0; i < WEEKDAYS.length; i++) {
-      var w = WEEKDAYS[i];
-      for (var j = 0; j < w.names.length; j++) {
-        if (s.indexOf(w.names[j]) !== -1) {
-          var delta = (w.dow - base.getDay() + 7) % 7;
+    m = scan(/สิ้นเดือน(?:นี้)?/);
+    if (m) return found(new Date(base.getFullYear(), base.getMonth() + 1, 0), m[0]);
+    m = scan(/เดือนหน้า/);
+    if (m) return found(new Date(base.getFullYear(), base.getMonth() + 1, base.getDate()), m[0]);
+
+    /* named weekday -> the next time that day comes round (never today).
+       A trailing "นี้"/"หน้า" is swallowed into the matched phrase so it does
+       not survive in the task title; it does not shift the date. */
+    m = scan(new RegExp("(" + WEEKDAY_RE + ")\\s*(?:นี้|หน้า|ถัดไป)?"));
+    if (m) {
+      for (var i = 0; i < WEEKDAYS.length; i++) {
+        if (WEEKDAYS[i].names.indexOf(m[1]) !== -1) {
+          var delta = (WEEKDAYS[i].dow - base.getDay() + 7) % 7;
           if (delta === 0) delta = 7;
-          return found(addDays(base, delta), w.names[j]);
+          return found(addDays(base, delta), m[0]);
         }
       }
     }
 
     // "วันที่ 20" -> the 20th of this month, or next month if already past
-    var m = raw.match(/วันที่\s*(\d{1,2})/) || s.match(/วันที่(\d{1,2})/);
+    m = scan(new RegExp("วันที่\\s*(" + COUNT_RE + ")"));
     if (m) {
-      var day = parseInt(m[1], 10);
+      day = readCount(m[1]);
       if (day >= 1 && day <= 31) {
-        var target = new Date(base.getFullYear(), base.getMonth(), day);
-        if (target.getDate() !== day || target < new Date(base.getFullYear(), base.getMonth(), base.getDate())) {
+        target = new Date(base.getFullYear(), base.getMonth(), day);
+        if (target.getDate() !== day || target < today) {
           target = new Date(base.getFullYear(), base.getMonth() + 1, day);
         }
         return found(target, m[0]);
@@ -431,6 +600,37 @@
     if (/^(ใช่|ได้|เอา|ตกลง|โอเค|โอเก|ยืนยัน|เอาเลย|ใช่เลย)$/.test(s)) return out("confirm.yes");
     if (/^(ไม่|ไม่เอา|ยกเลิก|ไม่ใช่|หยุด|ไม่ต้อง)$/.test(s)) return out("confirm.no");
 
+    /* ---- add a task ----
+       An explicit add command is unambiguous, so it is tested before the
+       question and briefing keywords. Without this, "เพิ่มงานส่งรายงาน" was
+       read as a request for a briefing, because it contains "รายงาน". */
+    var addSrc = raw;
+    var addM = raw.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)\s*(?:งาน|ทาสก์|ทาส์ก|task)\s*(.*)$/i);
+    if (!addM) {
+      var addC = s.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)(?:งาน|ทาสก์|ทาส์ก|task)(.*)$/i);
+      if (addC) { addM = addC; addSrc = s; }
+    }
+    if (addM) {
+      var rest = normalize(addM[1] || "");
+      var due = parseThaiDate(rest, now);
+      var title = rest;
+      if (due) {
+        title = stripPhrase(title, due.matched);
+      } else {
+        /* the date can also lead: "พรุ่งนี้เพิ่มงานประชุม". Only what precedes
+           the command word is searched, so the title itself is never mined for
+           a date twice. */
+        var head = normalize(addSrc.slice(0, addM.index || 0));
+        if (head) due = parseThaiDate(head, now);
+      }
+      // whatever glued the date to the title should not survive it
+      title = normalize(title
+        .replace(/^(?:ภายใน|ก่อน|ตอน)\s*/, "")
+        .replace(/\s*(?:ภายใน|ก่อน|ตอน|วัน)$/, "")
+        .replace(/^(?:ว่า|คือ|ชื่อ|เรื่อง)\s*/, ""));
+      return out("task.add", { title: title, due: due ? due.date : "" });
+    }
+
     /* ---- what can you do: tested before the task questions because
        "ทำอะไรได้บ้าง" and "ต้องทำอะไรบ้าง" share most of their letters ---- */
     if (hasAny(s, ["ทำอะไรได้บ้าง", "ช่วยอะไรได้", "สั่งอะไรได้", "ใช้ยังไง", "คำสั่งอะไรบ้าง", "ทำอะไรเป็นบ้าง"])) {
@@ -455,37 +655,17 @@
     /* ---- briefing ---- */
     if (hasAny(s, ["สรุป", "รายงาน", "สถานะ", "บรีฟ", "อัปเดตหน่อย"])) return out("briefing");
 
-    /* ---- add a task ---- */
-    var addM = raw.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)\s*(?:งาน|ทาสก์|ทาส์ก|task)\s*(.*)$/i);
-    if (!addM) {
-      var addC = s.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)(?:งาน|ทาสก์|ทาส์ก|task)(.*)$/i);
-      if (addC) addM = addC;
-    }
-    if (addM) {
-      var rest = normalize(addM[1] || "");
-      var due = parseThaiDate(rest, now);
-      var title = rest;
-      if (due) {
-        title = normalize(
-          title.replace(due.matched, " ")
-               .replace(/(?:ภายใน|ก่อน|ตอน|วัน)?\s*$/,"")
-        );
-        // the phrase may have been joined to the title with no space
-        if (compact(title).indexOf(compact(due.matched)) !== -1) {
-          title = normalize(compact(title).replace(compact(due.matched), " "));
-        }
-      }
-      title = title.replace(/^(?:ว่า|คือ|ชื่อ|เรื่อง)\s*/, "").trim();
-      return out("task.add", { title: title, due: due ? due.date : "" });
-    }
-
     /* ---- complete a task ----
        The name can sit on either side of the completion word: people say both
        "เสร็จแล้ว ฟิตเนส" and "ฟิตเนส เสร็จแล้ว". Capturing only what follows lost
        the second form entirely, so both sides are taken and the longer one wins. */
     var doneRe = /(?:ทำ)?(?:เสร็จ(?:แล้ว)?|เรียบร้อย(?:แล้ว)?|ทำแล้ว|จบแล้ว|ปิดงาน)/;
-    var doneM = raw.match(doneRe);
-    if (doneM && /เสร็จ|เรียบร้อย|ทำแล้ว|จบแล้ว|ปิดงาน/.test(s)) {
+    /* "เปิดงาน" — open the task screen — literally contains "ปิดงาน", so that
+       word alone is not enough evidence that something should be closed. */
+    var doneWord = /เสร็จ|เรียบร้อย|ทำแล้ว|จบแล้ว/.test(s) ||
+      (s.indexOf("ปิดงาน") !== -1 && s.indexOf("เปิดงาน") === -1);
+    var doneM = doneWord ? raw.match(doneRe) : null;
+    if (doneM) {
       var strip = function (x) {
         return normalize(x)
           .replace(/^(?:แล้ว|งาน|เรื่อง|ที่ว่า)\s*/, "")
@@ -926,7 +1106,8 @@
     capabilities: [
       "Tasks, money, timers, and getting around the app. Say the name of a task with 'done', or something like 'coffee sixty baht'. And I'll talk about anything else you feel like.",
       "I can add and finish tasks, log spending, start a focus timer, open any screen, and tell you where things stand. Or we can just talk.",
-      "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company."
+      "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company.",
+      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up."
     ],
     ambiguous: [
       "I found a few that could be it. Which one?",

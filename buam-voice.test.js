@@ -173,6 +173,134 @@
     assertEqual(V.parseThaiDate("วันที่ 3", NOW).date, "2026-09-03", "the 3rd already passed");
   });
 
+  test("a day plus a month name resolves, in every way people write the month", function () {
+    assertEqual(V.parseThaiDate("20 สิงหาคม", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่ 20 สิงหา", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("20 ส.ค.", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่ 3 เดือนกันยายน", NOW).date, "2026-09-03");
+  });
+
+  test("a month that has already gone by means next year, unless a year is given", function () {
+    assertEqual(V.parseThaiDate("5 ก.พ.", NOW).date, "2027-02-05", "February 2026 is behind us");
+    assertEqual(V.parseThaiDate("5 ก.พ. 2569", NOW).date, "2026-02-05", "an explicit year is obeyed");
+    assertEqual(V.parseThaiDate("31 ธันวาคม", NOW).date, "2026-12-31", "still ahead, so this year");
+  });
+
+  test("Buddhist and Christian years both resolve, long and short", function () {
+    assertEqual(V.parseThaiDate("1 มกราคม 2570", NOW).date, "2027-01-01", "BE in full");
+    assertEqual(V.parseThaiDate("1 มกราคม 2027", NOW).date, "2027-01-01", "CE in full");
+    assertEqual(V.parseThaiDate("1 มกราคม 70", NOW).date, "2027-01-01", "BE shortened");
+    assertEqual(V.parseThaiDate("1 มกราคม 27", NOW).date, "2027-01-01", "CE shortened");
+  });
+
+  test("numeric dates read day first, the way they are written in Thai", function () {
+    assertEqual(V.parseThaiDate("20/8", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("20/8/2569", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("1/9/26", NOW).date, "2026-09-01");
+    assertEqual(V.parseThaiDate("20-8-2569", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("2026-12-25", NOW).date, "2026-12-25", "ISO order is detected by the 4-digit year");
+    assertNull(V.parseThaiDate("32/8", NOW), "an impossible day is not a date");
+    assertNull(V.parseThaiDate("20/13", NOW), "an impossible month is not a date");
+  });
+
+  test("a bare dash-separated pair is a range, not a date", function () {
+    // "อ่านบทที่ 3-4" must not become the 3rd of April
+    assertNull(V.parseThaiDate("อ่านบทที่ 3-4", NOW));
+    assertEqual(V.parseThaiDate("3-4-2569", NOW).date, "2026-04-03", "with a year it really is a date");
+  });
+
+  test("counted offsets resolve, in digits and in words", function () {
+    assertEqual(V.parseThaiDate("อีก 3 วัน", NOW).date, "2026-08-18");
+    assertEqual(V.parseThaiDate("อีกสองวัน", NOW).date, "2026-08-17");
+    assertEqual(V.parseThaiDate("อีก 2 อาทิตย์", NOW).date, "2026-08-29");
+    assertEqual(V.parseThaiDate("อีกหนึ่งสัปดาห์", NOW).date, "2026-08-22");
+    assertEqual(V.parseThaiDate("อีกหนึ่งเดือน", NOW).date, "2026-09-15");
+  });
+
+  test("a day inside next month works in either word order", function () {
+    assertEqual(V.parseThaiDate("วันที่ 5 เดือนหน้า", NOW).date, "2026-09-05");
+    assertEqual(V.parseThaiDate("เดือนหน้าวันที่ 12", NOW).date, "2026-09-12");
+    assertEqual(V.parseThaiDate("เดือนหน้า", NOW).date, "2026-09-15", "with no day it is still the same date as today");
+  });
+
+  test("spelled-out day numbers resolve", function () {
+    assertEqual(V.parseThaiDate("วันที่ยี่สิบ", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่สามสิบเอ็ด", NOW).date, "2026-08-31");
+    assertEqual(V.parseThaiDate("วันที่สิบเอ็ด", NOW).date, "2026-09-11", "the 11th has passed");
+  });
+
+  test("a weekday swallows its นี้/หน้า so the title does not keep it", function () {
+    var r = V.parseThaiDate("วันจันทร์หน้า", NOW);
+    assertEqual(r.date, "2026-08-17");
+    assertEqual(r.matched, "วันจันทร์หน้า");
+    assertEqual(V.parseThaiDate("เสาร์นี้", NOW).matched, "เสาร์นี้");
+  });
+
+  test("the matched phrase is always the literal text that was consumed", function () {
+    // the caller strips `matched` out of the title, so anything else leaves debris
+    ["พรุ่งนี้", "มะรืน", "วันที่ 20", "20 สิงหาคม", "อีก 3 วัน", "20/8/2569", "สิ้นเดือน"]
+      .forEach(function (phrase) {
+        var r = V.parseThaiDate("ทำรายงาน " + phrase, NOW);
+        assertTrue(!!r, phrase);
+        assertEqual(("ทำรายงาน " + phrase).indexOf(r.matched) !== -1, true, phrase + " -> " + r.matched);
+      });
+  });
+
+  /* ================= task.add with a date ================= */
+
+  test("task.add takes the date out of the sentence and leaves a clean title", function () {
+    var cases = [
+      ["เพิ่มงาน ประชุมทีม วันที่ 20 สิงหาคม", "ประชุมทีม", "2026-08-20"],
+      ["เพิ่มงาน จ่ายค่าเทอม วันที่ 5 เดือนหน้า", "จ่ายค่าเทอม", "2026-09-05"],
+      ["เพิ่มงานส่งรายงาน 20/8", "ส่งรายงาน", "2026-08-20"],
+      ["เพิ่มงาน ซื้อของ อีก 3 วัน", "ซื้อของ", "2026-08-18"],
+      ["เพิ่มงาน ออกกำลังกาย วันจันทร์หน้า", "ออกกำลังกาย", "2026-08-17"],
+      ["จดงาน สอบปลายภาค วันที่ยี่สิบ", "สอบปลายภาค", "2026-08-20"],
+      ["เพิ่มงาน วันที่ 20 ประชุม", "ประชุม", "2026-08-20"]
+    ];
+    cases.forEach(function (c) {
+      var r = V.parseIntent(c[0], { now: NOW });
+      assertEqual(r.intent, "task.add", c[0]);
+      assertEqual(V.compact(r.params.title), c[1], c[0]);
+      assertEqual(r.params.due, c[2], c[0]);
+    });
+  });
+
+  test("the date may come before the command as well as after it", function () {
+    var r = V.parseIntent("พรุ่งนี้เพิ่มงานประชุม", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(V.compact(r.params.title), "ประชุม");
+    assertEqual(r.params.due, "2026-08-16");
+  });
+
+  test("a date with no title keeps the date so the form can be prefilled", function () {
+    var r = V.parseIntent("เพิ่มงานพรุ่งนี้", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(r.params.title, "");
+    assertEqual(r.params.due, "2026-08-16");
+  });
+
+  test("numbers that are part of the title are not mistaken for a date", function () {
+    var r = V.parseIntent("เพิ่มงาน อ่านบทที่ 3-4", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(r.params.due, "", "a chapter range is not a due date");
+    assertEqual(V.compact(r.params.title), "อ่านบทที่3-4");
+  });
+
+  test("an explicit add command beats the keywords it happens to contain", function () {
+    // "รายงาน" asks for a briefing on its own; inside "เพิ่มงาน…" it is a title
+    assertEqual(V.parseIntent("เพิ่มงานส่งรายงาน", { now: NOW }).intent, "task.add");
+    assertEqual(V.parseIntent("รายงานหน่อย", { now: NOW }).intent, "briefing", "the briefing still works");
+    assertEqual(V.parseIntent("มีงานอะไรบ้าง", { now: NOW }).intent, "query.tasksToday");
+    assertEqual(V.parseIntent("งานเยอะมาก", { now: NOW }).intent, "chat.stress");
+  });
+
+  test('"เปิดงาน" opens the task screen instead of closing a task', function () {
+    // เปิดงาน literally contains ปิดงาน
+    assertEqual(V.parseIntent("เปิดงาน", { now: NOW }).intent, "nav.tasks");
+    assertEqual(V.parseIntent("ปิดงานฟิตเนส", { now: NOW }).intent, "task.done", "closing still works");
+  });
+
   test("parsed dates match the app's own local-date formatting", function () {
     var d = new Date(2026, 0, 5, 23, 30, 0);
     // mirrors localDateStr() in index.html
