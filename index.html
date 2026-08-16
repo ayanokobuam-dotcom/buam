@@ -74,8 +74,15 @@
     /* used by .task.overdue::after via mask(), so the marker still takes --red */
     /* weather: lumpy snow-ridge and icicle silhouettes as inline SVG masks.
        Data URIs, so there is no external request — the app stays fully offline. */
-    --wx-cap-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 118 20' preserveAspectRatio='none'><path d='M0,9 C7,3 13,2 20,6 C27,10 31,4 39,4 C48,4 52,11 60,10 C68,9 72,2 81,4 C89,6 92,10 99,9 C106,8 111,4 118,7 L118,20 L0,20 Z' fill='%23fff'/></svg>");
-    --wx-icicle-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 24' preserveAspectRatio='none'><path d='M0,0 L64,0 L64,4 L58,4 L55,13 L52,4 L44,4 L41,21 L38,4 L28,4 L25,10 L22,4 L12,4 L9,16 L6,4 L0,4 Z' fill='%23fff'/></svg>");
+    /* The snow band is clipped to each surface's own border-radius, so the mask
+       carries the uneven line where snow meets the panel — the *underside* of
+       the drift — rather than a silhouette against the sky. Opaque at the top,
+       lumpy along the bottom. */
+    --wx-cap-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 118 20' preserveAspectRatio='none'><path d='M0,0 L118,0 L118,12 C111,17 106,11 99,14 C92,17 87,12 81,15 C73,19 67,12 60,13 C52,14 47,19 39,18 C31,17 26,11 20,14 C13,18 7,13 0,10 Z' fill='%23fff'/></svg>");
+    /* Eight icicles of deliberately uneven length and spacing across a wide
+       tile, hanging off a thin connecting ridge. A short tile with even spikes
+       repeated into something that read as a zip fastener rather than ice. */
+    --wx-icicle-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 132 26' preserveAspectRatio='none'><path d='M0,0 L132,0 L132,3 L126,3 L123.2,14 L120,3 L112,3 L109.4,8.5 L106,3 L98,3 L95.3,22 L92,3 L82,3 L79.4,12 L76,3 L66,3 L63.2,17 L60,3 L50,3 L47.4,6.5 L44,3 L34,3 L31.3,20 L28,3 L18,3 L15.4,10.5 L12,3 L0,3 Z' fill='%23fff'/></svg>");
     --ico-warning-url: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z'/><path d='M12 9.5v4.8M12 17.8h.01'/></svg>");
 
     /* surfaces are shaded, not flat fills — this is what sells the extrusion */
@@ -521,21 +528,29 @@
   html[data-weather="SNOW"] .cc-status-pill::before,
   html[data-weather="SNOW"] .sidebar::before,
   html[data-weather="SNOW"] .dose-modal::before{
-    left:-3px; right:-3px;
-    /* sits mostly outside the panel: at most ~35% of its height reaches into
-       the padding band, which is far shallower than any panel's padding */
-    height:calc(var(--wx-accum, 0) * var(--wx-cap, 13px));
-    top:calc(var(--wx-accum, 0) * var(--wx-cap, 13px) * -0.65);
+    /* Fills the surface and inherits its radius, so the browser clips the snow
+       to the panel's own shape: it curves down around the rounded corners and
+       thins out there, the way settled snow actually does. A straight bar laid
+       over the top edge floated past those corners and read as a slab. */
+    inset:0;
+    border-radius:inherit;
     opacity:var(--wx-accum, 0);
-    background:linear-gradient(180deg, #ffffff 0%, #eaf4fb 55%, #cddfec 100%);
+    background:linear-gradient(180deg, #ffffff 0%, #f2f9ff 45%, #d3e4f0 100%);
+    /* the mask only occupies the top band; everything below it is unmasked and
+       therefore transparent, so no extra clipping element is needed */
     -webkit-mask-image:var(--wx-cap-mask);
     mask-image:var(--wx-cap-mask);
-    -webkit-mask-size:118px 100%;
-    mask-size:118px 100%;
+    -webkit-mask-size:118px calc(var(--wx-accum, 0) * var(--wx-cap, 14px));
+    mask-size:118px calc(var(--wx-accum, 0) * var(--wx-cap, 14px));
     -webkit-mask-repeat:repeat-x;
     mask-repeat:repeat-x;
-    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+    -webkit-mask-position:top left;
+    mask-position:top left;
   }
+  /* the band has to stay shallower than each surface's own top padding, or it
+     would reach the first line of text — header pads 10px, the pill 6px */
+  html[data-weather="SNOW"] header::before{ --wx-cap:8px; }
+  html[data-weather="SNOW"] .cc-status-pill::before{ --wx-cap:5px; }
   /* icicles hang from the BOTTOM edge, into the gap between panels — the one
      place nothing is ever rendered, so they cannot reach any text */
   html[data-weather="SNOW"] header::after,
@@ -544,20 +559,24 @@
   html[data-weather="SNOW"] .money-section::after,
   html[data-weather="SNOW"] .cc-status-pill::after,
   html[data-weather="SNOW"] .dose-modal::after{
-    left:6%; right:6%;
+    /* inset past the bottom corner radius so icicles hang from the straight
+       part of the edge instead of off the curve, where they looked detached */
+    left:24px; right:24px;
     top:100%;
     height:calc(var(--wx-accum, 0) * var(--wx-icicle, 11px));
     opacity:calc(var(--wx-accum, 0) * 0.9);
     background:linear-gradient(180deg, #eaf6ff 0%, rgba(198,226,244,0.75) 60%, rgba(198,226,244,0) 100%);
     -webkit-mask-image:var(--wx-icicle-mask);
     mask-image:var(--wx-icicle-mask);
-    -webkit-mask-size:64px 100%;
-    mask-size:64px 100%;
+    -webkit-mask-size:132px 100%;
+    mask-size:132px 100%;
     -webkit-mask-repeat:repeat-x;
     mask-repeat:repeat-x;
   }
   /* the sidebar is a tall panel, so it takes a deeper cap and no icicles */
-  html[data-weather="SNOW"] .sidebar::before{ --wx-cap:16px; }
+  html[data-weather="SNOW"] .sidebar::before{ --wx-cap:18px; }
+  /* the pill is small and fully round — icicles on it read as noise */
+  html[data-weather="SNOW"] .cc-status-pill::after{ left:30%; right:30%; }
 
   /* --- cloudy: nothing but the shared haze, per the spec's "not opaque
      clouds covering the interface" --- */
