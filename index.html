@@ -929,7 +929,7 @@
     background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm);
     border-radius:var(--neu-radius-md); padding:10px;
   }
-  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.75; border-radius:999px; min-height:3px; }
+  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.8; border-radius:3px 3px 2px 2px; min-height:3px; }
   .cc-insights-stats{ display:flex; justify-content:space-between; font-size:0.72rem; color:var(--ink-dim); }
   .cc-insights-stats b{ display:block; font-size:0.95rem; color:var(--ink); }
 
@@ -3142,8 +3142,8 @@ function renderCommandCenter(){
   const maxExpense = Math.max(1, ...spentByDay.map(d=>d.expense));
   document.getElementById("ccSparkline").innerHTML = dayList.map(ds=>{
     const bucket = spentByDay.find(d=>d.key===ds);
-    const h = bucket ? Math.max(4, Math.round((bucket.expense/maxExpense)*48)) : 4;
-    return `<div class="cc-sparkline-bar" style="height:${h}px"></div>`;
+    const h = bucket ? Math.max(8, Math.round((bucket.expense/maxExpense)*100)) : 8;
+    return `<div class="cc-sparkline-bar" style="height:${h}%" title="${ds}"></div>`;
   }).join("");
   const weekSpend = spentByDay.reduce((s,d)=>s+d.expense,0);
   document.getElementById("ccInsightSpend").textContent = "฿" + BuamMoney.formatBaht(weekSpend);
@@ -4935,8 +4935,9 @@ window.buamAICore = (function(){
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
   let renderer, scene, camera, controls, core, coreGlow, coreHalo, coreHot, nucleus, shell, dust,
-      orbits = [], electrons = [], animId = null, frame;
+      orbits = [], electrons = [], animId = null, frame, applySize;
   let ready = false;
+  let lastSize = 0, lastDpr = 0;
   // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
   // speaks, so the core visibly reacts instead of always idling identically
   let activity = 0;
@@ -5136,16 +5137,32 @@ window.buamAICore = (function(){
       controls.autoRotateSpeed = 1.1;
     }
 
-    function resize(){
-      const size = Math.max(1, Math.round(canvas.getBoundingClientRect().width));
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    /* The Home view is display:none whenever another tab is open, so the
+       canvas measures 0 wide from anywhere else in the app. Resizing to that
+       would hand the renderer a 1x1 drawing buffer, which CSS then stretches
+       back to 300px — the whole core collapses into one flat green square.
+       So: a zero measurement means "not laid out", never a real size. Skip it
+       and re-measure once the element actually has a box again. */
+    applySize = function(){
+      const size = Math.round(canvas.getBoundingClientRect().width);
+      if(size < 2) return false;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+      if(size === lastSize && dpr === lastDpr) return true;
+      lastSize = size; lastDpr = dpr;
+      renderer.setPixelRatio(dpr);
       renderer.setSize(size, size, false);
       camera.aspect = 1;
       camera.updateProjectionMatrix();
-    }
-    resize();
+      return true;
+    };
+    applySize();
     let resizeTimer;
-    window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 150); });
+    window.addEventListener("resize", ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(applySize, 150); });
+    // the canvas's own box is the signal that actually matters — it fires when
+    // the view is shown again, which a window resize event never does
+    if(typeof ResizeObserver === "function"){
+      new ResizeObserver(()=> applySize()).observe(canvas);
+    }
 
     const clock = new THREE.Clock();
     frame = function(){
@@ -5203,6 +5220,9 @@ window.buamAICore = (function(){
 
   function start(){
     if(!init()) return;
+    // re-sync the buffer to the current layout on every entry — the window may
+    // have been resized (rotation, keyboard, URL bar) while Home was hidden
+    if(applySize) applySize();
     if(!animId) frame();
   }
   function stop(){
