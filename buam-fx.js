@@ -154,46 +154,165 @@
     }catch(e){}
   }
 
-  /* ---- Focus Mode ambient sound (rain/forest loops, played alongside bgm) ---- */
-  var ambientGain = null, ambientEl = null, ambientVol = 0.5;
+  /* ---- Focus Mode ambient sound — synthesized, not sampled ----
+     These used to stream sounds/rain.mp3 and sounds/forest.mp3, which were
+     never bundled, so the buttons silently did nothing. Everything here is
+     generated with Web Audio instead: no assets to ship, no licensing, and it
+     loops forever without a seam. Same public API (ambient/stopAmbient). ---- */
+  var ambientGain = null, ambientVol = 0.5;
+  var ambientScene = null;              // { gain, nodes[], timer, stopped }
+  var noiseBuf = null, noiseBufCtx = null;
+
+  // Pink noise (Paul Kellet's approximation). White noise reads as static;
+  // pink has the low-end weight that makes it sit like rain and wind.
+  function getNoiseBuffer(c){
+    if(noiseBuf && noiseBufCtx === c) return noiseBuf;
+    var len = Math.floor(c.sampleRate * 2.5);
+    var buf = c.createBuffer(1, len, c.sampleRate);
+    var d = buf.getChannelData(0);
+    var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for(var i=0;i<len;i++){
+      var w = Math.random()*2 - 1;
+      b0 = 0.99886*b0 + w*0.0555179;
+      b1 = 0.99332*b1 + w*0.0750759;
+      b2 = 0.96900*b2 + w*0.1538520;
+      b3 = 0.86650*b3 + w*0.3104856;
+      b4 = 0.55000*b4 + w*0.5329522;
+      b5 = -0.7616*b5 - w*0.0168980;
+      d[i] = (b0+b1+b2+b3+b4+b5+b6 + w*0.5362) * 0.11;
+      b6 = w*0.115926;
+    }
+    noiseBuf = buf; noiseBufCtx = c;
+    return buf;
+  }
 
   function ensureAmbientGain(){
     var c = ensureCtx();
     if(!c) return null;
     if(!ambientGain){
       ambientGain = c.createGain();
-      ambientGain.gain.value = 0;
+      ambientGain.gain.value = muted ? 0 : ambientVol;
       ambientGain.connect(c.destination);
     }
     return ambientGain;
   }
 
   function stopAmbient(){
-    if(ambientEl){
-      try{ ambientEl.pause(); }catch(e){}
-      ambientEl = null;
+    var s = ambientScene;
+    ambientScene = null;
+    if(!s) return;
+    s.stopped = true;
+    if(s.timer){ clearTimeout(s.timer); s.timer = null; }
+    // fade the scene out on its own gain so a swap never clicks, then tear the
+    // nodes down once it is inaudible
+    try{ if(ctx) s.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.12); }catch(e){}
+    setTimeout(function(){
+      for(var i=0;i<s.nodes.length;i++){
+        try{ if(s.nodes[i].stop) s.nodes[i].stop(); }catch(e){}
+        try{ s.nodes[i].disconnect(); }catch(e){}
+      }
+      try{ s.gain.disconnect(); }catch(e){}
+    }, 600);
+  }
+
+  // steady downpour: pink noise shaped into a body plus hiss, with the lowpass
+  // drifting slowly so it breathes rather than sitting as flat static
+  function buildRain(c, scene){
+    var src = c.createBufferSource();
+    src.buffer = getNoiseBuffer(c);
+    src.loop = true;
+
+    var hp = c.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 420;
+
+    var lp = c.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 2400; lp.Q.value = 0.6;
+
+    var body = c.createGain(); body.gain.value = 0.6;
+
+    src.connect(hp); hp.connect(lp); lp.connect(body); body.connect(scene.gain);
+
+    var lfo = c.createOscillator();
+    lfo.type = "sine"; lfo.frequency.value = 0.07;
+    var amt = c.createGain(); amt.gain.value = 700;
+    lfo.connect(amt); amt.connect(lp.frequency);
+
+    lfo.start(); src.start();
+    scene.nodes.push(src, lfo, amt, hp, lp, body);
+  }
+
+  // one bird call: a short run of quickly pitch-swept notes
+  function chirp(c, scene){
+    var t = c.currentTime;
+    var notes = 1 + Math.floor(Math.random()*3);
+    var base = 1800 + Math.random()*1600;
+    for(var i=0;i<notes;i++){
+      var t0 = t + i*(0.07 + Math.random()*0.06);
+      var f0 = base*(0.92 + Math.random()*0.2);
+      var osc = c.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(f0, t0);
+      osc.frequency.exponentialRampToValueAtTime(f0*(1.25 + Math.random()*0.5), t0 + 0.05);
+      var g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+      osc.connect(g); g.connect(scene.gain);
+      osc.start(t0); osc.stop(t0 + 0.13);
     }
   }
 
-  // gracefully does nothing if sounds/<name>.mp3 isn't present — Focus Mode's
-  // ambient row is optional plumbing until those assets are dropped in
+  function scheduleChirp(c, scene){
+    scene.timer = setTimeout(function(){
+      if(scene.stopped || ambientScene !== scene) return;
+      try{ chirp(c, scene); }catch(e){}
+      scheduleChirp(c, scene);
+    }, 2200 + Math.random()*5200);
+  }
+
+  // woodland: darker and quieter than rain (leaves, not water) with birds
+  // scattered on top at irregular intervals
+  function buildForest(c, scene){
+    var src = c.createBufferSource();
+    src.buffer = getNoiseBuffer(c);
+    src.loop = true;
+
+    var lp = c.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 700; lp.Q.value = 0.4;
+
+    var wind = c.createGain(); wind.gain.value = 0.34;
+
+    src.connect(lp); lp.connect(wind); wind.connect(scene.gain);
+
+    var lfo = c.createOscillator();
+    lfo.type = "sine"; lfo.frequency.value = 0.05;
+    var amt = c.createGain(); amt.gain.value = 260;
+    lfo.connect(amt); amt.connect(lp.frequency);
+
+    lfo.start(); src.start();
+    scene.nodes.push(src, lfo, amt, lp, wind);
+
+    scheduleChirp(c, scene);
+  }
+
+  var AMBIENT_SCENES = { rain: buildRain, forest: buildForest };
+
   function playAmbient(name){
     stopAmbient();
     if(!name) return;
+    var build = AMBIENT_SCENES[name];
+    if(!build) return;
     try{
       var c = ensureCtx();
-      var g = ensureAmbientGain();
-      if(!c || !g) return;
-      var base = scriptSrc ? scriptSrc.replace(/[^/]*$/, "") : "";
-      var audioEl = new Audio(base + "sounds/" + name + ".mp3");
-      audioEl.loop = true;
-      audioEl.addEventListener("error", function(){}, { once: true });
-      var src = c.createMediaElementSource(audioEl);
-      src.connect(g);
-      audioEl.play().catch(function(){});
-      g.gain.cancelScheduledValues(c.currentTime);
-      g.gain.setTargetAtTime(muted ? 0 : ambientVol, c.currentTime, 1.0);
-      ambientEl = audioEl;
+      var master = ensureAmbientGain();
+      if(!c || !master) return;
+      var g = c.createGain();
+      g.gain.value = 0;
+      g.connect(master);
+      var scene = { gain: g, nodes: [], timer: null, stopped: false };
+      ambientScene = scene;
+      build(c, scene);
+      g.gain.setTargetAtTime(1, c.currentTime, 0.8); // ease in, never a hard cut
     }catch(e){}
   }
 
