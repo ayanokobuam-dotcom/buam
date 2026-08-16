@@ -311,6 +311,33 @@
     assertEqual(V.parseThaiDate("วันนี้", d).date, expected);
   });
 
+  test("every conversation keyword actually reaches its own rule", function () {
+    /* Rules are tested in order against a substring, so a short keyword listed
+       early can hide a longer one listed later — "เหงา" hid "เหงาไหม", "ท้อ" hid
+       "ปวดท้อง". A hidden keyword is a command that silently does not exist,
+       which is worse than not having it. */
+    var shadowed = [];
+    V.CHAT_RULES.forEach(function (rule) {
+      (rule.words || []).concat(rule.exact || []).forEach(function (word) {
+        var got = V.parseIntent(word, { now: NOW }).intent;
+        if (got !== rule.intent) shadowed.push(word + " -> " + got + ", wanted " + rule.intent);
+      });
+    });
+    assertEqual(shadowed.join(" | "), "", "keywords hidden by an earlier rule");
+  });
+
+  test("the phrases those collisions were about all land where they should", function () {
+    [["เหงาไหม", "chat.feelings"], ["เหงาจัง", "chat.talk"],
+     ["ปวดท้อง", "chat.sick"], ["ท้องร้อง", "chat.hungry"], ["ท้อ", "chat.down"],
+     ["หิวแต่ไม่รู้จะกิน", "chat.whatToEat"], ["หิวจัง", "chat.hungry"],
+     ["อากาศเป็นไง", "chat.weatherAsk"], ["เป็นไง", "chat.howAreYou"],
+     ["หลับฝันดี", "chat.goodnight"], ["ลาก่อน", "chat.bye"],
+     ["เบื่อไหม", "chat.feelings"], ["เบื่อจัง", "chat.bored"]
+    ].forEach(function (c) {
+      assertEqual(V.parseIntent(c[0], { now: NOW }).intent, c[1], c[0]);
+    });
+  });
+
   /* ================= amounts ================= */
 
   test("digit amounts parse, which is what the device actually produces", function () {
