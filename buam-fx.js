@@ -362,7 +362,22 @@
      lines — not sampled audio, so it works on any device/browser without
      shipping copyrighted movie clips) ---- */
   var synth = global.speechSynthesis || null;
-  var jarvisVoice = null, jarvisVoicesReady = false;
+  var jarvisVoice = null, thaiVoice = null, jarvisVoicesReady = false;
+
+  // Thai block, plus the Thai digits — everything else (latin, numerals,
+  // punctuation) is left to the English voice
+  var THAI_RE = /[฀-๿]/;
+
+  /* Task titles, notes and category names are whatever the user typed, so a
+     spoken line is regularly a mix: `"ประชุมทีม" is already done.` An English
+     voice handed Thai letters reads noise — and some engines fail the
+     utterance outright — so a Thai voice is picked separately. */
+  function pickThaiVoice(){
+    if(!synth) return null;
+    var voices = synth.getVoices() || [];
+    if(!voices.length) return null;
+    return voices.filter(function(v){ return /^th\b|^th-/i.test(v.lang); })[0] || null;
+  }
 
   function pickJarvisVoice(){
     if(!synth) return null;
@@ -382,9 +397,45 @@
   }
   if(synth){
     jarvisVoice = pickJarvisVoice();
+    thaiVoice = pickThaiVoice();
     synth.addEventListener && synth.addEventListener("voiceschanged", function(){
       jarvisVoice = pickJarvisVoice();
+      thaiVoice = pickThaiVoice();
     });
+  }
+
+  /* Splits a line into runs of Thai and runs of everything else. Characters
+     that belong to neither script — spaces, digits, quotes, punctuation —
+     stay with the run they are already inside, so `Due 20 ส.ค.` breaks once,
+     not four times. Each run carries its offset into the original string so
+     word-boundary events can be reported against the full line. */
+  function segmentByScript(text){
+    var runs = [], start = 0, cur = null, i, kind;
+    for(i = 0; i < text.length; i++){
+      kind = THAI_RE.test(text[i]) ? "th" : (/[A-Za-z]/.test(text[i]) ? "en" : null);
+      if(kind === null) continue;
+      if(cur === null){ cur = kind; continue; }
+      if(kind !== cur){
+        runs.push({ kind: cur, text: text.slice(start, i), start: start });
+        start = i;
+        cur = kind;
+      }
+    }
+    runs.push({ kind: cur || "en", text: text.slice(start), start: start });
+    return runs.filter(function(r){ return r.text.trim().length; });
+  }
+
+  /* The page drives its dialogue box off a single utterance per spoken line.
+     A mixed-script line is several utterances, so this relay stands in for
+     them: it re-emits every boundary against the full line, and fires "end"
+     once, after the last part. The page therefore needs no knowledge of any
+     of this. */
+  function makeRelay(rate){
+    var t;
+    try{ t = new EventTarget(); }
+    catch(e){ t = new SpeechSynthesisUtterance(""); }   // also an EventTarget
+    t.rate = rate;
+    return t;
   }
 
   var JARVIS_LINES = {
@@ -441,20 +492,61 @@
     try{
       if(!synth || !jarvisEnabled || muted || !text) return;
       synth.cancel();
-      var u = new SpeechSynthesisUtterance(text);
       if(!jarvisVoice) jarvisVoice = pickJarvisVoice();
-      if(jarvisVoice) u.voice = jarvisVoice;
+      if(!thaiVoice) thaiVoice = pickThaiVoice();
+
       // stay close to the voice's natural pitch — aggressive pitch-shifting is
       // what makes browser TTS sound robotic — and vary rate/pitch a touch per
-      // line so repeated lines don't sound like the exact same clip on loop
-      u.rate = 0.9 + Math.random() * 0.06;
-      u.pitch = 0.92 + Math.random() * 0.08;
-      u.volume = 0.9;
-      // let the page render a synced dialogue box — it can listen for
-      // "boundary"/"end" on the same utterance instance to time a typewriter
-      // reveal against the actual speech, without this module knowing about DOM
-      global.dispatchEvent(new CustomEvent("buam-jarvis-speak", { detail: { text: text, utterance: u } }));
-      synth.speak(u);
+      // line so repeated lines don't sound like the exact same clip on loop.
+      // Every part of one line shares them, so the line still sounds like one
+      // speaker rather than two people taking turns.
+      var rate = 0.9 + Math.random() * 0.06;
+      var pitch = 0.92 + Math.random() * 0.08;
+
+      var runs = segmentByScript(text).filter(function(r){
+        // without a Thai voice installed there is no honest way to say a Thai
+        // run: the English engine produces noise or fails. Better to leave it
+        // out of the audio than to mangle it — it is still shown on screen.
+        return r.kind !== "th" || !!thaiVoice;
+      });
+
+      var relay = makeRelay(rate);
+      // let the page render a synced dialogue box — it listens for
+      // "boundary"/"end" to time a typewriter reveal against the actual
+      // speech, without this module knowing about the DOM
+      global.dispatchEvent(new CustomEvent("buam-jarvis-speak", { detail: { text: text, utterance: relay } }));
+
+      if(!runs.length){
+        // nothing speakable — the caption still has to finish and clear, so
+        // end it on a reading-time estimate rather than leaving it hanging
+        setTimeout(function(){ relay.dispatchEvent(new Event("end")); },
+          Math.min(4000, 500 + text.length * 45));
+        return;
+      }
+
+      var pending = runs.length;
+      runs.forEach(function(run){
+        var u = new SpeechSynthesisUtterance(run.text);
+        var voice = run.kind === "th" ? thaiVoice : jarvisVoice;
+        if(voice){ u.voice = voice; u.lang = voice.lang; }
+        else if(run.kind === "th"){ u.lang = "th-TH"; }
+        u.rate = rate;
+        u.pitch = pitch;
+        u.volume = 0.9;
+        u.addEventListener("boundary", function(ev){
+          if(ev.charIndex == null) return;
+          var out = new Event("boundary");
+          out.charIndex = run.start + ev.charIndex;
+          relay.dispatchEvent(out);
+        });
+        function partDone(){
+          if(--pending > 0) return;
+          relay.dispatchEvent(new Event("end"));
+        }
+        u.addEventListener("end", partDone);
+        u.addEventListener("error", partDone);
+        synth.speak(u);
+      });
     }catch(e){}
   }
 
