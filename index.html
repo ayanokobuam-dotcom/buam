@@ -929,7 +929,7 @@
     background:var(--neu-grad-inset); box-shadow:var(--neu-inset-sm);
     border-radius:var(--neu-radius-md); padding:10px;
   }
-  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.75; border-radius:999px; min-height:3px; }
+  .cc-sparkline-bar{ flex:1; background:var(--accent); opacity:0.8; border-radius:3px 3px 2px 2px; min-height:3px; }
   .cc-insights-stats{ display:flex; justify-content:space-between; font-size:0.72rem; color:var(--ink-dim); }
   .cc-insights-stats b{ display:block; font-size:0.95rem; color:var(--ink); }
 
@@ -3142,8 +3142,8 @@ function renderCommandCenter(){
   const maxExpense = Math.max(1, ...spentByDay.map(d=>d.expense));
   document.getElementById("ccSparkline").innerHTML = dayList.map(ds=>{
     const bucket = spentByDay.find(d=>d.key===ds);
-    const h = bucket ? Math.max(4, Math.round((bucket.expense/maxExpense)*48)) : 4;
-    return `<div class="cc-sparkline-bar" style="height:${h}px"></div>`;
+    const h = bucket ? Math.max(8, Math.round((bucket.expense/maxExpense)*100)) : 8;
+    return `<div class="cc-sparkline-bar" style="height:${h}%" title="${ds}"></div>`;
   }).join("");
   const weekSpend = spentByDay.reduce((s,d)=>s+d.expense,0);
   document.getElementById("ccInsightSpend").textContent = "฿" + BuamMoney.formatBaht(weekSpend);
