@@ -258,6 +258,21 @@
     assertEqual(bare.params.title, "", "a bare completion leans on context instead");
   });
 
+  test("the task name is picked up on either side of the completion word", function () {
+    var after = V.parseIntent("เสร็จแล้ว ฟิตเนส", { now: NOW });
+    assertEqual(V.compact(after.params.title), "ฟิตเนส");
+
+    var before = V.parseIntent("ฟิตเนส เสร็จแล้ว", { now: NOW });
+    assertEqual(before.intent, "task.done");
+    assertEqual(V.compact(before.params.title), "ฟิตเนส", "a name spoken first must not be dropped");
+
+    var joined = V.parseIntent("การบ้านเสร็จแล้ว", { now: NOW });
+    assertEqual(V.compact(joined.params.title), "การบ้าน");
+
+    var polite = V.parseIntent("ซื้อนม เรียบร้อยแล้ว ครับ", { now: NOW });
+    assertEqual(V.compact(polite.params.title), "ซื้อนม", "trailing politeness is not part of the name");
+  });
+
   test("findTaskByTitle prefers unfinished tasks and the longest overlap", function () {
     var tasks = [
       { id: "a", title: "ซื้อนม", done: true },
@@ -268,6 +283,158 @@
     assertEqual(V.findTaskByTitle("อ่านหนังสือ", tasks).id, "c");
     assertNull(V.findTaskByTitle("ไม่มีงานนี้", tasks));
     assertNull(V.findTaskByTitle("", tasks));
+  });
+
+  /* ================= keyword matching ================= */
+
+  test("a single keyword finds a task without reciting the whole title", function () {
+    var tasks = [
+      { id: "hw", title: "ส่งการบ้านเลข 5 ข้อ ก่อนเที่ยง", done: false },
+      { id: "gym", title: "ไปฟิตเนสตอนเย็น", done: false },
+      { id: "buy", title: "ซื้อของเข้าบ้าน", done: false }
+    ];
+    // the point of the feature: short spoken fragments, not full titles
+    assertEqual(V.findTaskByTitle("การบ้าน", tasks).id, "hw");
+    assertEqual(V.findTaskByTitle("เลข", tasks).id, "hw");
+    assertEqual(V.findTaskByTitle("ฟิตเนส", tasks).id, "gym");
+    assertEqual(V.findTaskByTitle("ซื้อของ", tasks).id, "buy");
+    assertEqual(V.findTaskByTitle("ส่งการบ้าน", tasks).id, "hw");
+  });
+
+  test("near-misses from the recognizer still land on the right task", function () {
+    var tasks = [
+      { id: "eng", title: "อ่านหนังสือภาษาอังกฤษ", done: false },
+      { id: "math", title: "ทบทวนคณิตศาสตร์", done: false }
+    ];
+    // heard slightly wrong, but the shape is close enough
+    assertEqual(V.findTaskByTitle("อ่านหนังสืออังกฤษ", tasks).id, "eng");
+    assertEqual(V.findTaskByTitle("ทบทวนคณิต", tasks).id, "math");
+  });
+
+  test("an unrelated phrase still matches nothing", function () {
+    var tasks = [
+      { id: "hw", title: "ส่งการบ้านเลข", done: false },
+      { id: "gym", title: "ไปฟิตเนส", done: false }
+    ];
+    assertNull(V.findTaskByTitle("ไปเที่ยวทะเลกับเพื่อน", tasks));
+    assertNull(V.findTaskByTitle("xyz", tasks));
+  });
+
+  test("scoreTitleMatch ranks containment above fuzzy above nothing", function () {
+    var exact = V.scoreTitleMatch("ซื้อนม", "ซื้อนม");
+    var keyword = V.scoreTitleMatch("การบ้าน", "ส่งการบ้านเลข");
+    var fuzzy = V.scoreTitleMatch("อ่านหนังสืออังกฤษ", "อ่านหนังสือภาษาอังกฤษ");
+    var none = V.scoreTitleMatch("ไปทะเล", "ส่งการบ้าน");
+    assertEqual(exact, 1);
+    assertTrue(keyword > fuzzy, "a contained keyword should beat a fuzzy shape match");
+    assertTrue(fuzzy > none, "a close miss should beat an unrelated phrase");
+    assertTrue(none < V.MATCH_MIN, "unrelated must fall under the match threshold");
+    assertTrue(keyword >= 0.8 && keyword <= 1, "keyword score sits in the containment band");
+  });
+
+  test("two equally good candidates are reported as ambiguous, not guessed", function () {
+    var tasks = [
+      { id: "a", title: "ประชุมทีมเช้า", done: false },
+      { id: "b", title: "ประชุมทีมบ่าย", done: false },
+      { id: "c", title: "ซื้อนม", done: false }
+    ];
+    var m = V.findTaskMatches("ประชุมทีม", tasks);
+    assertTrue(m.length >= 2, "both meetings should be candidates");
+    assertTrue(V.isAmbiguousMatch(m), "two near-identical titles must read as ambiguous");
+
+    var clear = V.findTaskMatches("ซื้อนม", tasks);
+    assertTrue(!V.isAmbiguousMatch(clear), "a single obvious match must not be ambiguous");
+  });
+
+  test("dice similarity behaves sanely at the edges", function () {
+    assertEqual(V.diceCoefficient("abc", "abc"), 1);
+    assertEqual(V.diceCoefficient("abc", "xyz"), 0);
+    assertEqual(V.diceCoefficient("", ""), 1);
+    assertEqual(V.diceCoefficient("a", "b"), 0);
+    assertTrue(V.diceCoefficient("การบ้านเลข", "การบ้าน") > 0.6);
+  });
+
+  test("matching survives a big list without picking something random", function () {
+    var tasks = [];
+    for (var i = 0; i < 200; i++) tasks.push({ id: "t" + i, title: "งานที่ " + i, done: false });
+    tasks.push({ id: "target", title: "ส่งรายงานการเงิน", done: false });
+    assertEqual(V.findTaskByTitle("รายงานการเงิน", tasks).id, "target");
+    assertNull(V.findTaskByTitle("ปลูกต้นไม้ในสวนหลังบ้าน", tasks));
+  });
+
+  /* ================= the widened conversation ================= */
+
+  test("the new conversational topics all route to their own pool", function () {
+    var cases = [
+      ["อรุณสวัสดิ์", "chat.morning"],
+      ["จะนอนแล้วนะ", "chat.goodnight"],
+      ["งานเยอะมาก", "chat.stress"],
+      ["สอบผ่านแล้ว", "chat.proud"],
+      ["ขอกำลังใจหน่อย", "chat.encourage"],
+      ["ไม่สบายเลย", "chat.sick"],
+      ["หงุดหงิดมาก", "chat.angry"],
+      ["โคตรเซ็งเลย", "chat.angry"],
+      ["กินอะไรดี", "chat.whatToEat"],
+      ["แนะนำเพลงหน่อย", "chat.music"],
+      ["ฝนตกหนักมาก", "chat.weatherTalk"],
+      ["พรุ่งนี้ฝนตกไหม", "chat.weatherAsk"],
+      ["ขอโทษนะ", "chat.sorry"],
+      ["สวยจัง", "chat.compliment"],
+      ["จริงเหรอ", "chat.doubt"],
+      ["ทำอะไรอยู่", "chat.smallTalk"],
+      ["อายุเท่าไหร่", "chat.age"],
+      ["มีความรู้สึกไหม", "chat.feelings"],
+      ["อ่านหนังสือไม่เข้าหัว", "chat.study"],
+      ["เงินหมดแล้ว", "chat.money"],
+      ["ไม่รู้จะทำอะไรกับอนาคต", "chat.future"],
+      ["ทำอะไรได้บ้าง", "chat.capabilities"],
+      ["วันนี้วันอะไร", "query.date"]
+    ];
+    cases.forEach(function (c) {
+      var got = V.parseIntent(c[0], { now: NOW, categories: cats() });
+      assertEqual(got.intent, c[1], 'transcript "' + c[0] + '"');
+    });
+  });
+
+  test("widening the vocabulary did not break the original commands", function () {
+    var cases = [
+      ["สรุป", "briefing"],
+      ["เพิ่มงาน ซื้อนม", "task.add"],
+      ["กาแฟ 60 บาท", "money.add"],
+      ["จับเวลา 25 นาที", "timer.start"],
+      ["เปิดปฏิทิน", "nav.calendar"],
+      ["เงิน", "nav.money"],
+      ["วันนี้มีงานอะไรบ้าง", "query.tasksToday"],
+      ["ต้องทำอะไรบ้าง", "query.tasksToday"],
+      ["เสร็จแล้ว", "task.done"]
+    ];
+    cases.forEach(function (c) {
+      assertEqual(V.parseIntent(c[0], { now: NOW, categories: cats() }).intent, c[1], c[0]);
+    });
+  });
+
+  test("every new conversational topic is still read-only", function () {
+    Object.keys(V.RESPONSES).forEach(function (k) {
+      assertTrue(!V.isWriteIntent("chat." + k), "chat." + k + " must never be a write intent");
+    });
+    ["อรุณสวัสดิ์","งานเยอะมาก","โคตรเซ็ง","เงินหมดแล้ว","อายุเท่าไหร่","ฝนจะตกไหม"].forEach(function (t) {
+      assertTrue(!V.isWriteIntent(V.parseIntent(t, { now: NOW }).intent), t);
+    });
+  });
+
+  test("every chat intent the router can emit has a pool behind it", function () {
+    var probes = ["อรุณสวัสดิ์","จะนอนแล้ว","งานเยอะ","สอบผ่าน","ขอกำลังใจ","ไม่สบาย","หงุดหงิด",
+      "โคตร","กินอะไรดี","แนะนำเพลง","ฝนตก","ฝนจะตกไหม","หายไปไหน","ขอโทษ","สวยจัง","จริงเหรอ",
+      "ทำอะไรอยู่","อายุเท่าไหร่","เหงาไหม","จำไม่ได้","ถังแตก","อนาคต","ทำอะไรได้บ้าง",
+      "สวัสดี","เหนื่อย","เศร้า","ดีใจ","เบื่อ","หิว","ง่วง","ขี้เกียจ","คุยกันหน่อย","เล่ามุก","บาย",
+      "ขอบคุณ","เก่งมาก","คิดถึง","นายคือใคร","เป็นไงบ้าง"];
+    probes.forEach(function (t) {
+      var intent = V.parseIntent(t, { now: NOW }).intent;
+      if (intent.indexOf("chat.") !== 0) return;
+      var key = intent.slice(5);
+      assertTrue(Array.isArray(V.RESPONSES[key]) && V.RESPONSES[key].length >= 2,
+        'intent ' + intent + ' (from "' + t + '") has no pool');
+    });
   });
 
   /* ================= confidence gating ================= */

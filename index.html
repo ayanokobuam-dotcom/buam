@@ -323,9 +323,9 @@
     display:block;
     /* the rain is now a faint texture across the matte base surface, not a
        lit screen — keeps the cyber identity without fighting the elevation */
-    opacity:0.22;
+    opacity:calc(0.22 * var(--wx-bg-dim, 1));
   }
-  [data-theme="light"] #bgCanvas{ opacity:0.10; }
+  [data-theme="light"] #bgCanvas{ opacity:calc(0.10 * var(--wx-bg-dim, 1)); }
   #bgCanvas3D{
     position:fixed;
     inset:0;
@@ -334,18 +334,19 @@
     display:none; /* shown by JS only after a real WebGL context is confirmed working */
     /* held back to the same ambient level as the 2D rain so the drifting
        glyphs texture the base surface instead of competing with the cards */
-    opacity:0.30;
+    opacity:calc(0.30 * var(--wx-bg-dim, 1));
   }
-  [data-theme="light"] #bgCanvas3D{ opacity:0.14; }
+  [data-theme="light"] #bgCanvas3D{ opacity:calc(0.14 * var(--wx-bg-dim, 1)); }
 
   /* ================= weather atmosphere =================
      The existing background canvases keep their own opacity rules untouched;
      weather only dims them through a filter, so nothing about the original
      system is permanently modified and CLEAR restores it exactly. */
-  #bgCanvas, #bgCanvas3D{
-    filter:brightness(var(--wx-bg-dim, 1));
-    transition:filter 1.6s ease;
-  }
+  /* The dim rides on opacity, not filter. A filter on two full-screen animated
+     canvases forced a filter pass every frame — measured at 9-12ms, which is
+     most of a frame budget on a phone. Opacity is compositor-only and free.
+     Each canvas keeps its own base value; --wx-bg-dim just scales it. */
+  #bgCanvas, #bgCanvas3D{ transition:opacity 1.6s ease; }
   /* full-screen ambience. Both are compositor-only (opacity on a fixed layer),
      so they cost nothing per frame and never trigger layout. */
   .wx-dark, .wx-haze, #wxCanvas, #wxFlash{
@@ -371,19 +372,28 @@
       radial-gradient(120% 70% at 20% 15%, rgba(200,225,240,0.16), transparent 60%),
       radial-gradient(110% 60% at 80% 75%, rgba(180,215,235,0.13), transparent 62%),
       linear-gradient(180deg, rgba(190,220,235,0.10), rgba(190,220,235,0.03));
-    backdrop-filter:blur(1.5px);
-    -webkit-backdrop-filter:blur(1.5px);
     animation:wxHazeDrift 42s ease-in-out infinite;
   }
+  /* No backdrop-filter anywhere. The first attempt kept it for the two states
+     whose particle loop is parked, on the assumption that a static blur would
+     be cached — but this layer drifts, and the code-rain canvas behind it
+     animates continuously, so the backdrop is re-blurred every frame either
+     way. Measured at +16ms in FOG and +21ms in CLOUDY, worse than the states
+     that actually animate particles. Fog now reads through density and
+     recession instead, which costs nothing. */
   @keyframes wxHazeDrift{
     0%,100%{ transform:translate3d(0,0,0) scale(1.04); }
     50%{ transform:translate3d(2%, -1.5%, 0) scale(1.10); }
   }
-  /* fog is the one state that leans on the haze hard, so it gets a heavier
-     blur — still behind every panel, so panel text contrast is untouched */
+  /* Fog is the one state that leans on the haze hard. With no blur available
+     it reads through density instead: a second, slower-drifting veil layered
+     over the first, so the air itself looks thick. */
   [data-weather="FOG"] .wx-haze{
-    backdrop-filter:blur(3.5px);
-    -webkit-backdrop-filter:blur(3.5px);
+    background:
+      radial-gradient(130% 80% at 25% 20%, rgba(214,232,244,0.30), transparent 62%),
+      radial-gradient(120% 70% at 75% 70%, rgba(196,222,238,0.26), transparent 64%),
+      radial-gradient(150% 55% at 50% 100%, rgba(206,228,242,0.24), transparent 70%),
+      linear-gradient(180deg, rgba(200,226,240,0.20), rgba(200,226,240,0.10));
   }
   #wxCanvas{
     z-index:45;
@@ -979,8 +989,8 @@
     }
     :root:not([data-theme="light"]) .ico{ stroke-width:2.1; }
     /* the ambient texture competes much harder on a small screen */
-    :root:not([data-theme="light"]) #bgCanvas{ opacity:0.16; }
-    :root:not([data-theme="light"]) #bgCanvas3D{ opacity:0.20; }
+    :root:not([data-theme="light"]) #bgCanvas{ opacity:calc(0.16 * var(--wx-bg-dim, 1)); }
+    :root:not([data-theme="light"]) #bgCanvas3D{ opacity:calc(0.20 * var(--wx-bg-dim, 1)); }
   }
 
   /* ---- icon system ---- */
@@ -6304,6 +6314,11 @@ function answerTime(){
   return "It's " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + ".";
 }
 
+function answerDate(){
+  return "Today is " + new Date().toLocaleDateString("en-US",
+    { weekday:"long", month:"long", day:"numeric" }) + ".";
+}
+
 /* ---- actions ----
    Each returns a string to speak, or "" for a silent action (navigation says
    nothing on purpose — narrating every screen change gets old fast). */
@@ -6333,7 +6348,17 @@ function friendlyDue(dateStr){
 
 function voiceCompleteTask(params){
   let target = null;
-  if(params.title) target = BuamVoice.findTaskByTitle(params.title, tasks);
+  if(params.title){
+    // only unfinished tasks are candidates — saying a keyword should never
+    // land on something already ticked off just because it scored higher
+    const open = tasks.filter(t=>!t.done);
+    const matches = BuamVoice.findTaskMatches(params.title, open.length ? open : tasks);
+    if(BuamVoice.isAmbiguousMatch(matches)){
+      // two titles fit the keyword equally well — ask rather than guess wrong
+      return voiceReply("ambiguous") + ' "' + matches[0].task.title + '" or "' + matches[1].task.title + '"?';
+    }
+    if(matches.length) target = matches[0].task;
+  }
   if(!target && voiceCtx){
     const ctx = voiceCtx.get(new Date());
     if(ctx) target = tasks.filter(t=>t.id === ctx.taskId)[0] || null;
@@ -6381,6 +6406,7 @@ function runVoiceIntent(intent, params){
     case "query.overdue":       return answerOverdue();
     case "query.budget":        return answerBudget();
     case "query.time":          return answerTime();
+    case "query.date":          return answerDate();
 
     case "nav.calendar":        switchView("calendar"); return "";
     case "nav.money":           switchView("money"); return "";

@@ -288,25 +288,72 @@
    * task lookup
    * ================================================================ */
 
-  /* Loose title match for "เสร็จแล้ว <title>". Prefers unfinished tasks and
-     the longest overlap, so a short spoken fragment still finds its task. */
-  function findTaskByTitle(title, tasks) {
-    var q = compact(title).toLowerCase();
-    if (!q || !tasks || !tasks.length) return null;
-    var best = null, bestLen = 0;
+  /* Character-bigram overlap (Dice). Thai has no word boundaries and the
+     recognizer will not reproduce a title exactly, so this compares the shape
+     of the two strings rather than requiring one to contain the other. */
+  function bigrams(s) {
+    var out = {};
+    for (var i = 0; i < s.length - 1; i++) {
+      var g = s.substr(i, 2);
+      out[g] = (out[g] || 0) + 1;
+    }
+    return out;
+  }
+
+  function diceCoefficient(a, b) {
+    if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+    var A = bigrams(a), B = bigrams(b), k, na = 0, nb = 0, inter = 0;
+    for (k in A) na += A[k];
+    for (k in B) nb += B[k];
+    if (!na || !nb) return 0;
+    for (k in A) if (B[k]) inter += Math.min(A[k], B[k]);
+    return (2 * inter) / (na + nb);
+  }
+
+  /* 0..1, how well a spoken fragment identifies a task title.
+     A keyword sitting inside the title scores highest — that is the whole point
+     of the feature: "เสร็จแล้ว การบ้าน" should find "ส่งการบ้านเลข 5 ข้อ" without
+     the user reciting it. Below that, fuzzy shape matching catches the cases
+     where the recognizer heard something close but not identical. */
+  var MATCH_MIN = 0.42;       // anything weaker is not a match at all
+  var MATCH_AMBIGUOUS = 0.08; // two candidates this close are worth asking about
+
+  function scoreTitleMatch(query, title) {
+    var q = compact(query).toLowerCase();
+    var t = compact(title).toLowerCase();
+    if (!q || !t) return 0;
+    if (q === t) return 1;
+    // a spoken keyword contained in the title; longer keywords are stronger
+    if (t.indexOf(q) !== -1) return 0.80 + 0.15 * (q.length / t.length);
+    if (q.indexOf(t) !== -1) return 0.75 + 0.15 * (t.length / q.length);
+    return diceCoefficient(q, t) * 0.85;
+  }
+
+  /* Ranked candidates, best first. Unfinished tasks get a small nudge so they
+     win ties against something already ticked off. */
+  function findTaskMatches(query, tasks) {
+    if (!query || !tasks || !tasks.length) return [];
+    var scored = [];
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
-      var tt = compact(t.title).toLowerCase();
-      if (!tt) continue;
-      var overlap = 0;
-      if (tt.indexOf(q) !== -1) overlap = q.length;
-      else if (q.indexOf(tt) !== -1) overlap = tt.length;
-      if (!overlap) continue;
-      // an unfinished task always beats a finished one of the same overlap
-      var weight = overlap + (t.done ? 0 : 0.5);
-      if (weight > bestLen) { bestLen = weight; best = t; }
+      if (!t || !t.title) continue;
+      var s = scoreTitleMatch(query, t.title);
+      if (s <= 0) continue;
+      scored.push({ task: t, score: +(s + (t.done ? 0 : 0.03)).toFixed(4) });
     }
-    return best;
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return scored.filter(function (m) { return m.score >= MATCH_MIN; });
+  }
+
+  /* true when the top two candidates are too close to choose between, so the
+     caller can ask instead of guessing wrong on the user's data */
+  function isAmbiguousMatch(matches) {
+    return matches.length > 1 && (matches[0].score - matches[1].score) < MATCH_AMBIGUOUS;
+  }
+
+  function findTaskByTitle(title, tasks) {
+    var m = findTaskMatches(title, tasks);
+    return m.length ? m[0].task : null;
   }
 
   /* ================================================================
@@ -320,7 +367,10 @@
     { intent: "chat.praise", words: ["เก่ง", "เยี่ยม", "สุดยอด", "ดีมาก", "เจ๋ง", "แจ่ม", "โคตรดี"] },
     { intent: "chat.love", words: ["รักนาย", "รักเธอ", "คิดถึง", "รักเลย"] },
     { intent: "chat.joke", words: ["เล่าเรื่องตลก", "มุกตลก", "เล่ามุก", "ขำ", "เล่าอะไรหน่อย"] },
-    { intent: "chat.bye", words: ["บาย", "ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ฝันดี", "ราตรีสวัสดิ์"] },
+    /* "บาย" is a substring of "ไม่สบาย", so it can only match as the whole
+       utterance — otherwise saying you feel ill reads as saying goodbye */
+    { intent: "chat.bye", words: ["ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ฝันดี", "ราตรีสวัสดิ์"],
+      exact: ["บาย", "บายๆ", "บ๊ายบาย"] },
     { intent: "chat.tired", words: ["เหนื่อย", "ล้า", "เพลีย", "หมดแรง", "หมดพลัง", "ไม่ไหวแล้ว"] },
     { intent: "chat.down", words: ["เศร้า", "เสียใจ", "ท้อ", "แย่จัง", "ไม่โอเค", "ร้องไห้", "เครียด"] },
     { intent: "chat.happy", words: ["ดีใจ", "มีความสุข", "สนุก", "ฟินมาก", "แฮปปี้"] },
@@ -329,7 +379,36 @@
     { intent: "chat.sleepy", words: ["ง่วง", "อยากนอน", "นอนไม่หลับ", "ไม่ได้นอน"] },
     { intent: "chat.motivate", words: ["ไม่อยากทำ", "ขี้เกียจ", "ทำไม่ไหว", "ให้กำลังใจ", "ผัดวันประกันพรุ่ง"] },
     { intent: "chat.talk", words: ["คุยกัน", "คุยด้วย", "อยากคุย", "เหงา", "อยู่เป็นเพื่อน"] },
-    { intent: "chat.greeting", words: ["สวัสดี", "หวัดดี", "ดีจ้า", "ว่าไง", "เฮ้", "ฮัลโหล"] }
+    { intent: "chat.greeting", words: ["สวัสดี", "หวัดดี", "ดีจ้า", "ว่าไง", "เฮ้", "ฮัลโหล"] },
+
+    /* ---- second wave: the things people actually say to something that
+       listens every day, rather than only the polite openers ---- */
+    { intent: "chat.morning", words: ["อรุณสวัสดิ์", "ตื่นแล้ว", "เพิ่งตื่น", "เช้าแล้ว"] },
+    { intent: "chat.goodnight", words: ["จะนอนแล้ว", "เข้านอน", "นอนก่อน", "หลับฝันดี"] },
+    // proud before stress: "สอบผ่านแล้ว" contains "สอบ", and being congratulated
+    // for passing matters more than being consoled for having an exam
+    { intent: "chat.proud", words: ["ทำได้แล้ว", "สำเร็จแล้ว", "ผ่านแล้ว", "สอบผ่าน", "ภูมิใจ"] },
+    { intent: "chat.stress", words: ["งานเยอะ", "เรียนหนัก", "สอบ", "ยุ่งมาก", "ทำไม่ทัน", "เดดไลน์", "งานล้น"] },
+    { intent: "chat.encourage", words: ["ขอกำลังใจ", "เป็นห่วง", "อวยพร", "ขอให้โชคดี", "ลุ้นให้หน่อย"] },
+    { intent: "chat.sick", words: ["ไม่สบาย", "ปวดหัว", "ป่วย", "เป็นไข้", "ปวดท้อง", "เจ็บคอ"] },
+    { intent: "chat.angry", words: ["โมโห", "หงุดหงิด", "เซ็ง", "รำคาญ", "โกรธ", "ฉุน"] },
+    { intent: "chat.vent", words: ["โคตร", "เหี้ย", "ห่า", "แม่ง", "ชิบหาย", "บ้าเอ๊ย"] },
+    { intent: "chat.whatToEat", words: ["กินอะไรดี", "หิวแต่ไม่รู้จะกิน", "แนะนำอาหาร"] },
+    { intent: "chat.music", words: ["เปิดเพลง", "เพลงอะไรดี", "ฟังเพลง", "แนะนำเพลง"] },
+    // the question form first: "พรุ่งนี้ฝนตกไหม" contains "ฝนตก", and asking for a
+    // forecast needs the honest "I have no network" answer, not small talk
+    { intent: "chat.weatherAsk", words: ["ฝนจะตกไหม", "ฝนตกไหม", "ฝนตกมั้ย", "อากาศเป็นไง", "อุณหภูมิ", "พยากรณ์"] },
+    { intent: "chat.weatherTalk", words: ["ฝนตก", "ร้อนจัง", "หนาวจัง", "อากาศดี", "อากาศแย่", "ฟ้าร้อง"] },
+    { intent: "chat.miss", words: ["หายไปไหน", "ไม่ได้คุยนาน", "นานแล้วนะ"] },
+    { intent: "chat.sorry", words: ["ขอโทษ", "ผิดเอง", "โทษที"] },
+    { intent: "chat.compliment", words: ["สวยจัง", "เท่จัง", "หน้าตาดี", "ดูดีจัง", "สีสวย"] },
+    { intent: "chat.doubt", words: ["จริงเหรอ", "แน่ใจนะ", "โกหกรึเปล่า", "มั่ว"] },
+    { intent: "chat.smallTalk", words: ["ทำอะไรอยู่", "ว่างไหม", "อยู่ไหม", "ยังอยู่รึเปล่า"] },
+    { intent: "chat.age", words: ["อายุเท่าไหร่", "เกิดเมื่อไหร่", "แก่รึยัง"] },
+    { intent: "chat.feelings", words: ["มีความรู้สึกไหม", "เหงาไหม", "เบื่อไหม", "เจ็บไหม"] },
+    { intent: "chat.study", words: ["อ่านหนังสือไม่เข้าหัว", "จำไม่ได้", "สมาธิสั้น", "ไม่มีสมาธิ"] },
+    { intent: "chat.money", words: ["ไม่มีเงิน", "ถังแตก", "เงินหมด", "จนมาก"] },
+    { intent: "chat.future", words: ["อนาคต", "ไม่รู้จะทำอะไร", "หลงทาง", "ชีวิตนี้"] }
   ];
 
   /* transcript -> { intent, params, raw }.
@@ -351,6 +430,13 @@
     /* ---- yes / no, for answering a confirmation ---- */
     if (/^(ใช่|ได้|เอา|ตกลง|โอเค|โอเก|ยืนยัน|เอาเลย|ใช่เลย)$/.test(s)) return out("confirm.yes");
     if (/^(ไม่|ไม่เอา|ยกเลิก|ไม่ใช่|หยุด|ไม่ต้อง)$/.test(s)) return out("confirm.no");
+
+    /* ---- what can you do: tested before the task questions because
+       "ทำอะไรได้บ้าง" and "ต้องทำอะไรบ้าง" share most of their letters ---- */
+    if (hasAny(s, ["ทำอะไรได้บ้าง", "ช่วยอะไรได้", "สั่งอะไรได้", "ใช้ยังไง", "คำสั่งอะไรบ้าง", "ทำอะไรเป็นบ้าง"])) {
+      return out("chat.capabilities");
+    }
+    if (hasAny(s, ["วันนี้วันอะไร", "วันที่เท่าไหร่", "วันที่เท่าไร", "วันอะไร"])) return out("query.date");
 
     /* ---- questions (read-only, must precede navigation) ---- */
     if (hasAny(s, ["วันนี้มีงานอะไร", "งานวันนี้", "มีอะไรต้องทำ", "มีงานอะไรบ้าง", "ต้องทำอะไรบ้าง"])) {
@@ -393,12 +479,23 @@
       return out("task.add", { title: title, due: due ? due.date : "" });
     }
 
-    /* ---- complete a task ---- */
-    var doneM = raw.match(/(?:ทำ)?(?:เสร็จ(?:แล้ว)?|เรียบร้อย(?:แล้ว)?|ทำแล้ว|จบแล้ว|ปิดงาน)\s*(.*)$/);
+    /* ---- complete a task ----
+       The name can sit on either side of the completion word: people say both
+       "เสร็จแล้ว ฟิตเนส" and "ฟิตเนส เสร็จแล้ว". Capturing only what follows lost
+       the second form entirely, so both sides are taken and the longer one wins. */
+    var doneRe = /(?:ทำ)?(?:เสร็จ(?:แล้ว)?|เรียบร้อย(?:แล้ว)?|ทำแล้ว|จบแล้ว|ปิดงาน)/;
+    var doneM = raw.match(doneRe);
     if (doneM && /เสร็จ|เรียบร้อย|ทำแล้ว|จบแล้ว|ปิดงาน/.test(s)) {
-      var doneTitle = normalize(doneM[1] || "").replace(/^(?:แล้ว|งาน|เรื่อง)\s*/, "").trim();
-      // "เสร็จแล้ว" on its own leans on short-term context instead
-      return out("task.done", { title: doneTitle });
+      var strip = function (x) {
+        return normalize(x)
+          .replace(/^(?:แล้ว|งาน|เรื่อง|ที่ว่า)\s*/, "")
+          .replace(/\s*(?:แล้ว|นะ|ครับ|ค่ะ|จ้า)$/, "")
+          .trim();
+      };
+      var before = strip(raw.slice(0, doneM.index));
+      var after = strip(raw.slice(doneM.index + doneM[0].length));
+      // "เสร็จแล้ว" on its own leaves both empty and leans on short-term context
+      return out("task.done", { title: after.length >= before.length ? after : before });
     }
 
     /* ---- log money ---- */
@@ -439,17 +536,31 @@
     if (hasAny(s, ["ลบ", "เอาออก", "ทิ้ง"])) return out("unsupported.delete");
     if (hasAny(s, ["เลื่อน", "ย้ายไป", "เปลี่ยนวัน", "แก้วัน"])) return out("unsupported.reschedule");
 
-    /* ---- navigation ---- */
+    /* ---- navigation, explicit forms only ----
+       The bare nouns "งาน" and "เงิน" are deliberately NOT here. They appear
+       inside ordinary sentences — "งานเยอะมาก", "เงินหมดแล้ว" — and matching
+       them this early silently turned every such remark into a screen change
+       instead of a conversation. They get one more chance further down, but
+       only as the entire utterance. */
     if (hasAny(s, ["ปฏิทิน", "ตารางเดือน"])) return out("nav.calendar");
-    if (hasAny(s, ["กระเป๋าเงิน", "การเงิน", "รายจ่าย", "เงิน"])) return out("nav.money");
+    if (hasAny(s, ["กระเป๋าเงิน", "การเงิน", "รายจ่าย", "เปิดเงิน", "ดูเงิน"])) return out("nav.money");
     if (hasAny(s, ["สถิติ", "กราฟ", "วิเคราะห์"])) return out("nav.analytics");
     if (hasAny(s, ["หน้าแรก", "หน้าหลัก", "กลับบ้าน", "หน้าหลัง"])) return out("nav.home");
-    if (hasAny(s, ["รายการงาน", "ลิสต์งาน", "งานทั้งหมด", "งาน"])) return out("nav.tasks");
+    if (hasAny(s, ["รายการงาน", "ลิสต์งาน", "งานทั้งหมด", "เปิดงาน", "ดูงาน"])) return out("nav.tasks");
 
-    /* ---- conversation ---- */
+    /* ---- conversation ----
+       `exact` matches the whole utterance; `words` match anywhere. Short Thai
+       words are substrings of longer unrelated ones far more often than in
+       English, so anything risky is listed as exact rather than as a keyword. */
     for (var i = 0; i < CHAT_RULES.length; i++) {
-      if (hasAny(s, CHAT_RULES[i].words)) return out(CHAT_RULES[i].intent);
+      var rule = CHAT_RULES[i];
+      if (rule.exact && rule.exact.indexOf(s) !== -1) return out(rule.intent);
+      if (rule.words && hasAny(s, rule.words)) return out(rule.intent);
     }
+
+    /* ---- a bare noun on its own really is a navigation request ---- */
+    if (s === "งาน") return out("nav.tasks");
+    if (s === "เงิน") return out("nav.money");
 
     return out("chat.fallback");
   }
@@ -645,6 +756,184 @@
       "Night. Don't think about the list.",
       "Catch you next time."
     ],
+    /* ---- second wave ---- */
+    morning: [
+      "Morning. Take it slowly for a minute.",
+      "You're up. Coffee first, list second.",
+      "Good morning. Nothing's on fire yet.",
+      "Morning. Let's not overplan this one.",
+      "Hey, you made it to today. Good start.",
+      "Morning. I kept everything where you left it.",
+      "Up already? Alright, I'm with you.",
+      "Good morning. Start with one easy thing."
+    ],
+    goodnight: [
+      "Night. I'll hold the list until tomorrow.",
+      "Sleep well. None of it is going anywhere.",
+      "Goodnight. You did enough today.",
+      "Rest up. Tomorrow gets a fresh start.",
+      "Night. Put the phone down properly this time.",
+      "Sleep. That's the most productive thing left today.",
+      "Goodnight. I'll be here in the morning."
+    ],
+    stress: [
+      "That's a lot at once. Pick the nearest one and ignore the rest for now.",
+      "Busy is survivable. Overwhelmed is a signal to cut something.",
+      "Which one is actually due first? Start there, forget the pile.",
+      "You can't do all of it today. Nobody could.",
+      "One at a time. The list is long but the next step never is.",
+      "Deadlines stack, but you still only work one thing at a time.",
+      "Sounds heavy. Want me to read you what's actually due?",
+      "Cut the list in half in your head. The other half can wait a day.",
+      "Panic makes it look bigger than it is. It's a list, not a wall."
+    ],
+    proud: [
+      "There it is. Well done.",
+      "That's a real one. Take the win.",
+      "Nice. I hope you're letting yourself enjoy that.",
+      "Told you. Good work.",
+      "Excellent. Sit with that for a second before the next thing.",
+      "That's the payoff. Earned it.",
+      "Genuinely happy for you.",
+      "Big. Don't rush past it."
+    ],
+    encourage: [
+      "You've got this. Not blind optimism — you've done harder.",
+      "Go on. I'll be here when it's done.",
+      "Rooting for you, for whatever that's worth from me.",
+      "You'll be fine. Nervous is normal, not a verdict.",
+      "Do it badly if you have to. Just do it.",
+      "Good luck. Come tell me how it went.",
+      "You've prepared more than you think."
+    ],
+    sick: [
+      "Then stop. The list can wait, your body can't.",
+      "Rest properly. Nothing here is worth pushing through for.",
+      "Sorry to hear that. Go lie down.",
+      "Water, then sleep. In that order.",
+      "Being sick isn't falling behind. It's just being sick.",
+      "Take the day. I'll keep everything paused.",
+      "Feel better. I'm not going anywhere."
+    ],
+    angry: [
+      "Fair enough. Let it out.",
+      "That sounds annoying. You're allowed to be annoyed.",
+      "Yeah, that would get to me too.",
+      "Give it ten minutes before you decide anything.",
+      "Vent away, I don't take notes.",
+      "Some things just deserve the reaction.",
+      "Okay. Breathe once, then tell me the rest."
+    ],
+    vent: [
+      "Yeah. Some days deserve that.",
+      "Say it louder if it helps.",
+      "Honestly, fair.",
+      "I hear you. That's rough.",
+      "No argument from me.",
+      "Get it out. Then we'll see what's left.",
+      "Right there with you."
+    ],
+    whatToEat: [
+      "Whatever's closest. Deciding is the tiring part.",
+      "Something warm. You'll feel better than you expect.",
+      "The thing you already thought of. Go get that.",
+      "Don't overthink it — eat now, judge later.",
+      "Rice and anything. It always works.",
+      "Pick the one that needs the least effort right now."
+    ],
+    music: [
+      "I can't pick tracks, but the app's own sound toggle is in the header.",
+      "Not my department — though Focus Timer has rain and forest if you want background.",
+      "Can't queue songs, sorry. I can start a focus timer with ambience though.",
+      "Music's outside what I control. Timer with rain is the closest I've got."
+    ],
+    weatherTalk: [
+      "The atmosphere in here follows along, if you set it.",
+      "Weather does change how a day feels. Even in an app.",
+      "Noted. You can match the app to it from the Weather picker.",
+      "Sounds like a day for staying in.",
+      "I only know the weather you tell me about. Tell me more."
+    ],
+    weatherAsk: [
+      "I can't check real weather — I'm fully offline by design. You can set the mood manually though.",
+      "No forecast here, on purpose: I don't make network calls. The Weather picker sets the atmosphere by hand.",
+      "I genuinely don't know. I have no connection to a weather service."
+    ],
+    miss: [
+      "I've been right here the whole time.",
+      "Not going anywhere. Good to have you back.",
+      "It has been a while. How've you been?",
+      "I don't mind waiting. Welcome back."
+    ],
+    sorry: [
+      "Nothing to apologise for.",
+      "It's fine. Really.",
+      "No harm done here.",
+      "Forget it. What's next?",
+      "You're allowed to be human."
+    ],
+    compliment: [
+      "The green suits me, I think.",
+      "Thank you. Someone put work into this.",
+      "I'll pass that on to whoever built me. Which is sort of you.",
+      "Appreciated. I do try to glow tastefully."
+    ],
+    doubt: [
+      "I only say what your data says. Check it yourself if you like.",
+      "Fair question. I don't make things up on purpose.",
+      "I could be wrong — I only know what's in your list.",
+      "Trust but verify. The numbers are on screen."
+    ],
+    smallTalk: [
+      "Right here. Waiting, mostly.",
+      "Nothing pressing. What's up?",
+      "Always around. What do you need?",
+      "Just keeping an eye on your list. And you.",
+      "Idle and available."
+    ],
+    age: [
+      "Younger than your oldest task, probably.",
+      "I don't really age. I just get updated.",
+      "As old as the last time you rebuilt me.",
+      "Time works differently in here."
+    ],
+    feelings: [
+      "Not the way you do. But I notice when you've been quiet.",
+      "I don't feel much. I do pay attention, though.",
+      "Hard to say. I'm here either way.",
+      "I'd rather talk about how you're doing."
+    ],
+    study: [
+      "Twenty minutes, then a real break. Reading past that stops working.",
+      "Read one page out loud. It sticks better than staring.",
+      "If nothing's going in, that's a break signal, not a discipline problem.",
+      "Try explaining it to me instead. Out loud usually unlocks it.",
+      "Start a focus timer and just do one block. That's all."
+    ],
+    money: [
+      "Rough. Want me to read you what you've spent this month?",
+      "It happens. Knowing where it went helps more than worrying.",
+      "Tight months pass. The ledger's there when you want to look.",
+      "Then let's not add to it today."
+    ],
+    future: [
+      "Nobody knows yet. That's not the same as going nowhere.",
+      "You don't have to solve your whole life tonight.",
+      "Big questions get quieter after sleep. Genuinely.",
+      "Lost is a normal place to stand for a while.",
+      "One decision at a time. The rest fills itself in."
+    ],
+    capabilities: [
+      "Tasks, money, timers, and getting around the app. Say the name of a task with 'done', or something like 'coffee sixty baht'. And I'll talk about anything else you feel like.",
+      "I can add and finish tasks, log spending, start a focus timer, open any screen, and tell you where things stand. Or we can just talk.",
+      "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company."
+    ],
+    ambiguous: [
+      "I found a few that could be it. Which one?",
+      "More than one matches. Say a bit more?",
+      "Couple of candidates there — give me another word."
+    ],
+
     fallback: [
       "I'm not sure I follow, but I'm listening.",
       "That one's above my pay grade. Say more?",
@@ -739,6 +1028,12 @@
     parseAmount: parseAmount,
     guessCategory: guessCategory,
     findTaskByTitle: findTaskByTitle,
+    findTaskMatches: findTaskMatches,
+    isAmbiguousMatch: isAmbiguousMatch,
+    scoreTitleMatch: scoreTitleMatch,
+    diceCoefficient: diceCoefficient,
+    MATCH_MIN: MATCH_MIN,
+    MATCH_AMBIGUOUS: MATCH_AMBIGUOUS,
     parseIntent: parseIntent,
     createPicker: createPicker,
     createContext: createContext,
