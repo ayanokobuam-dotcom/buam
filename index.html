@@ -43,6 +43,9 @@
     --red:#ff5b5b;
     --magenta:#ff3fd6;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+    /* deliberately not the HUD mono: the idle message is the one place the
+       system speaks rather than reports */
+    --font-quote: ui-serif, "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
 
     /* ---- shadow system: dark neumorphism, so the cast shadow carries most
        of the weight and the "light" edge is a faint sheen, never a glow. ---- */
@@ -201,7 +204,12 @@
   .ambient-screen{
     position:fixed; inset:0; z-index:900;
     background:transparent;
-    display:flex; align-items:center; justify-content:center;
+    /* column flow with the readout pinned to the lower band — the particle
+       scene keeps the optical centre, the time and message live beneath it.
+       Vertical position is viewport-relative, never a fixed pixel offset. */
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    padding:calc(24px + env(safe-area-inset-top)) 20px
+            calc(clamp(18px, 7vh, 88px) + env(safe-area-inset-bottom));
     opacity:0; pointer-events:none;
     transition:opacity 0.6s cubic-bezier(0.4,0,0.2,1);
   }
@@ -212,11 +220,59 @@
   }
   .wrap{ transition:opacity 0.6s ease; }
   body.ambient-mode .wrap{ opacity:0.04; pointer-events:none; }
-  .ambient-clock{
+  /* the whole block stays click-through so a tap anywhere still dismisses */
+  .ambient-readout{
     position:relative; z-index:1; pointer-events:none;
-    font-family:var(--font); font-size:4rem; font-variant-numeric:tabular-nums;
-    color:var(--accent); text-shadow:0 0 24px rgba(0,255,102,0.5);
-    letter-spacing:0.05em;
+    text-align:center; max-width:min(92vw, 560px);
+  }
+  /* the faint light the core spills behind the readout — the only thing
+     connecting the two, and it should barely register */
+  .ambient-readout::before{
+    content:""; position:absolute; left:50%; top:38%;
+    width:150%; height:190%; transform:translate(-50%,-50%);
+    pointer-events:none; z-index:-1;
+    background:radial-gradient(ellipse at center,
+      rgba(0,255,106,0.10) 0%, rgba(0,255,106,0.04) 38%, transparent 70%);
+    filter:blur(18px);
+  }
+  .ambient-clock{
+    font-family:var(--font); font-variant-numeric:tabular-nums;
+    /* scales with the viewport so it never clips at 320px, and is capped by
+       height too so a short/landscape screen doesn't push it into the core */
+    font-size:clamp(2rem, min(13vw, 9vh), 4.2rem);
+    line-height:1.05;
+    color:var(--accent);
+    letter-spacing:0.08em;
+    /* tight core + wide bloom: luminous edges, crisp numerals */
+    text-shadow:0 0 6px rgba(0,255,106,0.55), 0 0 26px rgba(0,255,106,0.28);
+  }
+  /* barely-there lift on each tick — a system breathing, not a blinking clock */
+  @keyframes ambientTick{
+    0%{ opacity:0.88; }
+    35%{ opacity:1; }
+    100%{ opacity:1; }
+  }
+  .ambient-clock.tick{ animation:ambientTick 0.9s ease-out; }
+  .ambient-quote{
+    margin:clamp(14px, 3.2vh, 26px) 0 0;
+    font-family:var(--font-quote);
+    font-size:clamp(0.9rem, min(4.2vw, 3.2vh), 1.3rem);
+    font-style:italic;
+    line-height:1.5;
+    letter-spacing:0.06em;
+    color:#dff6e7;
+    text-shadow:0 0 14px rgba(0,255,106,0.20);
+  }
+  .ambient-sign{
+    margin:clamp(6px, 1.4vh, 12px) 0 0;
+    font-family:var(--font-quote);
+    font-size:clamp(0.76rem, 3vw, 0.95rem);
+    letter-spacing:0.16em;
+    color:var(--ink-dim);
+    opacity:0.85;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .ambient-clock.tick{ animation:none; }
   }
   .ambient-trigger-btn{ font-size:0.8rem; }
   /* sparse drifting dust, same recipe as the boot intro but calmer for continuous use */
@@ -970,6 +1026,9 @@
   .dose-field select,
   .dose-field input[type=text],
   .dose-field input[type=date]{ width:100%; }
+  /* keep the rendered date centred in its field — WebKit exposes the value as
+     its own box, and on iOS the localized string (e.g. Buddhist Era) is long */
+  input[type=date]::-webkit-date-and-time-value{ text-align:center; }
   button{ font-family:inherit; cursor:pointer; border:none; }
   .btn-add{
     background:var(--accent);
@@ -1689,7 +1748,11 @@ function ico(name, cls){
 <div class="page-tint" id="pageTint" aria-hidden="true"></div>
 <div class="ambient-screen" id="ambientScreen" aria-hidden="true">
   <canvas id="ambientShipCanvas" class="ambient-ship-canvas"></canvas>
-  <div class="ambient-clock" id="ambientClock">00:00:00</div>
+  <div class="ambient-readout">
+    <div class="ambient-clock" id="ambientClock">00:00:00</div>
+    <p class="ambient-quote">&ldquo;I always here for you.&rdquo;</p>
+    <p class="ambient-sign">&mdash; Pond</p>
+  </div>
 </div>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 <nav class="sidebar" id="sidebarNav" aria-hidden="true">
@@ -5176,6 +5239,10 @@ function updateAmbientClock(){
   const mi = String(d.getMinutes()).padStart(2,"0");
   const ss = String(d.getSeconds()).padStart(2,"0");
   ambientClock.textContent = `${hh}:${mi}:${ss}`;
+  // restart the pulse: removing and re-adding needs a reflow between the two
+  ambientClock.classList.remove("tick");
+  void ambientClock.offsetWidth;
+  ambientClock.classList.add("tick");
 }
 
 function showAmbientScreen(){
