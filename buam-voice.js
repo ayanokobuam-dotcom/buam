@@ -530,18 +530,34 @@
    * ================================================================ */
 
   var CHAT_RULES = [
+    /* ---- specific forms first ----
+       Each of these is a longer phrase whose keyword sits inside a shorter,
+       more general one further down: "เหงาไหม" asks how BUAM feels but contains
+       "เหงา"; "หิวแต่ไม่รู้จะกิน" contains "หิว"; "หลับฝันดี" contains "ฝันดี".
+       Listed later they were unreachable — the general rule always won. */
+    { intent: "chat.feelings", words: ["มีความรู้สึกไหม", "เหงาไหม", "เบื่อไหม", "เจ็บไหม"] },
+    { intent: "chat.whatToEat", words: ["กินอะไรดี", "หิวแต่ไม่รู้จะกิน", "แนะนำอาหาร"] },
+    { intent: "chat.goodnight", words: ["จะนอนแล้ว", "เข้านอน", "นอนก่อน", "หลับฝันดี", "ฝันดี"] },
+    { intent: "chat.weatherAsk", words: ["ฝนจะตกไหม", "ฝนตกไหม", "ฝนตกมั้ย", "อากาศเป็นไง", "อุณหภูมิ", "พยากรณ์"] },
+
     { intent: "chat.whoAreYou", words: ["เป็นใคร", "คือใคร", "ชื่ออะไร", "แนะนำตัว"] },
-    { intent: "chat.howAreYou", words: ["เป็นไงบ้าง", "เป็นยังไงบ้าง", "สบายดีไหม", "สบายดีมั้ย", "เป็นไง"] },
+    /* bare "เป็นไง" is exact-only: "อากาศเป็นไง" is a question about the
+       weather, not about how BUAM is doing */
+    { intent: "chat.howAreYou", words: ["เป็นไงบ้าง", "เป็นยังไงบ้าง", "สบายดีไหม", "สบายดีมั้ย"],
+      exact: ["เป็นไง"] },
     { intent: "chat.thanks", words: ["ขอบคุณ", "ขอบใจ", "แต๊งกิ้ว"] },
     { intent: "chat.praise", words: ["เก่ง", "เยี่ยม", "สุดยอด", "ดีมาก", "เจ๋ง", "แจ่ม", "โคตรดี"] },
     { intent: "chat.love", words: ["รักนาย", "รักเธอ", "คิดถึง", "รักเลย"] },
     { intent: "chat.joke", words: ["เล่าเรื่องตลก", "มุกตลก", "เล่ามุก", "ขำ", "เล่าอะไรหน่อย"] },
     /* "บาย" is a substring of "ไม่สบาย", so it can only match as the whole
        utterance — otherwise saying you feel ill reads as saying goodbye */
-    { intent: "chat.bye", words: ["ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ฝันดี", "ราตรีสวัสดิ์"],
+    { intent: "chat.bye", words: ["ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ราตรีสวัสดิ์"],
       exact: ["บาย", "บายๆ", "บ๊ายบาย"] },
     { intent: "chat.tired", words: ["เหนื่อย", "ล้า", "เพลีย", "หมดแรง", "หมดพลัง", "ไม่ไหวแล้ว"] },
-    { intent: "chat.down", words: ["เศร้า", "เสียใจ", "ท้อ", "แย่จัง", "ไม่โอเค", "ร้องไห้", "เครียด"] },
+    /* "ท้อ" sits inside "ปวดท้อง" and "ท้องร้อง", so it only counts as the
+       whole utterance; the longer forms stay as ordinary keywords */
+    { intent: "chat.down", words: ["เศร้า", "เสียใจ", "ท้อแท้", "ท้อจัง", "แย่จัง", "ไม่โอเค", "ร้องไห้", "เครียด"],
+      exact: ["ท้อ"] },
     { intent: "chat.happy", words: ["ดีใจ", "มีความสุข", "สนุก", "ฟินมาก", "แฮปปี้"] },
     { intent: "chat.bored", words: ["เบื่อ", "ไม่มีอะไรทำ", "ว่างจัง"] },
     { intent: "chat.hungry", words: ["หิว", "อยากกิน", "ท้องร้อง"] },
@@ -553,7 +569,6 @@
     /* ---- second wave: the things people actually say to something that
        listens every day, rather than only the polite openers ---- */
     { intent: "chat.morning", words: ["อรุณสวัสดิ์", "ตื่นแล้ว", "เพิ่งตื่น", "เช้าแล้ว"] },
-    { intent: "chat.goodnight", words: ["จะนอนแล้ว", "เข้านอน", "นอนก่อน", "หลับฝันดี"] },
     // proud before stress: "สอบผ่านแล้ว" contains "สอบ", and being congratulated
     // for passing matters more than being consoled for having an exam
     { intent: "chat.proud", words: ["ทำได้แล้ว", "สำเร็จแล้ว", "ผ่านแล้ว", "สอบผ่าน", "ภูมิใจ"] },
@@ -562,11 +577,7 @@
     { intent: "chat.sick", words: ["ไม่สบาย", "ปวดหัว", "ป่วย", "เป็นไข้", "ปวดท้อง", "เจ็บคอ"] },
     { intent: "chat.angry", words: ["โมโห", "หงุดหงิด", "เซ็ง", "รำคาญ", "โกรธ", "ฉุน"] },
     { intent: "chat.vent", words: ["โคตร", "เหี้ย", "ห่า", "แม่ง", "ชิบหาย", "บ้าเอ๊ย"] },
-    { intent: "chat.whatToEat", words: ["กินอะไรดี", "หิวแต่ไม่รู้จะกิน", "แนะนำอาหาร"] },
     { intent: "chat.music", words: ["เปิดเพลง", "เพลงอะไรดี", "ฟังเพลง", "แนะนำเพลง"] },
-    // the question form first: "พรุ่งนี้ฝนตกไหม" contains "ฝนตก", and asking for a
-    // forecast needs the honest "I have no network" answer, not small talk
-    { intent: "chat.weatherAsk", words: ["ฝนจะตกไหม", "ฝนตกไหม", "ฝนตกมั้ย", "อากาศเป็นไง", "อุณหภูมิ", "พยากรณ์"] },
     { intent: "chat.weatherTalk", words: ["ฝนตก", "ร้อนจัง", "หนาวจัง", "อากาศดี", "อากาศแย่", "ฟ้าร้อง"] },
     { intent: "chat.miss", words: ["หายไปไหน", "ไม่ได้คุยนาน", "นานแล้วนะ"] },
     { intent: "chat.sorry", words: ["ขอโทษ", "ผิดเอง", "โทษที"] },
@@ -574,7 +585,6 @@
     { intent: "chat.doubt", words: ["จริงเหรอ", "แน่ใจนะ", "โกหกรึเปล่า", "มั่ว"] },
     { intent: "chat.smallTalk", words: ["ทำอะไรอยู่", "ว่างไหม", "อยู่ไหม", "ยังอยู่รึเปล่า"] },
     { intent: "chat.age", words: ["อายุเท่าไหร่", "เกิดเมื่อไหร่", "แก่รึยัง"] },
-    { intent: "chat.feelings", words: ["มีความรู้สึกไหม", "เหงาไหม", "เบื่อไหม", "เจ็บไหม"] },
     { intent: "chat.study", words: ["อ่านหนังสือไม่เข้าหัว", "จำไม่ได้", "สมาธิสั้น", "ไม่มีสมาธิ"] },
     { intent: "chat.money", words: ["ไม่มีเงิน", "ถังแตก", "เงินหมด", "จนมาก"] },
     { intent: "chat.future", words: ["อนาคต", "ไม่รู้จะทำอะไร", "หลงทาง", "ชีวิตนี้"] }
@@ -1215,6 +1225,7 @@
     diceCoefficient: diceCoefficient,
     MATCH_MIN: MATCH_MIN,
     MATCH_AMBIGUOUS: MATCH_AMBIGUOUS,
+    CHAT_RULES: CHAT_RULES,
     parseIntent: parseIntent,
     createPicker: createPicker,
     createContext: createContext,
