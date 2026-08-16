@@ -6176,7 +6176,16 @@ const voiceCtx = window.BuamVoice ? BuamVoice.createContext() : null;
 let voiceRec = null;
 let voiceListening = false;
 let voiceGotResult = false;
-let micDenied = false;          // set once the browser refuses; never nagged again
+/* iOS re-asks for the microphone on every launch of a Home Screen web app —
+   that part is the platform's, not ours. What is ours is what happens next:
+   start() frequently errors with "not-allowed" while the system dialog is
+   still on screen, before the user has answered it at all. Latching on that
+   single error left the whole session mute even when the answer was Allow.
+   So a refusal only sticks after two in a row; a successful start, or coming
+   back from the background, clears the count. */
+const MIC_REFUSALS_BEFORE_GIVING_UP = 2;
+let micRefusals = 0;
+function micGivenUp(){ return micRefusals >= MIC_REFUSALS_BEFORE_GIVING_UP; }
 let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
 let captionTimer = null;
 let idleTimer = null;
@@ -6516,6 +6525,7 @@ function startListening(){
 
   rec.onstart = ()=>{
     voiceListening = true;
+    micRefusals = 0;             // the microphone is clearly ours now
     setCoreState("listening");
     showCaption("Listening…", "interim");
   };
@@ -6539,9 +6549,9 @@ function startListening(){
   rec.onerror = e => {
     voiceListening = false;
     if(e.error === "not-allowed" || e.error === "service-not-allowed"){
-      micDenied = true;
+      micRefusals++;
       setCoreState("error");
-      voiceSay(voiceReply("micDenied"), "warn");
+      voiceSay(voiceReply(micGivenUp() ? "micDenied" : "micRetry"), "warn");
       return;
     }
     if(e.error === "network"){
@@ -6593,7 +6603,7 @@ function activateBuamCore(){
 
   // no recognition, or the microphone was refused earlier: behave exactly as
   // this button did before voice existed
-  if(!voiceSupported || micDenied){ speakBriefing(); return; }
+  if(!voiceSupported || micGivenUp()){ speakBriefing(); return; }
   startListening();
 }
 
@@ -6602,7 +6612,12 @@ function activateBuamCore(){
    app never opens getUserMedia itself, and recognition is dropped the moment
    the page is hidden so nothing survives the transition half-alive. */
 document.addEventListener("visibilitychange", ()=>{
-  if(!document.hidden) return;
+  if(!document.hidden){
+    // coming back is a fresh chance — the microphone may well have been
+    // granted while we were away, or in another tab
+    micRefusals = 0;
+    return;
+  }
   if(voiceListening){ stopListening(); setCoreState("idle"); showCaption(""); }
   pendingConfirm = null;
 });
