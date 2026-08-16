@@ -772,6 +772,14 @@
       "I only got half of that. Again?",
       "That came through fuzzy. Say it once more."
     ],
+    /* First refusal is often not a refusal at all — iOS answers start() with
+       "not-allowed" while its own permission dialog is still on screen. So the
+       first one asks for another tap; only a second one in a row gives up. */
+    micRetry: [
+      "Tap me again and choose Allow — I can't hear you until you do.",
+      "I need the microphone for that. One more tap, then Allow.",
+      "Give me the microphone and try that again."
+    ],
     micDenied: [
       "I can't hear anything without microphone access. You can turn it back on in your browser settings.",
       "Microphone's off, so I'm listening blind. Enable it in settings and tap me again."
