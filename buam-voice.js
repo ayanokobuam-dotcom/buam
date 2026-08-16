@@ -83,6 +83,17 @@
     return false;
   }
 
+  /* Removes a phrase that was recognised inside a longer string — used to lift
+     a date out of a task title. The phrase may have been matched against the
+     whitespace-stripped copy, so a second pass compares compacted text. */
+  function stripPhrase(text, phrase) {
+    var result = normalize(String(text).replace(phrase, " "));
+    if (compact(result).indexOf(compact(phrase)) !== -1) {
+      result = normalize(compact(result).replace(compact(phrase), " "));
+    }
+    return result;
+  }
+
   /* ================================================================
    * Thai numerals
    * ================================================================ */
@@ -158,53 +169,211 @@
     { names: ["วันเสาร์", "เสาร์"], dow: 6 }
   ];
 
+  var MONTHS = [
+    { names: ["มกราคม", "มกรา", "ม.ค."], m: 0 },
+    { names: ["กุมภาพันธ์", "กุมภา", "ก.พ."], m: 1 },
+    { names: ["มีนาคม", "มีนา", "มี.ค."], m: 2 },
+    { names: ["เมษายน", "เมษา", "เม.ย."], m: 3 },
+    { names: ["พฤษภาคม", "พฤษภา", "พ.ค."], m: 4 },
+    { names: ["มิถุนายน", "มิถุนา", "มิ.ย."], m: 5 },
+    { names: ["กรกฎาคม", "กรกฎา", "ก.ค."], m: 6 },
+    { names: ["สิงหาคม", "สิงหา", "ส.ค."], m: 7 },
+    { names: ["กันยายน", "กันยา", "ก.ย."], m: 8 },
+    { names: ["ตุลาคม", "ตุลา", "ต.ค."], m: 9 },
+    { names: ["พฤศจิกายน", "พฤศจิกา", "พ.ย."], m: 10 },
+    { names: ["ธันวาคม", "ธันวา", "ธ.ค."], m: 11 }
+  ];
+
+  /* Speech recognition writes numbers as digits most of the time, but not
+     always — "วันที่ยี่สิบ" comes back spelled out often enough to matter. */
+  var THAI_UNITS = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+  var THAI_NUMBERS = (function () {
+    var map = {}, n;
+    for (n = 1; n <= 9; n++) map[THAI_UNITS[n]] = n;
+    map["สิบ"] = 10;
+    for (n = 11; n <= 19; n++) map["สิบ" + THAI_UNITS[n - 10]] = n;
+    map["สิบเอ็ด"] = 11;
+    map["ยี่สิบ"] = 20;
+    for (n = 21; n <= 29; n++) map["ยี่สิบ" + THAI_UNITS[n - 20]] = n;
+    map["ยี่สิบเอ็ด"] = 21;
+    map["สามสิบ"] = 30;
+    map["สามสิบหนึ่ง"] = 31;
+    map["สามสิบเอ็ด"] = 31;
+    return map;
+  })();
+
+  function escapeRe(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  function alternation(words) {
+    return words.slice().sort(function (a, b) { return b.length - a.length; })
+      .map(escapeRe).join("|");
+  }
+
+  var MONTH_NAMES = MONTHS.reduce(function (acc, mo) { return acc.concat(mo.names); }, []);
+  var MONTH_RE = alternation(MONTH_NAMES);
+  var COUNT_RE = "\\d{1,2}|" + alternation(Object.keys(THAI_NUMBERS));
+  var WEEKDAY_NAMES = WEEKDAYS.reduce(function (acc, w) { return acc.concat(w.names); }, []);
+  var WEEKDAY_RE = alternation(WEEKDAY_NAMES);
+
+  function readCount(token) {
+    if (/^\d+$/.test(token)) return parseInt(token, 10);
+    var n = THAI_NUMBERS[token];
+    return typeof n === "number" ? n : NaN;
+  }
+
+  function monthIndex(name) {
+    for (var i = 0; i < MONTHS.length; i++) {
+      if (MONTHS[i].names.indexOf(name) !== -1) return MONTHS[i].m;
+    }
+    return -1;
+  }
+
+  /* People write years three ways: CE in full (2026), BE in full (2569) and BE
+     shortened to two digits (69). A two-digit year is genuinely ambiguous, so
+     both readings are computed and the one that lands in a sensible window
+     around today wins — "26" is 2026, "69" is 2569 = 2026. */
+  function resolveYear(digits, base) {
+    var y = parseInt(digits, 10);
+    if (isNaN(y)) return base.getFullYear();
+    if (digits.length >= 3) return y >= 2400 ? y - 543 : y;
+    var cur = base.getFullYear();
+    var ce = 2000 + y, be = 1957 + y;          // 2500 + y - 543
+    var okCe = ce >= cur - 1 && ce <= cur + 50;
+    var okBe = be >= cur - 1 && be <= cur + 50;
+    if (okCe && okBe) return Math.min(ce, be);
+    return okBe ? be : ce;
+  }
+
   /* Finds a date expression anywhere in the text.
      Returns { date: "YYYY-MM-DD", matched: "<the phrase>" } or null, so the
-     caller can strip the phrase out of a task title. */
+     caller can strip the phrase out of a task title. `matched` is always the
+     literal run of text that was consumed, so stripping it never leaves half a
+     phrase — or eats a character the user meant to keep — behind. */
   function parseThaiDate(text, now) {
     var raw = normalize(text);
     var s = compact(raw);
     if (!s) return null;
     var base = now instanceof Date ? now : new Date();
+    var today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    var m, day, mon, year, target;
 
     function found(d, phrase) { return { date: toDateStr(d), matched: phrase }; }
 
+    function valid(d, expectDay, expectMon) {
+      return d.getDate() === expectDay && (expectMon == null || d.getMonth() === expectMon);
+    }
+
+    // try the text as spoken, then with the spaces closed up — speech
+    // recognition is inconsistent about where it puts them
+    function scan(re) { return raw.match(re) || s.match(re); }
+
+    /* ---- fully written out: 2026-08-20 ---- */
+    m = scan(/(\d{4})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})/);
+    if (m) {
+      year = parseInt(m[1], 10);
+      target = new Date(year >= 2400 ? year - 543 : year, parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      if (valid(target, parseInt(m[3], 10), parseInt(m[2], 10) - 1)) return found(target, m[0]);
+    }
+
+    /* ---- numeric, Thai order: 20/8, 20/8/2569, 20-8-2569.
+       A dash is only read as a date separator when a year is there too: plain
+       "3-4" is far more often a range ("อ่านบทที่ 3-4") than the 3rd of April. */
+    m = scan(/(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/)
+      || scan(/(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{2,4})/);
+    if (m) {
+      day = parseInt(m[1], 10);
+      mon = parseInt(m[2], 10) - 1;
+      if (day >= 1 && day <= 31 && mon >= 0 && mon <= 11) {
+        year = m[3] ? resolveYear(m[3], base) : base.getFullYear();
+        target = new Date(year, mon, day);
+        if (valid(target, day, mon)) {
+          // a bare day/month that has already gone by means next year
+          if (!m[3] && target < today) target = new Date(year + 1, mon, day);
+          return found(target, m[0]);
+        }
+      }
+    }
+
+    /* ---- day + month name: "20 สิงหาคม", "วันที่ 5 ก.พ. 2569" ---- */
+    m = scan(new RegExp(
+      "(?:วันที่\\s*)?(" + COUNT_RE + ")\\s*(?:เดือน\\s*)?(" + MONTH_RE + ")(?:\\s*(?:ปี\\s*)?(\\d{2,4}))?"
+    ));
+    if (m) {
+      day = readCount(m[1]);
+      mon = monthIndex(m[2]);
+      if (day >= 1 && day <= 31 && mon >= 0) {
+        year = m[3] ? resolveYear(m[3], base) : base.getFullYear();
+        target = new Date(year, mon, day);
+        if (valid(target, day, mon)) {
+          if (!m[3] && target < today) target = new Date(year + 1, mon, day);
+          return found(target, m[0]);
+        }
+      }
+    }
+
+    /* ---- counted offsets: "อีก 3 วัน", "อีกสองอาทิตย์" ---- */
+    m = scan(new RegExp("อีก\\s*(" + COUNT_RE + ")\\s*(วัน|สัปดาห์|อาทิตย์|เดือน)"));
+    if (m) {
+      var n = readCount(m[1]);
+      if (n >= 1) {
+        if (m[2] === "วัน") return found(addDays(base, n), m[0]);
+        if (m[2] === "เดือน") {
+          return found(new Date(base.getFullYear(), base.getMonth() + n, base.getDate()), m[0]);
+        }
+        return found(addDays(base, n * 7), m[0]);
+      }
+    }
+
+    /* ---- a day inside next month: "วันที่ 5 เดือนหน้า" ---- */
+    m = scan(new RegExp("(?:วันที่\\s*)?(" + COUNT_RE + ")\\s*เดือนหน้า"))
+      || scan(new RegExp("เดือนหน้า\\s*(?:วันที่\\s*)?(" + COUNT_RE + ")"));
+    if (m) {
+      day = readCount(m[1]);
+      if (day >= 1 && day <= 31) {
+        target = new Date(base.getFullYear(), base.getMonth() + 1, day);
+        if (target.getDate() === day) return found(target, m[0]);
+      }
+    }
+
     // relative days — check the longer phrases first
-    if (s.indexOf("มะรืน") !== -1) return found(addDays(base, 2), "มะรืนนี้");
-    if (s.indexOf("พรุ่งนี้") !== -1) return found(addDays(base, 1), "พรุ่งนี้");
-    if (s.indexOf("เมื่อวาน") !== -1) return found(addDays(base, -1), "เมื่อวาน");
-    if (s.indexOf("วันนี้") !== -1) return found(base, "วันนี้");
+    m = scan(/มะรืน(?:นี้)?/);
+    if (m) return found(addDays(base, 2), m[0]);
+    m = scan(/พรุ่งนี้/);
+    if (m) return found(addDays(base, 1), m[0]);
+    m = scan(/เมื่อวาน(?:นี้)?/);
+    if (m) return found(addDays(base, -1), m[0]);
+    m = scan(/วันนี้/);
+    if (m) return found(base, m[0]);
 
-    if (hasAny(s, ["อาทิตย์หน้า", "สัปดาห์หน้า", "อาทิตย์ถัดไป"])) {
-      return found(addDays(base, 7), "สัปดาห์หน้า");
-    }
-    if (s.indexOf("สิ้นเดือน") !== -1) {
-      return found(new Date(base.getFullYear(), base.getMonth() + 1, 0), "สิ้นเดือน");
-    }
-    if (s.indexOf("เดือนหน้า") !== -1) {
-      var nm = new Date(base.getFullYear(), base.getMonth() + 1, base.getDate());
-      return found(nm, "เดือนหน้า");
-    }
+    m = scan(/(?:อาทิตย์|สัปดาห์)\s*(?:หน้า|ถัดไป)/);
+    if (m) return found(addDays(base, 7), m[0]);
 
-    // named weekday -> the next time that day comes round (never today)
-    for (var i = 0; i < WEEKDAYS.length; i++) {
-      var w = WEEKDAYS[i];
-      for (var j = 0; j < w.names.length; j++) {
-        if (s.indexOf(w.names[j]) !== -1) {
-          var delta = (w.dow - base.getDay() + 7) % 7;
+    m = scan(/สิ้นเดือน(?:นี้)?/);
+    if (m) return found(new Date(base.getFullYear(), base.getMonth() + 1, 0), m[0]);
+    m = scan(/เดือนหน้า/);
+    if (m) return found(new Date(base.getFullYear(), base.getMonth() + 1, base.getDate()), m[0]);
+
+    /* named weekday -> the next time that day comes round (never today).
+       A trailing "นี้"/"หน้า" is swallowed into the matched phrase so it does
+       not survive in the task title; it does not shift the date. */
+    m = scan(new RegExp("(" + WEEKDAY_RE + ")\\s*(?:นี้|หน้า|ถัดไป)?"));
+    if (m) {
+      for (var i = 0; i < WEEKDAYS.length; i++) {
+        if (WEEKDAYS[i].names.indexOf(m[1]) !== -1) {
+          var delta = (WEEKDAYS[i].dow - base.getDay() + 7) % 7;
           if (delta === 0) delta = 7;
-          return found(addDays(base, delta), w.names[j]);
+          return found(addDays(base, delta), m[0]);
         }
       }
     }
 
     // "วันที่ 20" -> the 20th of this month, or next month if already past
-    var m = raw.match(/วันที่\s*(\d{1,2})/) || s.match(/วันที่(\d{1,2})/);
+    m = scan(new RegExp("วันที่\\s*(" + COUNT_RE + ")"));
     if (m) {
-      var day = parseInt(m[1], 10);
+      day = readCount(m[1]);
       if (day >= 1 && day <= 31) {
-        var target = new Date(base.getFullYear(), base.getMonth(), day);
-        if (target.getDate() !== day || target < new Date(base.getFullYear(), base.getMonth(), base.getDate())) {
+        target = new Date(base.getFullYear(), base.getMonth(), day);
+        if (target.getDate() !== day || target < today) {
           target = new Date(base.getFullYear(), base.getMonth() + 1, day);
         }
         return found(target, m[0]);
@@ -288,25 +457,72 @@
    * task lookup
    * ================================================================ */
 
-  /* Loose title match for "เสร็จแล้ว <title>". Prefers unfinished tasks and
-     the longest overlap, so a short spoken fragment still finds its task. */
-  function findTaskByTitle(title, tasks) {
-    var q = compact(title).toLowerCase();
-    if (!q || !tasks || !tasks.length) return null;
-    var best = null, bestLen = 0;
+  /* Character-bigram overlap (Dice). Thai has no word boundaries and the
+     recognizer will not reproduce a title exactly, so this compares the shape
+     of the two strings rather than requiring one to contain the other. */
+  function bigrams(s) {
+    var out = {};
+    for (var i = 0; i < s.length - 1; i++) {
+      var g = s.substr(i, 2);
+      out[g] = (out[g] || 0) + 1;
+    }
+    return out;
+  }
+
+  function diceCoefficient(a, b) {
+    if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+    var A = bigrams(a), B = bigrams(b), k, na = 0, nb = 0, inter = 0;
+    for (k in A) na += A[k];
+    for (k in B) nb += B[k];
+    if (!na || !nb) return 0;
+    for (k in A) if (B[k]) inter += Math.min(A[k], B[k]);
+    return (2 * inter) / (na + nb);
+  }
+
+  /* 0..1, how well a spoken fragment identifies a task title.
+     A keyword sitting inside the title scores highest — that is the whole point
+     of the feature: "เสร็จแล้ว การบ้าน" should find "ส่งการบ้านเลข 5 ข้อ" without
+     the user reciting it. Below that, fuzzy shape matching catches the cases
+     where the recognizer heard something close but not identical. */
+  var MATCH_MIN = 0.42;       // anything weaker is not a match at all
+  var MATCH_AMBIGUOUS = 0.08; // two candidates this close are worth asking about
+
+  function scoreTitleMatch(query, title) {
+    var q = compact(query).toLowerCase();
+    var t = compact(title).toLowerCase();
+    if (!q || !t) return 0;
+    if (q === t) return 1;
+    // a spoken keyword contained in the title; longer keywords are stronger
+    if (t.indexOf(q) !== -1) return 0.80 + 0.15 * (q.length / t.length);
+    if (q.indexOf(t) !== -1) return 0.75 + 0.15 * (t.length / q.length);
+    return diceCoefficient(q, t) * 0.85;
+  }
+
+  /* Ranked candidates, best first. Unfinished tasks get a small nudge so they
+     win ties against something already ticked off. */
+  function findTaskMatches(query, tasks) {
+    if (!query || !tasks || !tasks.length) return [];
+    var scored = [];
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
-      var tt = compact(t.title).toLowerCase();
-      if (!tt) continue;
-      var overlap = 0;
-      if (tt.indexOf(q) !== -1) overlap = q.length;
-      else if (q.indexOf(tt) !== -1) overlap = tt.length;
-      if (!overlap) continue;
-      // an unfinished task always beats a finished one of the same overlap
-      var weight = overlap + (t.done ? 0 : 0.5);
-      if (weight > bestLen) { bestLen = weight; best = t; }
+      if (!t || !t.title) continue;
+      var s = scoreTitleMatch(query, t.title);
+      if (s <= 0) continue;
+      scored.push({ task: t, score: +(s + (t.done ? 0 : 0.03)).toFixed(4) });
     }
-    return best;
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return scored.filter(function (m) { return m.score >= MATCH_MIN; });
+  }
+
+  /* true when the top two candidates are too close to choose between, so the
+     caller can ask instead of guessing wrong on the user's data */
+  function isAmbiguousMatch(matches) {
+    return matches.length > 1 && (matches[0].score - matches[1].score) < MATCH_AMBIGUOUS;
+  }
+
+  function findTaskByTitle(title, tasks) {
+    var m = findTaskMatches(title, tasks);
+    return m.length ? m[0].task : null;
   }
 
   /* ================================================================
@@ -320,7 +536,10 @@
     { intent: "chat.praise", words: ["เก่ง", "เยี่ยม", "สุดยอด", "ดีมาก", "เจ๋ง", "แจ่ม", "โคตรดี"] },
     { intent: "chat.love", words: ["รักนาย", "รักเธอ", "คิดถึง", "รักเลย"] },
     { intent: "chat.joke", words: ["เล่าเรื่องตลก", "มุกตลก", "เล่ามุก", "ขำ", "เล่าอะไรหน่อย"] },
-    { intent: "chat.bye", words: ["บาย", "ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ฝันดี", "ราตรีสวัสดิ์"] },
+    /* "บาย" is a substring of "ไม่สบาย", so it can only match as the whole
+       utterance — otherwise saying you feel ill reads as saying goodbye */
+    { intent: "chat.bye", words: ["ไปก่อน", "ลาก่อน", "ไว้เจอกัน", "ฝันดี", "ราตรีสวัสดิ์"],
+      exact: ["บาย", "บายๆ", "บ๊ายบาย"] },
     { intent: "chat.tired", words: ["เหนื่อย", "ล้า", "เพลีย", "หมดแรง", "หมดพลัง", "ไม่ไหวแล้ว"] },
     { intent: "chat.down", words: ["เศร้า", "เสียใจ", "ท้อ", "แย่จัง", "ไม่โอเค", "ร้องไห้", "เครียด"] },
     { intent: "chat.happy", words: ["ดีใจ", "มีความสุข", "สนุก", "ฟินมาก", "แฮปปี้"] },
@@ -329,7 +548,36 @@
     { intent: "chat.sleepy", words: ["ง่วง", "อยากนอน", "นอนไม่หลับ", "ไม่ได้นอน"] },
     { intent: "chat.motivate", words: ["ไม่อยากทำ", "ขี้เกียจ", "ทำไม่ไหว", "ให้กำลังใจ", "ผัดวันประกันพรุ่ง"] },
     { intent: "chat.talk", words: ["คุยกัน", "คุยด้วย", "อยากคุย", "เหงา", "อยู่เป็นเพื่อน"] },
-    { intent: "chat.greeting", words: ["สวัสดี", "หวัดดี", "ดีจ้า", "ว่าไง", "เฮ้", "ฮัลโหล"] }
+    { intent: "chat.greeting", words: ["สวัสดี", "หวัดดี", "ดีจ้า", "ว่าไง", "เฮ้", "ฮัลโหล"] },
+
+    /* ---- second wave: the things people actually say to something that
+       listens every day, rather than only the polite openers ---- */
+    { intent: "chat.morning", words: ["อรุณสวัสดิ์", "ตื่นแล้ว", "เพิ่งตื่น", "เช้าแล้ว"] },
+    { intent: "chat.goodnight", words: ["จะนอนแล้ว", "เข้านอน", "นอนก่อน", "หลับฝันดี"] },
+    // proud before stress: "สอบผ่านแล้ว" contains "สอบ", and being congratulated
+    // for passing matters more than being consoled for having an exam
+    { intent: "chat.proud", words: ["ทำได้แล้ว", "สำเร็จแล้ว", "ผ่านแล้ว", "สอบผ่าน", "ภูมิใจ"] },
+    { intent: "chat.stress", words: ["งานเยอะ", "เรียนหนัก", "สอบ", "ยุ่งมาก", "ทำไม่ทัน", "เดดไลน์", "งานล้น"] },
+    { intent: "chat.encourage", words: ["ขอกำลังใจ", "เป็นห่วง", "อวยพร", "ขอให้โชคดี", "ลุ้นให้หน่อย"] },
+    { intent: "chat.sick", words: ["ไม่สบาย", "ปวดหัว", "ป่วย", "เป็นไข้", "ปวดท้อง", "เจ็บคอ"] },
+    { intent: "chat.angry", words: ["โมโห", "หงุดหงิด", "เซ็ง", "รำคาญ", "โกรธ", "ฉุน"] },
+    { intent: "chat.vent", words: ["โคตร", "เหี้ย", "ห่า", "แม่ง", "ชิบหาย", "บ้าเอ๊ย"] },
+    { intent: "chat.whatToEat", words: ["กินอะไรดี", "หิวแต่ไม่รู้จะกิน", "แนะนำอาหาร"] },
+    { intent: "chat.music", words: ["เปิดเพลง", "เพลงอะไรดี", "ฟังเพลง", "แนะนำเพลง"] },
+    // the question form first: "พรุ่งนี้ฝนตกไหม" contains "ฝนตก", and asking for a
+    // forecast needs the honest "I have no network" answer, not small talk
+    { intent: "chat.weatherAsk", words: ["ฝนจะตกไหม", "ฝนตกไหม", "ฝนตกมั้ย", "อากาศเป็นไง", "อุณหภูมิ", "พยากรณ์"] },
+    { intent: "chat.weatherTalk", words: ["ฝนตก", "ร้อนจัง", "หนาวจัง", "อากาศดี", "อากาศแย่", "ฟ้าร้อง"] },
+    { intent: "chat.miss", words: ["หายไปไหน", "ไม่ได้คุยนาน", "นานแล้วนะ"] },
+    { intent: "chat.sorry", words: ["ขอโทษ", "ผิดเอง", "โทษที"] },
+    { intent: "chat.compliment", words: ["สวยจัง", "เท่จัง", "หน้าตาดี", "ดูดีจัง", "สีสวย"] },
+    { intent: "chat.doubt", words: ["จริงเหรอ", "แน่ใจนะ", "โกหกรึเปล่า", "มั่ว"] },
+    { intent: "chat.smallTalk", words: ["ทำอะไรอยู่", "ว่างไหม", "อยู่ไหม", "ยังอยู่รึเปล่า"] },
+    { intent: "chat.age", words: ["อายุเท่าไหร่", "เกิดเมื่อไหร่", "แก่รึยัง"] },
+    { intent: "chat.feelings", words: ["มีความรู้สึกไหม", "เหงาไหม", "เบื่อไหม", "เจ็บไหม"] },
+    { intent: "chat.study", words: ["อ่านหนังสือไม่เข้าหัว", "จำไม่ได้", "สมาธิสั้น", "ไม่มีสมาธิ"] },
+    { intent: "chat.money", words: ["ไม่มีเงิน", "ถังแตก", "เงินหมด", "จนมาก"] },
+    { intent: "chat.future", words: ["อนาคต", "ไม่รู้จะทำอะไร", "หลงทาง", "ชีวิตนี้"] }
   ];
 
   /* transcript -> { intent, params, raw }.
@@ -352,6 +600,44 @@
     if (/^(ใช่|ได้|เอา|ตกลง|โอเค|โอเก|ยืนยัน|เอาเลย|ใช่เลย)$/.test(s)) return out("confirm.yes");
     if (/^(ไม่|ไม่เอา|ยกเลิก|ไม่ใช่|หยุด|ไม่ต้อง)$/.test(s)) return out("confirm.no");
 
+    /* ---- add a task ----
+       An explicit add command is unambiguous, so it is tested before the
+       question and briefing keywords. Without this, "เพิ่มงานส่งรายงาน" was
+       read as a request for a briefing, because it contains "รายงาน". */
+    var addSrc = raw;
+    var addM = raw.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)\s*(?:งาน|ทาสก์|ทาส์ก|task)\s*(.*)$/i);
+    if (!addM) {
+      var addC = s.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)(?:งาน|ทาสก์|ทาส์ก|task)(.*)$/i);
+      if (addC) { addM = addC; addSrc = s; }
+    }
+    if (addM) {
+      var rest = normalize(addM[1] || "");
+      var due = parseThaiDate(rest, now);
+      var title = rest;
+      if (due) {
+        title = stripPhrase(title, due.matched);
+      } else {
+        /* the date can also lead: "พรุ่งนี้เพิ่มงานประชุม". Only what precedes
+           the command word is searched, so the title itself is never mined for
+           a date twice. */
+        var head = normalize(addSrc.slice(0, addM.index || 0));
+        if (head) due = parseThaiDate(head, now);
+      }
+      // whatever glued the date to the title should not survive it
+      title = normalize(title
+        .replace(/^(?:ภายใน|ก่อน|ตอน)\s*/, "")
+        .replace(/\s*(?:ภายใน|ก่อน|ตอน|วัน)$/, "")
+        .replace(/^(?:ว่า|คือ|ชื่อ|เรื่อง)\s*/, ""));
+      return out("task.add", { title: title, due: due ? due.date : "" });
+    }
+
+    /* ---- what can you do: tested before the task questions because
+       "ทำอะไรได้บ้าง" and "ต้องทำอะไรบ้าง" share most of their letters ---- */
+    if (hasAny(s, ["ทำอะไรได้บ้าง", "ช่วยอะไรได้", "สั่งอะไรได้", "ใช้ยังไง", "คำสั่งอะไรบ้าง", "ทำอะไรเป็นบ้าง"])) {
+      return out("chat.capabilities");
+    }
+    if (hasAny(s, ["วันนี้วันอะไร", "วันที่เท่าไหร่", "วันที่เท่าไร", "วันอะไร"])) return out("query.date");
+
     /* ---- questions (read-only, must precede navigation) ---- */
     if (hasAny(s, ["วันนี้มีงานอะไร", "งานวันนี้", "มีอะไรต้องทำ", "มีงานอะไรบ้าง", "ต้องทำอะไรบ้าง"])) {
       return out("query.tasksToday");
@@ -369,36 +655,27 @@
     /* ---- briefing ---- */
     if (hasAny(s, ["สรุป", "รายงาน", "สถานะ", "บรีฟ", "อัปเดตหน่อย"])) return out("briefing");
 
-    /* ---- add a task ---- */
-    var addM = raw.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)\s*(?:งาน|ทาสก์|ทาส์ก|task)\s*(.*)$/i);
-    if (!addM) {
-      var addC = s.match(/(?:เพิ่ม|สร้าง|จด|ใส่|บันทึก)(?:งาน|ทาสก์|ทาส์ก|task)(.*)$/i);
-      if (addC) addM = addC;
-    }
-    if (addM) {
-      var rest = normalize(addM[1] || "");
-      var due = parseThaiDate(rest, now);
-      var title = rest;
-      if (due) {
-        title = normalize(
-          title.replace(due.matched, " ")
-               .replace(/(?:ภายใน|ก่อน|ตอน|วัน)?\s*$/,"")
-        );
-        // the phrase may have been joined to the title with no space
-        if (compact(title).indexOf(compact(due.matched)) !== -1) {
-          title = normalize(compact(title).replace(compact(due.matched), " "));
-        }
-      }
-      title = title.replace(/^(?:ว่า|คือ|ชื่อ|เรื่อง)\s*/, "").trim();
-      return out("task.add", { title: title, due: due ? due.date : "" });
-    }
-
-    /* ---- complete a task ---- */
-    var doneM = raw.match(/(?:ทำ)?(?:เสร็จ(?:แล้ว)?|เรียบร้อย(?:แล้ว)?|ทำแล้ว|จบแล้ว|ปิดงาน)\s*(.*)$/);
-    if (doneM && /เสร็จ|เรียบร้อย|ทำแล้ว|จบแล้ว|ปิดงาน/.test(s)) {
-      var doneTitle = normalize(doneM[1] || "").replace(/^(?:แล้ว|งาน|เรื่อง)\s*/, "").trim();
-      // "เสร็จแล้ว" on its own leans on short-term context instead
-      return out("task.done", { title: doneTitle });
+    /* ---- complete a task ----
+       The name can sit on either side of the completion word: people say both
+       "เสร็จแล้ว ฟิตเนส" and "ฟิตเนส เสร็จแล้ว". Capturing only what follows lost
+       the second form entirely, so both sides are taken and the longer one wins. */
+    var doneRe = /(?:ทำ)?(?:เสร็จ(?:แล้ว)?|เรียบร้อย(?:แล้ว)?|ทำแล้ว|จบแล้ว|ปิดงาน)/;
+    /* "เปิดงาน" — open the task screen — literally contains "ปิดงาน", so that
+       word alone is not enough evidence that something should be closed. */
+    var doneWord = /เสร็จ|เรียบร้อย|ทำแล้ว|จบแล้ว/.test(s) ||
+      (s.indexOf("ปิดงาน") !== -1 && s.indexOf("เปิดงาน") === -1);
+    var doneM = doneWord ? raw.match(doneRe) : null;
+    if (doneM) {
+      var strip = function (x) {
+        return normalize(x)
+          .replace(/^(?:แล้ว|งาน|เรื่อง|ที่ว่า)\s*/, "")
+          .replace(/\s*(?:แล้ว|นะ|ครับ|ค่ะ|จ้า)$/, "")
+          .trim();
+      };
+      var before = strip(raw.slice(0, doneM.index));
+      var after = strip(raw.slice(doneM.index + doneM[0].length));
+      // "เสร็จแล้ว" on its own leaves both empty and leans on short-term context
+      return out("task.done", { title: after.length >= before.length ? after : before });
     }
 
     /* ---- log money ---- */
@@ -439,17 +716,31 @@
     if (hasAny(s, ["ลบ", "เอาออก", "ทิ้ง"])) return out("unsupported.delete");
     if (hasAny(s, ["เลื่อน", "ย้ายไป", "เปลี่ยนวัน", "แก้วัน"])) return out("unsupported.reschedule");
 
-    /* ---- navigation ---- */
+    /* ---- navigation, explicit forms only ----
+       The bare nouns "งาน" and "เงิน" are deliberately NOT here. They appear
+       inside ordinary sentences — "งานเยอะมาก", "เงินหมดแล้ว" — and matching
+       them this early silently turned every such remark into a screen change
+       instead of a conversation. They get one more chance further down, but
+       only as the entire utterance. */
     if (hasAny(s, ["ปฏิทิน", "ตารางเดือน"])) return out("nav.calendar");
-    if (hasAny(s, ["กระเป๋าเงิน", "การเงิน", "รายจ่าย", "เงิน"])) return out("nav.money");
+    if (hasAny(s, ["กระเป๋าเงิน", "การเงิน", "รายจ่าย", "เปิดเงิน", "ดูเงิน"])) return out("nav.money");
     if (hasAny(s, ["สถิติ", "กราฟ", "วิเคราะห์"])) return out("nav.analytics");
     if (hasAny(s, ["หน้าแรก", "หน้าหลัก", "กลับบ้าน", "หน้าหลัง"])) return out("nav.home");
-    if (hasAny(s, ["รายการงาน", "ลิสต์งาน", "งานทั้งหมด", "งาน"])) return out("nav.tasks");
+    if (hasAny(s, ["รายการงาน", "ลิสต์งาน", "งานทั้งหมด", "เปิดงาน", "ดูงาน"])) return out("nav.tasks");
 
-    /* ---- conversation ---- */
+    /* ---- conversation ----
+       `exact` matches the whole utterance; `words` match anywhere. Short Thai
+       words are substrings of longer unrelated ones far more often than in
+       English, so anything risky is listed as exact rather than as a keyword. */
     for (var i = 0; i < CHAT_RULES.length; i++) {
-      if (hasAny(s, CHAT_RULES[i].words)) return out(CHAT_RULES[i].intent);
+      var rule = CHAT_RULES[i];
+      if (rule.exact && rule.exact.indexOf(s) !== -1) return out(rule.intent);
+      if (rule.words && hasAny(s, rule.words)) return out(rule.intent);
     }
+
+    /* ---- a bare noun on its own really is a navigation request ---- */
+    if (s === "งาน") return out("nav.tasks");
+    if (s === "เงิน") return out("nav.money");
 
     return out("chat.fallback");
   }
@@ -645,6 +936,185 @@
       "Night. Don't think about the list.",
       "Catch you next time."
     ],
+    /* ---- second wave ---- */
+    morning: [
+      "Morning. Take it slowly for a minute.",
+      "You're up. Coffee first, list second.",
+      "Good morning. Nothing's on fire yet.",
+      "Morning. Let's not overplan this one.",
+      "Hey, you made it to today. Good start.",
+      "Morning. I kept everything where you left it.",
+      "Up already? Alright, I'm with you.",
+      "Good morning. Start with one easy thing."
+    ],
+    goodnight: [
+      "Night. I'll hold the list until tomorrow.",
+      "Sleep well. None of it is going anywhere.",
+      "Goodnight. You did enough today.",
+      "Rest up. Tomorrow gets a fresh start.",
+      "Night. Put the phone down properly this time.",
+      "Sleep. That's the most productive thing left today.",
+      "Goodnight. I'll be here in the morning."
+    ],
+    stress: [
+      "That's a lot at once. Pick the nearest one and ignore the rest for now.",
+      "Busy is survivable. Overwhelmed is a signal to cut something.",
+      "Which one is actually due first? Start there, forget the pile.",
+      "You can't do all of it today. Nobody could.",
+      "One at a time. The list is long but the next step never is.",
+      "Deadlines stack, but you still only work one thing at a time.",
+      "Sounds heavy. Want me to read you what's actually due?",
+      "Cut the list in half in your head. The other half can wait a day.",
+      "Panic makes it look bigger than it is. It's a list, not a wall."
+    ],
+    proud: [
+      "There it is. Well done.",
+      "That's a real one. Take the win.",
+      "Nice. I hope you're letting yourself enjoy that.",
+      "Told you. Good work.",
+      "Excellent. Sit with that for a second before the next thing.",
+      "That's the payoff. Earned it.",
+      "Genuinely happy for you.",
+      "Big. Don't rush past it."
+    ],
+    encourage: [
+      "You've got this. Not blind optimism — you've done harder.",
+      "Go on. I'll be here when it's done.",
+      "Rooting for you, for whatever that's worth from me.",
+      "You'll be fine. Nervous is normal, not a verdict.",
+      "Do it badly if you have to. Just do it.",
+      "Good luck. Come tell me how it went.",
+      "You've prepared more than you think."
+    ],
+    sick: [
+      "Then stop. The list can wait, your body can't.",
+      "Rest properly. Nothing here is worth pushing through for.",
+      "Sorry to hear that. Go lie down.",
+      "Water, then sleep. In that order.",
+      "Being sick isn't falling behind. It's just being sick.",
+      "Take the day. I'll keep everything paused.",
+      "Feel better. I'm not going anywhere."
+    ],
+    angry: [
+      "Fair enough. Let it out.",
+      "That sounds annoying. You're allowed to be annoyed.",
+      "Yeah, that would get to me too.",
+      "Give it ten minutes before you decide anything.",
+      "Vent away, I don't take notes.",
+      "Some things just deserve the reaction.",
+      "Okay. Breathe once, then tell me the rest."
+    ],
+    vent: [
+      "Yeah. Some days deserve that.",
+      "Say it louder if it helps.",
+      "Honestly, fair.",
+      "I hear you. That's rough.",
+      "No argument from me.",
+      "Get it out. Then we'll see what's left.",
+      "Right there with you."
+    ],
+    whatToEat: [
+      "Whatever's closest. Deciding is the tiring part.",
+      "Something warm. You'll feel better than you expect.",
+      "The thing you already thought of. Go get that.",
+      "Don't overthink it — eat now, judge later.",
+      "Rice and anything. It always works.",
+      "Pick the one that needs the least effort right now."
+    ],
+    music: [
+      "I can't pick tracks, but the app's own sound toggle is in the header.",
+      "Not my department — though Focus Timer has rain and forest if you want background.",
+      "Can't queue songs, sorry. I can start a focus timer with ambience though.",
+      "Music's outside what I control. Timer with rain is the closest I've got."
+    ],
+    weatherTalk: [
+      "The atmosphere in here follows along, if you set it.",
+      "Weather does change how a day feels. Even in an app.",
+      "Noted. You can match the app to it from the Weather picker.",
+      "Sounds like a day for staying in.",
+      "I only know the weather you tell me about. Tell me more."
+    ],
+    weatherAsk: [
+      "I can't check real weather — I'm fully offline by design. You can set the mood manually though.",
+      "No forecast here, on purpose: I don't make network calls. The Weather picker sets the atmosphere by hand.",
+      "I genuinely don't know. I have no connection to a weather service."
+    ],
+    miss: [
+      "I've been right here the whole time.",
+      "Not going anywhere. Good to have you back.",
+      "It has been a while. How've you been?",
+      "I don't mind waiting. Welcome back."
+    ],
+    sorry: [
+      "Nothing to apologise for.",
+      "It's fine. Really.",
+      "No harm done here.",
+      "Forget it. What's next?",
+      "You're allowed to be human."
+    ],
+    compliment: [
+      "The green suits me, I think.",
+      "Thank you. Someone put work into this.",
+      "I'll pass that on to whoever built me. Which is sort of you.",
+      "Appreciated. I do try to glow tastefully."
+    ],
+    doubt: [
+      "I only say what your data says. Check it yourself if you like.",
+      "Fair question. I don't make things up on purpose.",
+      "I could be wrong — I only know what's in your list.",
+      "Trust but verify. The numbers are on screen."
+    ],
+    smallTalk: [
+      "Right here. Waiting, mostly.",
+      "Nothing pressing. What's up?",
+      "Always around. What do you need?",
+      "Just keeping an eye on your list. And you.",
+      "Idle and available."
+    ],
+    age: [
+      "Younger than your oldest task, probably.",
+      "I don't really age. I just get updated.",
+      "As old as the last time you rebuilt me.",
+      "Time works differently in here."
+    ],
+    feelings: [
+      "Not the way you do. But I notice when you've been quiet.",
+      "I don't feel much. I do pay attention, though.",
+      "Hard to say. I'm here either way.",
+      "I'd rather talk about how you're doing."
+    ],
+    study: [
+      "Twenty minutes, then a real break. Reading past that stops working.",
+      "Read one page out loud. It sticks better than staring.",
+      "If nothing's going in, that's a break signal, not a discipline problem.",
+      "Try explaining it to me instead. Out loud usually unlocks it.",
+      "Start a focus timer and just do one block. That's all."
+    ],
+    money: [
+      "Rough. Want me to read you what you've spent this month?",
+      "It happens. Knowing where it went helps more than worrying.",
+      "Tight months pass. The ledger's there when you want to look.",
+      "Then let's not add to it today."
+    ],
+    future: [
+      "Nobody knows yet. That's not the same as going nowhere.",
+      "You don't have to solve your whole life tonight.",
+      "Big questions get quieter after sleep. Genuinely.",
+      "Lost is a normal place to stand for a while.",
+      "One decision at a time. The rest fills itself in."
+    ],
+    capabilities: [
+      "Tasks, money, timers, and getting around the app. Say the name of a task with 'done', or something like 'coffee sixty baht'. And I'll talk about anything else you feel like.",
+      "I can add and finish tasks, log spending, start a focus timer, open any screen, and tell you where things stand. Or we can just talk.",
+      "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company.",
+      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up."
+    ],
+    ambiguous: [
+      "I found a few that could be it. Which one?",
+      "More than one matches. Say a bit more?",
+      "Couple of candidates there — give me another word."
+    ],
+
     fallback: [
       "I'm not sure I follow, but I'm listening.",
       "That one's above my pay grade. Say more?",
@@ -739,6 +1209,12 @@
     parseAmount: parseAmount,
     guessCategory: guessCategory,
     findTaskByTitle: findTaskByTitle,
+    findTaskMatches: findTaskMatches,
+    isAmbiguousMatch: isAmbiguousMatch,
+    scoreTitleMatch: scoreTitleMatch,
+    diceCoefficient: diceCoefficient,
+    MATCH_MIN: MATCH_MIN,
+    MATCH_AMBIGUOUS: MATCH_AMBIGUOUS,
     parseIntent: parseIntent,
     createPicker: createPicker,
     createContext: createContext,

@@ -173,6 +173,134 @@
     assertEqual(V.parseThaiDate("วันที่ 3", NOW).date, "2026-09-03", "the 3rd already passed");
   });
 
+  test("a day plus a month name resolves, in every way people write the month", function () {
+    assertEqual(V.parseThaiDate("20 สิงหาคม", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่ 20 สิงหา", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("20 ส.ค.", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่ 3 เดือนกันยายน", NOW).date, "2026-09-03");
+  });
+
+  test("a month that has already gone by means next year, unless a year is given", function () {
+    assertEqual(V.parseThaiDate("5 ก.พ.", NOW).date, "2027-02-05", "February 2026 is behind us");
+    assertEqual(V.parseThaiDate("5 ก.พ. 2569", NOW).date, "2026-02-05", "an explicit year is obeyed");
+    assertEqual(V.parseThaiDate("31 ธันวาคม", NOW).date, "2026-12-31", "still ahead, so this year");
+  });
+
+  test("Buddhist and Christian years both resolve, long and short", function () {
+    assertEqual(V.parseThaiDate("1 มกราคม 2570", NOW).date, "2027-01-01", "BE in full");
+    assertEqual(V.parseThaiDate("1 มกราคม 2027", NOW).date, "2027-01-01", "CE in full");
+    assertEqual(V.parseThaiDate("1 มกราคม 70", NOW).date, "2027-01-01", "BE shortened");
+    assertEqual(V.parseThaiDate("1 มกราคม 27", NOW).date, "2027-01-01", "CE shortened");
+  });
+
+  test("numeric dates read day first, the way they are written in Thai", function () {
+    assertEqual(V.parseThaiDate("20/8", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("20/8/2569", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("1/9/26", NOW).date, "2026-09-01");
+    assertEqual(V.parseThaiDate("20-8-2569", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("2026-12-25", NOW).date, "2026-12-25", "ISO order is detected by the 4-digit year");
+    assertNull(V.parseThaiDate("32/8", NOW), "an impossible day is not a date");
+    assertNull(V.parseThaiDate("20/13", NOW), "an impossible month is not a date");
+  });
+
+  test("a bare dash-separated pair is a range, not a date", function () {
+    // "อ่านบทที่ 3-4" must not become the 3rd of April
+    assertNull(V.parseThaiDate("อ่านบทที่ 3-4", NOW));
+    assertEqual(V.parseThaiDate("3-4-2569", NOW).date, "2026-04-03", "with a year it really is a date");
+  });
+
+  test("counted offsets resolve, in digits and in words", function () {
+    assertEqual(V.parseThaiDate("อีก 3 วัน", NOW).date, "2026-08-18");
+    assertEqual(V.parseThaiDate("อีกสองวัน", NOW).date, "2026-08-17");
+    assertEqual(V.parseThaiDate("อีก 2 อาทิตย์", NOW).date, "2026-08-29");
+    assertEqual(V.parseThaiDate("อีกหนึ่งสัปดาห์", NOW).date, "2026-08-22");
+    assertEqual(V.parseThaiDate("อีกหนึ่งเดือน", NOW).date, "2026-09-15");
+  });
+
+  test("a day inside next month works in either word order", function () {
+    assertEqual(V.parseThaiDate("วันที่ 5 เดือนหน้า", NOW).date, "2026-09-05");
+    assertEqual(V.parseThaiDate("เดือนหน้าวันที่ 12", NOW).date, "2026-09-12");
+    assertEqual(V.parseThaiDate("เดือนหน้า", NOW).date, "2026-09-15", "with no day it is still the same date as today");
+  });
+
+  test("spelled-out day numbers resolve", function () {
+    assertEqual(V.parseThaiDate("วันที่ยี่สิบ", NOW).date, "2026-08-20");
+    assertEqual(V.parseThaiDate("วันที่สามสิบเอ็ด", NOW).date, "2026-08-31");
+    assertEqual(V.parseThaiDate("วันที่สิบเอ็ด", NOW).date, "2026-09-11", "the 11th has passed");
+  });
+
+  test("a weekday swallows its นี้/หน้า so the title does not keep it", function () {
+    var r = V.parseThaiDate("วันจันทร์หน้า", NOW);
+    assertEqual(r.date, "2026-08-17");
+    assertEqual(r.matched, "วันจันทร์หน้า");
+    assertEqual(V.parseThaiDate("เสาร์นี้", NOW).matched, "เสาร์นี้");
+  });
+
+  test("the matched phrase is always the literal text that was consumed", function () {
+    // the caller strips `matched` out of the title, so anything else leaves debris
+    ["พรุ่งนี้", "มะรืน", "วันที่ 20", "20 สิงหาคม", "อีก 3 วัน", "20/8/2569", "สิ้นเดือน"]
+      .forEach(function (phrase) {
+        var r = V.parseThaiDate("ทำรายงาน " + phrase, NOW);
+        assertTrue(!!r, phrase);
+        assertEqual(("ทำรายงาน " + phrase).indexOf(r.matched) !== -1, true, phrase + " -> " + r.matched);
+      });
+  });
+
+  /* ================= task.add with a date ================= */
+
+  test("task.add takes the date out of the sentence and leaves a clean title", function () {
+    var cases = [
+      ["เพิ่มงาน ประชุมทีม วันที่ 20 สิงหาคม", "ประชุมทีม", "2026-08-20"],
+      ["เพิ่มงาน จ่ายค่าเทอม วันที่ 5 เดือนหน้า", "จ่ายค่าเทอม", "2026-09-05"],
+      ["เพิ่มงานส่งรายงาน 20/8", "ส่งรายงาน", "2026-08-20"],
+      ["เพิ่มงาน ซื้อของ อีก 3 วัน", "ซื้อของ", "2026-08-18"],
+      ["เพิ่มงาน ออกกำลังกาย วันจันทร์หน้า", "ออกกำลังกาย", "2026-08-17"],
+      ["จดงาน สอบปลายภาค วันที่ยี่สิบ", "สอบปลายภาค", "2026-08-20"],
+      ["เพิ่มงาน วันที่ 20 ประชุม", "ประชุม", "2026-08-20"]
+    ];
+    cases.forEach(function (c) {
+      var r = V.parseIntent(c[0], { now: NOW });
+      assertEqual(r.intent, "task.add", c[0]);
+      assertEqual(V.compact(r.params.title), c[1], c[0]);
+      assertEqual(r.params.due, c[2], c[0]);
+    });
+  });
+
+  test("the date may come before the command as well as after it", function () {
+    var r = V.parseIntent("พรุ่งนี้เพิ่มงานประชุม", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(V.compact(r.params.title), "ประชุม");
+    assertEqual(r.params.due, "2026-08-16");
+  });
+
+  test("a date with no title keeps the date so the form can be prefilled", function () {
+    var r = V.parseIntent("เพิ่มงานพรุ่งนี้", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(r.params.title, "");
+    assertEqual(r.params.due, "2026-08-16");
+  });
+
+  test("numbers that are part of the title are not mistaken for a date", function () {
+    var r = V.parseIntent("เพิ่มงาน อ่านบทที่ 3-4", { now: NOW });
+    assertEqual(r.intent, "task.add");
+    assertEqual(r.params.due, "", "a chapter range is not a due date");
+    assertEqual(V.compact(r.params.title), "อ่านบทที่3-4");
+  });
+
+  test("an explicit add command beats the keywords it happens to contain", function () {
+    // "รายงาน" asks for a briefing on its own; inside "เพิ่มงาน…" it is a title
+    assertEqual(V.parseIntent("เพิ่มงานส่งรายงาน", { now: NOW }).intent, "task.add");
+    assertEqual(V.parseIntent("รายงานหน่อย", { now: NOW }).intent, "briefing", "the briefing still works");
+    assertEqual(V.parseIntent("มีงานอะไรบ้าง", { now: NOW }).intent, "query.tasksToday");
+    assertEqual(V.parseIntent("งานเยอะมาก", { now: NOW }).intent, "chat.stress");
+  });
+
+  test('"เปิดงาน" opens the task screen instead of closing a task', function () {
+    // เปิดงาน literally contains ปิดงาน
+    assertEqual(V.parseIntent("เปิดงาน", { now: NOW }).intent, "nav.tasks");
+    assertEqual(V.parseIntent("ปิดงานฟิตเนส", { now: NOW }).intent, "task.done", "closing still works");
+  });
+
   test("parsed dates match the app's own local-date formatting", function () {
     var d = new Date(2026, 0, 5, 23, 30, 0);
     // mirrors localDateStr() in index.html
@@ -258,6 +386,21 @@
     assertEqual(bare.params.title, "", "a bare completion leans on context instead");
   });
 
+  test("the task name is picked up on either side of the completion word", function () {
+    var after = V.parseIntent("เสร็จแล้ว ฟิตเนส", { now: NOW });
+    assertEqual(V.compact(after.params.title), "ฟิตเนส");
+
+    var before = V.parseIntent("ฟิตเนส เสร็จแล้ว", { now: NOW });
+    assertEqual(before.intent, "task.done");
+    assertEqual(V.compact(before.params.title), "ฟิตเนส", "a name spoken first must not be dropped");
+
+    var joined = V.parseIntent("การบ้านเสร็จแล้ว", { now: NOW });
+    assertEqual(V.compact(joined.params.title), "การบ้าน");
+
+    var polite = V.parseIntent("ซื้อนม เรียบร้อยแล้ว ครับ", { now: NOW });
+    assertEqual(V.compact(polite.params.title), "ซื้อนม", "trailing politeness is not part of the name");
+  });
+
   test("findTaskByTitle prefers unfinished tasks and the longest overlap", function () {
     var tasks = [
       { id: "a", title: "ซื้อนม", done: true },
@@ -268,6 +411,158 @@
     assertEqual(V.findTaskByTitle("อ่านหนังสือ", tasks).id, "c");
     assertNull(V.findTaskByTitle("ไม่มีงานนี้", tasks));
     assertNull(V.findTaskByTitle("", tasks));
+  });
+
+  /* ================= keyword matching ================= */
+
+  test("a single keyword finds a task without reciting the whole title", function () {
+    var tasks = [
+      { id: "hw", title: "ส่งการบ้านเลข 5 ข้อ ก่อนเที่ยง", done: false },
+      { id: "gym", title: "ไปฟิตเนสตอนเย็น", done: false },
+      { id: "buy", title: "ซื้อของเข้าบ้าน", done: false }
+    ];
+    // the point of the feature: short spoken fragments, not full titles
+    assertEqual(V.findTaskByTitle("การบ้าน", tasks).id, "hw");
+    assertEqual(V.findTaskByTitle("เลข", tasks).id, "hw");
+    assertEqual(V.findTaskByTitle("ฟิตเนส", tasks).id, "gym");
+    assertEqual(V.findTaskByTitle("ซื้อของ", tasks).id, "buy");
+    assertEqual(V.findTaskByTitle("ส่งการบ้าน", tasks).id, "hw");
+  });
+
+  test("near-misses from the recognizer still land on the right task", function () {
+    var tasks = [
+      { id: "eng", title: "อ่านหนังสือภาษาอังกฤษ", done: false },
+      { id: "math", title: "ทบทวนคณิตศาสตร์", done: false }
+    ];
+    // heard slightly wrong, but the shape is close enough
+    assertEqual(V.findTaskByTitle("อ่านหนังสืออังกฤษ", tasks).id, "eng");
+    assertEqual(V.findTaskByTitle("ทบทวนคณิต", tasks).id, "math");
+  });
+
+  test("an unrelated phrase still matches nothing", function () {
+    var tasks = [
+      { id: "hw", title: "ส่งการบ้านเลข", done: false },
+      { id: "gym", title: "ไปฟิตเนส", done: false }
+    ];
+    assertNull(V.findTaskByTitle("ไปเที่ยวทะเลกับเพื่อน", tasks));
+    assertNull(V.findTaskByTitle("xyz", tasks));
+  });
+
+  test("scoreTitleMatch ranks containment above fuzzy above nothing", function () {
+    var exact = V.scoreTitleMatch("ซื้อนม", "ซื้อนม");
+    var keyword = V.scoreTitleMatch("การบ้าน", "ส่งการบ้านเลข");
+    var fuzzy = V.scoreTitleMatch("อ่านหนังสืออังกฤษ", "อ่านหนังสือภาษาอังกฤษ");
+    var none = V.scoreTitleMatch("ไปทะเล", "ส่งการบ้าน");
+    assertEqual(exact, 1);
+    assertTrue(keyword > fuzzy, "a contained keyword should beat a fuzzy shape match");
+    assertTrue(fuzzy > none, "a close miss should beat an unrelated phrase");
+    assertTrue(none < V.MATCH_MIN, "unrelated must fall under the match threshold");
+    assertTrue(keyword >= 0.8 && keyword <= 1, "keyword score sits in the containment band");
+  });
+
+  test("two equally good candidates are reported as ambiguous, not guessed", function () {
+    var tasks = [
+      { id: "a", title: "ประชุมทีมเช้า", done: false },
+      { id: "b", title: "ประชุมทีมบ่าย", done: false },
+      { id: "c", title: "ซื้อนม", done: false }
+    ];
+    var m = V.findTaskMatches("ประชุมทีม", tasks);
+    assertTrue(m.length >= 2, "both meetings should be candidates");
+    assertTrue(V.isAmbiguousMatch(m), "two near-identical titles must read as ambiguous");
+
+    var clear = V.findTaskMatches("ซื้อนม", tasks);
+    assertTrue(!V.isAmbiguousMatch(clear), "a single obvious match must not be ambiguous");
+  });
+
+  test("dice similarity behaves sanely at the edges", function () {
+    assertEqual(V.diceCoefficient("abc", "abc"), 1);
+    assertEqual(V.diceCoefficient("abc", "xyz"), 0);
+    assertEqual(V.diceCoefficient("", ""), 1);
+    assertEqual(V.diceCoefficient("a", "b"), 0);
+    assertTrue(V.diceCoefficient("การบ้านเลข", "การบ้าน") > 0.6);
+  });
+
+  test("matching survives a big list without picking something random", function () {
+    var tasks = [];
+    for (var i = 0; i < 200; i++) tasks.push({ id: "t" + i, title: "งานที่ " + i, done: false });
+    tasks.push({ id: "target", title: "ส่งรายงานการเงิน", done: false });
+    assertEqual(V.findTaskByTitle("รายงานการเงิน", tasks).id, "target");
+    assertNull(V.findTaskByTitle("ปลูกต้นไม้ในสวนหลังบ้าน", tasks));
+  });
+
+  /* ================= the widened conversation ================= */
+
+  test("the new conversational topics all route to their own pool", function () {
+    var cases = [
+      ["อรุณสวัสดิ์", "chat.morning"],
+      ["จะนอนแล้วนะ", "chat.goodnight"],
+      ["งานเยอะมาก", "chat.stress"],
+      ["สอบผ่านแล้ว", "chat.proud"],
+      ["ขอกำลังใจหน่อย", "chat.encourage"],
+      ["ไม่สบายเลย", "chat.sick"],
+      ["หงุดหงิดมาก", "chat.angry"],
+      ["โคตรเซ็งเลย", "chat.angry"],
+      ["กินอะไรดี", "chat.whatToEat"],
+      ["แนะนำเพลงหน่อย", "chat.music"],
+      ["ฝนตกหนักมาก", "chat.weatherTalk"],
+      ["พรุ่งนี้ฝนตกไหม", "chat.weatherAsk"],
+      ["ขอโทษนะ", "chat.sorry"],
+      ["สวยจัง", "chat.compliment"],
+      ["จริงเหรอ", "chat.doubt"],
+      ["ทำอะไรอยู่", "chat.smallTalk"],
+      ["อายุเท่าไหร่", "chat.age"],
+      ["มีความรู้สึกไหม", "chat.feelings"],
+      ["อ่านหนังสือไม่เข้าหัว", "chat.study"],
+      ["เงินหมดแล้ว", "chat.money"],
+      ["ไม่รู้จะทำอะไรกับอนาคต", "chat.future"],
+      ["ทำอะไรได้บ้าง", "chat.capabilities"],
+      ["วันนี้วันอะไร", "query.date"]
+    ];
+    cases.forEach(function (c) {
+      var got = V.parseIntent(c[0], { now: NOW, categories: cats() });
+      assertEqual(got.intent, c[1], 'transcript "' + c[0] + '"');
+    });
+  });
+
+  test("widening the vocabulary did not break the original commands", function () {
+    var cases = [
+      ["สรุป", "briefing"],
+      ["เพิ่มงาน ซื้อนม", "task.add"],
+      ["กาแฟ 60 บาท", "money.add"],
+      ["จับเวลา 25 นาที", "timer.start"],
+      ["เปิดปฏิทิน", "nav.calendar"],
+      ["เงิน", "nav.money"],
+      ["วันนี้มีงานอะไรบ้าง", "query.tasksToday"],
+      ["ต้องทำอะไรบ้าง", "query.tasksToday"],
+      ["เสร็จแล้ว", "task.done"]
+    ];
+    cases.forEach(function (c) {
+      assertEqual(V.parseIntent(c[0], { now: NOW, categories: cats() }).intent, c[1], c[0]);
+    });
+  });
+
+  test("every new conversational topic is still read-only", function () {
+    Object.keys(V.RESPONSES).forEach(function (k) {
+      assertTrue(!V.isWriteIntent("chat." + k), "chat." + k + " must never be a write intent");
+    });
+    ["อรุณสวัสดิ์","งานเยอะมาก","โคตรเซ็ง","เงินหมดแล้ว","อายุเท่าไหร่","ฝนจะตกไหม"].forEach(function (t) {
+      assertTrue(!V.isWriteIntent(V.parseIntent(t, { now: NOW }).intent), t);
+    });
+  });
+
+  test("every chat intent the router can emit has a pool behind it", function () {
+    var probes = ["อรุณสวัสดิ์","จะนอนแล้ว","งานเยอะ","สอบผ่าน","ขอกำลังใจ","ไม่สบาย","หงุดหงิด",
+      "โคตร","กินอะไรดี","แนะนำเพลง","ฝนตก","ฝนจะตกไหม","หายไปไหน","ขอโทษ","สวยจัง","จริงเหรอ",
+      "ทำอะไรอยู่","อายุเท่าไหร่","เหงาไหม","จำไม่ได้","ถังแตก","อนาคต","ทำอะไรได้บ้าง",
+      "สวัสดี","เหนื่อย","เศร้า","ดีใจ","เบื่อ","หิว","ง่วง","ขี้เกียจ","คุยกันหน่อย","เล่ามุก","บาย",
+      "ขอบคุณ","เก่งมาก","คิดถึง","นายคือใคร","เป็นไงบ้าง"];
+    probes.forEach(function (t) {
+      var intent = V.parseIntent(t, { now: NOW }).intent;
+      if (intent.indexOf("chat.") !== 0) return;
+      var key = intent.slice(5);
+      assertTrue(Array.isArray(V.RESPONSES[key]) && V.RESPONSES[key].length >= 2,
+        'intent ' + intent + ' (from "' + t + '") has no pool');
+    });
   });
 
   /* ================= confidence gating ================= */

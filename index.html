@@ -323,9 +323,9 @@
     display:block;
     /* the rain is now a faint texture across the matte base surface, not a
        lit screen — keeps the cyber identity without fighting the elevation */
-    opacity:0.22;
+    opacity:calc(0.22 * var(--wx-bg-dim, 1));
   }
-  [data-theme="light"] #bgCanvas{ opacity:0.10; }
+  [data-theme="light"] #bgCanvas{ opacity:calc(0.10 * var(--wx-bg-dim, 1)); }
   #bgCanvas3D{
     position:fixed;
     inset:0;
@@ -334,18 +334,19 @@
     display:none; /* shown by JS only after a real WebGL context is confirmed working */
     /* held back to the same ambient level as the 2D rain so the drifting
        glyphs texture the base surface instead of competing with the cards */
-    opacity:0.30;
+    opacity:calc(0.30 * var(--wx-bg-dim, 1));
   }
-  [data-theme="light"] #bgCanvas3D{ opacity:0.14; }
+  [data-theme="light"] #bgCanvas3D{ opacity:calc(0.14 * var(--wx-bg-dim, 1)); }
 
   /* ================= weather atmosphere =================
      The existing background canvases keep their own opacity rules untouched;
      weather only dims them through a filter, so nothing about the original
      system is permanently modified and CLEAR restores it exactly. */
-  #bgCanvas, #bgCanvas3D{
-    filter:brightness(var(--wx-bg-dim, 1));
-    transition:filter 1.6s ease;
-  }
+  /* The dim rides on opacity, not filter. A filter on two full-screen animated
+     canvases forced a filter pass every frame — measured at 9-12ms, which is
+     most of a frame budget on a phone. Opacity is compositor-only and free.
+     Each canvas keeps its own base value; --wx-bg-dim just scales it. */
+  #bgCanvas, #bgCanvas3D{ transition:opacity 1.6s ease; }
   /* full-screen ambience. Both are compositor-only (opacity on a fixed layer),
      so they cost nothing per frame and never trigger layout. */
   .wx-dark, .wx-haze, #wxCanvas, #wxFlash{
@@ -371,19 +372,28 @@
       radial-gradient(120% 70% at 20% 15%, rgba(200,225,240,0.16), transparent 60%),
       radial-gradient(110% 60% at 80% 75%, rgba(180,215,235,0.13), transparent 62%),
       linear-gradient(180deg, rgba(190,220,235,0.10), rgba(190,220,235,0.03));
-    backdrop-filter:blur(1.5px);
-    -webkit-backdrop-filter:blur(1.5px);
     animation:wxHazeDrift 42s ease-in-out infinite;
   }
+  /* No backdrop-filter anywhere. The first attempt kept it for the two states
+     whose particle loop is parked, on the assumption that a static blur would
+     be cached — but this layer drifts, and the code-rain canvas behind it
+     animates continuously, so the backdrop is re-blurred every frame either
+     way. Measured at +16ms in FOG and +21ms in CLOUDY, worse than the states
+     that actually animate particles. Fog now reads through density and
+     recession instead, which costs nothing. */
   @keyframes wxHazeDrift{
     0%,100%{ transform:translate3d(0,0,0) scale(1.04); }
     50%{ transform:translate3d(2%, -1.5%, 0) scale(1.10); }
   }
-  /* fog is the one state that leans on the haze hard, so it gets a heavier
-     blur — still behind every panel, so panel text contrast is untouched */
+  /* Fog is the one state that leans on the haze hard. With no blur available
+     it reads through density instead: a second, slower-drifting veil layered
+     over the first, so the air itself looks thick. */
   [data-weather="FOG"] .wx-haze{
-    backdrop-filter:blur(3.5px);
-    -webkit-backdrop-filter:blur(3.5px);
+    background:
+      radial-gradient(130% 80% at 25% 20%, rgba(214,232,244,0.30), transparent 62%),
+      radial-gradient(120% 70% at 75% 70%, rgba(196,222,238,0.26), transparent 64%),
+      radial-gradient(150% 55% at 50% 100%, rgba(206,228,242,0.24), transparent 70%),
+      linear-gradient(180deg, rgba(200,226,240,0.20), rgba(200,226,240,0.10));
   }
   #wxCanvas{
     z-index:45;
@@ -979,8 +989,8 @@
     }
     :root:not([data-theme="light"]) .ico{ stroke-width:2.1; }
     /* the ambient texture competes much harder on a small screen */
-    :root:not([data-theme="light"]) #bgCanvas{ opacity:0.16; }
-    :root:not([data-theme="light"]) #bgCanvas3D{ opacity:0.20; }
+    :root:not([data-theme="light"]) #bgCanvas{ opacity:calc(0.16 * var(--wx-bg-dim, 1)); }
+    :root:not([data-theme="light"]) #bgCanvas3D{ opacity:calc(0.20 * var(--wx-bg-dim, 1)); }
   }
 
   /* ---- icon system ---- */
@@ -5429,7 +5439,8 @@ window.buamAICore = (function(){
   if(typeof THREE === "undefined" || !canvas){ if(orbEl) orbEl.classList.add("cc-hero-fallback"); return { start(){}, stop(){} }; }
 
   let renderer, scene, camera, controls, core, coreGlow, coreHalo, coreHot, nucleus, shell, dust,
-      orbits = [], electrons = [], animId = null, frame, applySize;
+      orbits = [], electrons = [], ringLines = [], electronSprites = [],
+      animId = null, frame, applySize;
   let ready = false;
   let lastSize = 0, lastDpr = 0;
   // decaying 0..1 "system is doing something" energy — nudged when B.U.A.M.
@@ -5444,6 +5455,50 @@ window.buamAICore = (function(){
   // between them. `listen` is a sustained latch; `think` rides alongside it.
   let listen = 0, listenTarget = 0;
   let think = 0, thinkTarget = 0;
+
+  /* ---- state-driven colour and glow ----
+     The whole palette lerps toward the active state's colours over ~1.5s. Only
+     material colours and the glow sprites' opacity move — orbit radii, tilts,
+     speeds and every particle's motion are untouched, so this is purely a
+     repaint of the system that already exists. No new geometry, no second
+     particle system, no extra render loop. */
+  const BUAM_CORE_STATE = { IDLE:"idle", LISTENING:"listening", PROCESSING:"processing",
+                            ANSWER:"answer", UNKNOWN:"unknown" };
+  /* Every layer stays saturated in every palette. Additive blending stacks
+     these sprites, so a desaturated or near-white entry washes the whole centre
+     out — the reason the green palette was tuned this way originally, and the
+     constraint the blue and red palettes have to respect too. */
+  const CORE_PALETTES = {
+    idle:      { core:0x00ff6a, line:0x1aff77, hot:0x6effa8, particle:0x2bff85, shell:0x66ffa8, dust:0x33ff8a, electron:0x9dffca, glow:1.00 },
+    processing:{ core:0x00ff6a, line:0x1aff77, hot:0x6effa8, particle:0x2bff85, shell:0x66ffa8, dust:0x33ff8a, electron:0x9dffca, glow:1.00 },
+    listening: { core:0x00ff7d, line:0x45ff98, hot:0x9dffc6, particle:0x57ffa6, shell:0x8affc2, dust:0x52ff9f, electron:0xc2ffdd, glow:1.85 },
+    answer:    { core:0x1e8bff, line:0x4db4ff, hot:0xa9dcff, particle:0x4aabff, shell:0x86ceff, dust:0x3d9bff, electron:0xc8e8ff, glow:1.35 },
+    unknown:   { core:0xff2f42, line:0xff5c68, hot:0xffa8ae, particle:0xff5364, shell:0xff8c95, dust:0xff4353, electron:0xffc4c9, glow:1.35 }
+  };
+  let visualState = "idle";
+  let glowMul = 1, glowMulTarget = 1;
+  let paletteTargets = null;   // [{ mat, key }] filled in once at init
+
+  // THREE.Color instances are cached per hex: lerp runs once per material per
+  // frame, so allocating there would churn the GC for no reason
+  const colorCache = new Map();
+  function paletteColor(hex){
+    let c = colorCache.get(hex);
+    if(!c){ c = new THREE.Color(hex); colorCache.set(hex, c); }
+    return c;
+  }
+  let coreReducedMotion = false;
+  try{
+    coreReducedMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }catch(e){}
+
+  /* The single place the palette changes. Unknown names fall back to idle
+     rather than throwing, so a bad call can never stall the render loop. */
+  function setVisualState(name){
+    const next = CORE_PALETTES[name] ? name : "idle";
+    if(next === visualState) return;
+    visualState = next;
+  }
   window.addEventListener("buam-jarvis-speak", ()=>{ activity = 1; });
 
   function makeGlowTexture(){
@@ -5622,7 +5677,23 @@ window.buamAICore = (function(){
 
       orbits.push(pivot);
       electrons.push(electronPivot);
+      ringLines.push(pivot.children[0]);
+      electronSprites.push(electron);
     });
+
+    /* One flat list of every material that carries colour, tagged with which
+       palette entry drives it. Built once; the frame loop only lerps. */
+    paletteTargets = [
+      { mat: coreHalo.material, key: "core" },
+      { mat: coreGlow.material, key: "core" },
+      { mat: coreHot.material,  key: "hot" },
+      { mat: nucleus.material,  key: "particle" },
+      { mat: shell.material,    key: "shell" },
+      { mat: dust.material,     key: "dust" }
+    ].concat(
+      ringLines.map(l => ({ mat: l.material, key: "line" })),
+      electronSprites.map(s => ({ mat: s.material, key: "electron" }))
+    );
 
     if(typeof THREE.OrbitControls === "function"){
       controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -5677,6 +5748,19 @@ window.buamAICore = (function(){
       press += (pressTarget - press) * Math.min(1, dt * 12);
       listen += (listenTarget - listen) * Math.min(1, dt * 6);
       think += (thinkTarget - think) * Math.min(1, dt * 6);
+
+      // colour + glow ease toward the active state (~1.5s), snapping instead
+      // when the user has asked for reduced motion
+      if(paletteTargets){
+        const pal = CORE_PALETTES[visualState] || CORE_PALETTES.idle;
+        const k = coreReducedMotion ? 1 : Math.min(1, dt * 2.6);
+        for(let i = 0; i < paletteTargets.length; i++){
+          const t = paletteTargets[i];
+          t.mat.color.lerp(paletteColor(pal[t.key]), k);
+        }
+        glowMulTarget = pal.glow;
+        glowMul += (glowMulTarget - glowMul) * k;
+      }
       if(pressTarget > 0 && press > 0.92) pressTarget = 0; // auto-release the tap kick
 
       const energy = Math.max(activity, hover * 0.45, listen * 0.7);
@@ -5699,12 +5783,15 @@ window.buamAICore = (function(){
       dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
       coreHalo.scale.setScalar(5.0 * (1 + (breathe - 1) * 0.6));
-      coreHalo.material.opacity = 0.15 + energy * 0.1 + hover * 0.05 + press * 0.12 + listen * 0.10;
+      // glowMul is the state's intensity: LISTENING burns much brighter, ANSWER
+      // and UNKNOWN sit between idle and that. Clamped so additive stacking can
+      // never blow the centre out to white.
+      coreHalo.material.opacity = Math.min(0.6, (0.15 + energy * 0.1 + hover * 0.05 + press * 0.12 + listen * 0.10) * glowMul);
       coreGlow.scale.setScalar(2.75 * breathe);
-      coreGlow.material.opacity = 0.22 + energy * 0.12 + hover * 0.06 + press * 0.14 + listen * 0.12;
+      coreGlow.material.opacity = Math.min(0.72, (0.22 + energy * 0.12 + hover * 0.06 + press * 0.14 + listen * 0.12) * glowMul);
       coreHot.scale.setScalar(0.95 * breathe * (1 + press * 0.5));
-      coreHot.material.opacity = 0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22
-        + listen * (0.10 + Math.sin(t * 4.2) * 0.05);
+      coreHot.material.opacity = Math.min(0.8, (0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22
+        + listen * (0.10 + Math.sin(t * 4.2) * 0.05)) * glowMul);
       nucleus.material.opacity = 1;
       shell.material.opacity = 1;
 
@@ -5738,16 +5825,78 @@ window.buamAICore = (function(){
     setHover(on){ hoverTarget = on ? 1 : 0; },
     // one-shot inward compression + brightness kick on activation
     kick(){ press = 0; pressTarget = 1; activity = 1; },
-    setSpeaking(on){ speaking = !!on; if(on) activity = 1; },
+    /* B.U.A.M. answering: the ANSWER palette (blue) rides on the existing
+       speaking latch, so nothing new has to be wired at the call sites. */
+    setSpeaking(on){
+      speaking = !!on;
+      if(on){
+        activity = 1;
+        // "I didn't catch that" is spoken *while* the core is UNKNOWN — letting
+        // ANSWER win here would repaint the red blue the instant it starts
+        // talking, so the state the user needs to see never appears
+        if(visualState !== "unknown") setVisualState("answer");
+      } else if(visualState === "answer" || visualState === "unknown"){
+        setVisualState("idle");
+      }
+    },
     /* voice pipeline state. SUCCESS/ERROR are momentary and handled by the
        caller (ripple / CSS ring), so only the sustained ones land here. */
     setState(name){
       listenTarget = name === "listening" ? 1 : 0;
       thinkTarget  = name === "processing" ? 1 : 0;
       if(name === "listening" || name === "processing") activity = Math.max(activity, 0.55);
-    }
+      // "error" is the app's name for the state the brief calls UNKNOWN
+      if(name === "error") setVisualState("unknown");
+      else if(name === "listening") setVisualState("listening");
+      else if(name === "processing") setVisualState("processing");
+      else if(!speaking) setVisualState("idle");
+    },
+    /* Public API from the brief. Accepts the BUAM_CORE_STATE values directly
+       and keeps the motion latches in step, so calling it from outside behaves
+       exactly like the internal pipeline does. */
+    setVisual(name){
+      const n = String(name || "").toLowerCase();
+      listenTarget = n === "listening" ? 1 : 0;
+      thinkTarget  = n === "processing" ? 1 : 0;
+      if(n === "listening" || n === "processing" || n === "answer") activity = Math.max(activity, 0.55);
+      setVisualState(n);
+    },
+    getVisual(){ return visualState; },
+    getGlow(){ return glowMul; },
+    /* Read-only snapshot used to prove the state system only repaints: orbit
+       radii/tilts/speeds and the GPU resource counts must be identical before
+       and after any state change. */
+    getDebug(){
+      return {
+        geometries: renderer ? renderer.info.memory.geometries : -1,
+        textures: renderer ? renderer.info.memory.textures : -1,
+        programs: renderer && renderer.info.programs ? renderer.info.programs.length : -1,
+        sceneChildren: scene ? scene.children.length : -1,
+        particleCounts: [nucleus, shell, dust].map(p => p.geometry.attributes.position.count),
+        orbits: orbits.map((p, i) => ({
+          tiltX: +p.rotation.x.toFixed(6),
+          tiltZ: +p.rotation.z.toFixed(6),
+          radius: +electronSprites[i].position.x.toFixed(6),
+          speed: electrons[i].userData.speed
+        })),
+        reducedMotion: coreReducedMotion
+      };
+    },
+    STATE: BUAM_CORE_STATE
   };
 })();
+
+/* The Core's public visual API, in the shape the brief specifies:
+     BuamCore.setState(BUAM_CORE_STATE.LISTENING)
+   It is a thin alias over buamAICore, not a second controller — there is still
+   one particle system, one render loop and one source of truth for state. */
+window.BUAM_CORE_STATE = { LISTENING:"listening", ANSWER:"answer", UNKNOWN:"unknown", PROCESSING:"processing", IDLE:"idle" };
+window.BuamCore = {
+  STATE: window.BUAM_CORE_STATE,
+  setState(name){ if(window.buamAICore && buamAICore.setVisual) buamAICore.setVisual(name); },
+  getState(){ return window.buamAICore && buamAICore.getVisual ? buamAICore.getVisual() : "idle"; },
+  getGlow(){ return window.buamAICore && buamAICore.getGlow ? buamAICore.getGlow() : 1; }
+};
 
 /* ---------------- ambient/idle showcase screen ---------------- */
 const ambientScreen = document.getElementById("ambientScreen");
@@ -6165,6 +6314,11 @@ function answerTime(){
   return "It's " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + ".";
 }
 
+function answerDate(){
+  return "Today is " + new Date().toLocaleDateString("en-US",
+    { weekday:"long", month:"long", day:"numeric" }) + ".";
+}
+
 /* ---- actions ----
    Each returns a string to speak, or "" for a silent action (navigation says
    nothing on purpose — narrating every screen change gets old fast). */
@@ -6172,8 +6326,17 @@ function answerTime(){
 function voiceAddTask(params){
   if(!params.title){
     switchView("tasks");
-    setTimeout(()=>{ const el = document.getElementById("titleInput"); if(el) el.focus(); }, 60);
-    return voiceReply("needTitle");
+    setTimeout(()=>{
+      // a date with no title still carries information — keep it in the form
+      // so typing the title is all that is left to do
+      const due = document.getElementById("dueInput");
+      if(due && params.due) due.value = params.due;
+      const el = document.getElementById("titleInput");
+      if(el) el.focus();
+    }, 60);
+    return params.due
+      ? voiceReply("needTitle") + " I've set the date to " + friendlyDue(params.due) + "."
+      : voiceReply("needTitle");
   }
   const created = createTask({ title: params.title, cat: "other", due: params.due || "" }, { speak: false });
   if(!created) return voiceReply("needTitle");
@@ -6183,18 +6346,39 @@ function voiceAddTask(params){
   return params.due ? line + " Due " + friendlyDue(params.due) + "." : line;
 }
 
+/* Reads a stored due date back the way a person would say it. Near dates get
+   a name rather than a number, because "Monday" is far easier to check against
+   your own memory than "Aug 17" is. */
 function friendlyDue(dateStr){
-  const today = todayStr();
-  if(dateStr === today) return "today";
-  const d = new Date(); d.setDate(d.getDate() + 1);
-  if(dateStr === localDateStr(d)) return "tomorrow";
   const parsed = new Date(dateStr + "T00:00:00");
-  return isNaN(parsed) ? dateStr : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if(isNaN(parsed)) return dateStr;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((parsed - today) / 86400000);
+  if(days === 0) return "today";
+  if(days === 1) return "tomorrow";
+  if(days === 2) return "the day after tomorrow";
+  if(days === -1) return "yesterday";
+  // inside the coming week the weekday is unambiguous and easiest to hear
+  if(days > 2 && days <= 7) return parsed.toLocaleDateString("en-US", { weekday: "long" });
+  const opts = { month: "short", day: "numeric" };
+  if(parsed.getFullYear() !== today.getFullYear()) opts.year = "numeric";
+  return parsed.toLocaleDateString("en-US", opts);
 }
 
 function voiceCompleteTask(params){
   let target = null;
-  if(params.title) target = BuamVoice.findTaskByTitle(params.title, tasks);
+  if(params.title){
+    // only unfinished tasks are candidates — saying a keyword should never
+    // land on something already ticked off just because it scored higher
+    const open = tasks.filter(t=>!t.done);
+    const matches = BuamVoice.findTaskMatches(params.title, open.length ? open : tasks);
+    if(BuamVoice.isAmbiguousMatch(matches)){
+      // two titles fit the keyword equally well — ask rather than guess wrong
+      return voiceReply("ambiguous") + ' "' + matches[0].task.title + '" or "' + matches[1].task.title + '"?';
+    }
+    if(matches.length) target = matches[0].task;
+  }
   if(!target && voiceCtx){
     const ctx = voiceCtx.get(new Date());
     if(ctx) target = tasks.filter(t=>t.id === ctx.taskId)[0] || null;
@@ -6242,6 +6426,7 @@ function runVoiceIntent(intent, params){
     case "query.overdue":       return answerOverdue();
     case "query.budget":        return answerBudget();
     case "query.time":          return answerTime();
+    case "query.date":          return answerDate();
 
     case "nav.calendar":        switchView("calendar"); return "";
     case "nav.money":           switchView("money"); return "";
