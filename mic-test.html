@@ -129,8 +129,8 @@
     <p class="note">
       คำสั่งจะใช้ภาษาไทยเป็นหลัก (แม่นกว่าอังกฤษชัดเจนจากผลรอบแรก) ลองพูด:
       &ldquo;เพิ่มงาน&rdquo; &middot; &ldquo;ปฏิทิน&rdquo; &middot; &ldquo;เงิน&rdquo; &middot; &ldquo;จับเวลา&rdquo; &middot; &ldquo;สรุป&rdquo;<br>
-      แล้วลอง<b>ตัวเลข</b>ด้วย ซึ่งยังไม่เคยทดสอบ — &ldquo;กาแฟ หกสิบบาท&rdquo; &middot; &ldquo;ค่าข้าว 120 บาท&rdquo;
-      &mdash; ดูว่าถอดออกมาเป็นเลขอารบิกหรือเป็นตัวหนังสือ เพราะมีผลกับการบันทึกรายจ่ายด้วยเสียง
+      แล้วลอง<b>ตัวเลข</b>ด้วย — &ldquo;กาแฟ หกสิบบาท&rdquo; &middot; &ldquo;ค่าข้าว 120 บาท&rdquo;<br>
+      <b>หมายเหตุ</b>: iOS ให้ใช้ไมค์ได้ทีละอย่าง ถ้าข้อ 2 ยังเปิดค้างอยู่ หน้านี้จะปิดให้เองก่อนเริ่มฟัง
     </p>
   </div>
 
@@ -249,6 +249,22 @@
       log("MIC: ได้สิทธิ์แล้ว — device=\"" + (track ? track.label || "(ไม่มีชื่อ)" : "?") + "\"");
       micVerdict.innerHTML = '<span class="ok">ได้สิทธิ์แล้ว</span> — ลองพูดดู แถบด้านบนควรขยับ';
 
+      /* iOS mutes the track when the app goes to the background and never
+         un-mutes it — the stream stays "live" but silent, and the next
+         SpeechRecognition attempt then fails with audio-capture / "Source is
+         muted". Catch it here so the cause is visible instead of mysterious. */
+      if(track){
+        track.addEventListener("mute", function(){
+          log("MIC: ระบบปิดเสียงสตรีม (muted) — มักเกิดตอนสลับแอปแล้วกลับมา");
+          micVerdict.innerHTML = '<span class="warn">สตรีมถูกปิดเสียงโดยระบบ</span> — ปล่อยไมค์แล้ว กดเริ่มใหม่ได้เลย';
+          stopMic();
+        });
+        track.addEventListener("ended", function(){
+          log("MIC: สตรีมถูกปิดโดยระบบ (ended)");
+          stopMic();
+        });
+      }
+
       var Ctx = window.AudioContext || window.webkitAudioContext;
       micCtx = new Ctx();
       if(micCtx.state === "suspended") micCtx.resume();
@@ -281,7 +297,16 @@
     });
   });
 
+  /* Releasing on pagehide alone is not enough on iOS — switching apps or tabs
+     fires visibilitychange, and a stream still held across that transition
+     comes back muted and unusable. Hand the microphone back every time the
+     page loses focus so returning always starts from a clean state. */
   window.addEventListener("pagehide", stopMic);
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) return;
+    if(micStream){ log("MIC: หน้าถูกพักไว้ — ปล่อยไมค์คืนระบบ"); stopMic(); }
+    if(listening){ log("REC: หน้าถูกพักไว้ — ยกเลิกการฟัง"); try{ rec.abort(); }catch(e){} }
+  });
 
   /* ---------- 3. speech recognition ---------- */
   var recBtn = document.getElementById("recBtn");
@@ -316,6 +341,21 @@
     if(!SR) return;
     if(listening){ try{ rec.stop(); }catch(e){} return; }
 
+    /* iOS gives the microphone to one consumer at a time. A getUserMedia
+       stream left open by test 2 starves recognition here — it comes back as
+       aborted/"No speech detected" or audio-capture/"Source is muted" even
+       though the microphone is fine. Release it first, and give the hardware a
+       moment to actually let go before asking for it again. */
+    if(micStream){
+      log("REC: ปิดการทดสอบไมค์ก่อน — iOS ให้ใช้ได้ทีละอย่าง");
+      stopMic();
+      setTimeout(startRecognition, 350);
+    } else {
+      startRecognition();
+    }
+  });
+
+  function startRecognition(){
     gotAnything = false;
     transcriptEl.innerHTML = '<span class="empty">กำลังฟัง…</span>';
     recVerdict.textContent = "";
@@ -366,6 +406,13 @@
         "network": "ต่อบริการถอดเสียงไม่ได้ (ต้องมีเน็ต)",
         "aborted": "ถูกยกเลิก"
       }[e.error] || e.error;
+      // iOS reports the real cause in the message, not the code: a muted source
+      // or a silent "no speech" almost always means something else is holding
+      // the microphone, or the app was backgrounded while the stream was open
+      var msg = String(e.message || "");
+      if(/mute/i.test(msg) || (e.error === "aborted" && /no speech/i.test(msg))){
+        why += " — ไมค์ถูกอย่างอื่นถือไว้ หรือสตรีมค้างจากตอนสลับแอป ลองกดใหม่อีกครั้ง";
+      }
       recVerdict.innerHTML = '<span class="bad">ผิดพลาด: ' + e.error + '</span> — ' + why;
       log("REC ผิดพลาด: " + e.error + " — " + why + (e.message ? " | " + e.message : ""));
     };
@@ -387,7 +434,7 @@
       recVerdict.innerHTML = '<span class="bad">เริ่มไม่ได้</span> — ' + err.name + ": " + err.message;
       log("REC start() โยน error: " + err.name + " — " + err.message);
     }
-  });
+  }
 
   /* ---------- 4. log export ---------- */
   document.getElementById("copyBtn").addEventListener("click", function(){
