@@ -6,6 +6,13 @@
 <title>B.U.A.M. — Mic Diagnostic</title>
 <meta name="theme-color" content="#070b09">
 <link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<!-- lets this page be added to the iOS home screen on its own, so standalone
+     PWA mode can be tested without touching the app or its manifest -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MIC TEST">
 <style>
   :root{
     --bg:#070b09; --panel:#1d2821; --panel-2:#0f1613;
@@ -66,6 +73,7 @@
   }
   .transcript .interim{ color:var(--ink-dim); font-style:italic; }
   .transcript .empty{ color:var(--ink-dim); font-size:0.76rem; }
+  .transcript .conf{ font-size:0.66rem; letter-spacing:0.06em; margin-top:8px; }
   .verdict{ margin-top:12px; font-size:0.78rem; line-height:1.6; }
   pre#log{
     background:var(--panel-2); border-radius:14px; padding:12px; margin:0;
@@ -74,15 +82,25 @@
     white-space:pre-wrap; word-break:break-word; color:var(--ink-dim);
   }
   .note{ font-size:0.7rem; color:var(--ink-dim); line-height:1.65; margin-top:10px; }
+  .banner{
+    border-radius:16px; padding:13px 15px; margin-bottom:18px;
+    font-size:0.76rem; line-height:1.7;
+    background:var(--panel-2); box-shadow:inset 2px 2px 6px rgba(0,0,0,0.5);
+    border-left:3px solid var(--amber);
+  }
+  .banner.done{ border-left-color:var(--accent); }
+  .banner b{ color:var(--ink); }
+  .banner ol{ margin:8px 0 0; padding-left:20px; }
+  .banner li{ margin-bottom:5px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>B.U.A.M. <span>MIC DIAGNOSTIC</span></h1>
   <p class="sub">
-    หน้าทดสอบชั่วคราว ไม่เกี่ยวกับตัวแอป — ใช้พิสูจน์ว่าไมโครโฟนและการถอดเสียงทำงานจริงบนเครื่องนี้หรือไม่<br>
-    <strong>เปิด 2 รอบ</strong>: รอบแรกในแท็บ Safari ปกติ รอบสองจากไอคอนบนหน้าจอโฮม (โหมด PWA) แล้วกดปุ่มคัดลอกท้ายหน้าส่งผลกลับมา
+    หน้าทดสอบชั่วคราว ไม่เกี่ยวกับตัวแอป — ใช้พิสูจน์ว่าไมโครโฟนและการถอดเสียงทำงานจริงบนเครื่องนี้หรือไม่
   </p>
+  <div class="banner" id="modeBanner"></div>
 
   <div class="card">
     <h2>1 — สภาพแวดล้อม</h2>
@@ -109,8 +127,10 @@
     <div class="transcript" id="transcript"><span class="empty">ยังไม่มีข้อความ</span></div>
     <div class="verdict" id="recVerdict"></div>
     <p class="note">
-      ลองพูดประโยคทดสอบ เช่น &ldquo;เปิดปฏิทิน&rdquo; หรือ &ldquo;กาแฟ หกสิบบาท&rdquo;
-      เพื่อดูว่าคำสั่งกับตัวเลขถอดออกมาแม่นแค่ไหน
+      คำสั่งจะใช้ภาษาไทยเป็นหลัก (แม่นกว่าอังกฤษชัดเจนจากผลรอบแรก) ลองพูด:
+      &ldquo;เพิ่มงาน&rdquo; &middot; &ldquo;ปฏิทิน&rdquo; &middot; &ldquo;เงิน&rdquo; &middot; &ldquo;จับเวลา&rdquo; &middot; &ldquo;สรุป&rdquo;<br>
+      แล้วลอง<b>ตัวเลข</b>ด้วย ซึ่งยังไม่เคยทดสอบ — &ldquo;กาแฟ หกสิบบาท&rdquo; &middot; &ldquo;ค่าข้าว 120 บาท&rdquo;
+      &mdash; ดูว่าถอดออกมาเป็นเลขอารบิกหรือเป็นตัวหนังสือ เพราะมีผลกับการบันทึกรายจ่ายด้วยเสียง
     </p>
   </div>
 
@@ -155,6 +175,27 @@
     ["หน้าจอ", window.innerWidth + "×" + window.innerHeight + " @" + (window.devicePixelRatio || 1) + "x", ""],
     ["User agent", navigator.userAgent, ""]
   ];
+  /* The whole reason this page exists is the standalone-PWA question, and the
+     mode is not something the tester can choose from inside the page — so say
+     plainly which round this is and what the next one needs. */
+  var banner = document.getElementById("modeBanner");
+  if(standalone){
+    banner.className = "banner done";
+    banner.innerHTML = '<b>รอบที่ 2 — โหมด PWA (รอบที่สำคัญที่สุด)</b><br>' +
+      'นี่คือบริบทเดียวกับตอนเปิดแอป buam จากหน้าจอโฮม ถ้าข้อ 2 และ 3 ผ่านในหน้านี้ ' +
+      'แปลว่าฟีเจอร์เสียงใช้ได้จริง กดทดสอบทั้งสองข้อแล้วคัดลอกผลส่งกลับมาได้เลย';
+  } else {
+    banner.innerHTML = '<b>รอบที่ 1 — แท็บเบราว์เซอร์</b><br>' +
+      'รอบนี้ยังไม่ตอบคำถามหลัก เพราะโหมด PWA คือบริบทที่เสี่ยงว่าไมค์จะถูกบล็อก ' +
+      'ทำรอบนี้ให้เสร็จก่อน แล้วทำรอบที่ 2 แบบนี้:' +
+      '<ol>' +
+        '<li>เปิดหน้านี้ใน <b>Safari</b> (ไม่ใช่ Chrome — เพราะ Add to Home Screen ต้องทำจาก Safari)</li>' +
+        '<li>กดปุ่มแชร์ &rarr; <b>Add to Home Screen</b></li>' +
+        '<li>เปิดจากไอคอน <b>MIC TEST</b> ที่เพิ่งเพิ่ม แล้วทดสอบซ้ำ</li>' +
+      '</ol>' +
+      'แถบนี้จะเปลี่ยนเป็นสีเขียวเองเมื่อเปิดถูกโหมด';
+  }
+
   var envTable = document.getElementById("envTable");
   env.forEach(function(r){
     var tr = document.createElement("tr");
@@ -298,6 +339,14 @@
       transcriptEl.innerHTML = "";
       if(finalText){
         transcriptEl.appendChild(document.createTextNode(finalText));
+        if(conf != null){
+          // surfaced on screen too, not just in the log — the gap between a
+          // correct result and a misheard one shows up here first
+          var c = document.createElement("div");
+          c.className = "conf " + (conf >= 0.75 ? "ok" : "warn");
+          c.textContent = "ความมั่นใจ " + conf.toFixed(2) + (conf >= 0.75 ? "" : " — ต่ำ น่าจะฟังผิด");
+          transcriptEl.appendChild(c);
+        }
         log('REC ผลลัพธ์: "' + finalText + '"' + (conf != null ? " (ความมั่นใจ " + conf.toFixed(2) + ")" : ""));
       }
       if(interim){
