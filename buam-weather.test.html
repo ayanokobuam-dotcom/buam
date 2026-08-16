@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>buam-weather tests</title>
+<style>
+  body{ background:#05070a; color:#baffc9; font-family:Consolas,monospace; padding:20px; white-space:pre-wrap; }
+  #wxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:-1; }
+</style>
+</head>
+<body>
+<pre id="results">running...</pre>
+<!-- a real canvas, so the loop-lifecycle tests exercise the renderer rather
+     than only its guards -->
+<canvas id="wxCanvas"></canvas>
+<div id="wxFlash"></div>
+<script src="./buam-weather.js"></script>
+<script src="./buam-weather.test.js"></script>
+</body>
+</html>

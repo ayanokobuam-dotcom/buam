@@ -72,6 +72,10 @@
     --accent-ink: #06170d;
     --boot-blue:#39d6ff;   /* electric-blue secondary accent (boot HUD, core rim) */
     /* used by .task.overdue::after via mask(), so the marker still takes --red */
+    /* weather: lumpy snow-ridge and icicle silhouettes as inline SVG masks.
+       Data URIs, so there is no external request — the app stays fully offline. */
+    --wx-cap-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 118 20' preserveAspectRatio='none'><path d='M0,9 C7,3 13,2 20,6 C27,10 31,4 39,4 C48,4 52,11 60,10 C68,9 72,2 81,4 C89,6 92,10 99,9 C106,8 111,4 118,7 L118,20 L0,20 Z' fill='%23fff'/></svg>");
+    --wx-icicle-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 24' preserveAspectRatio='none'><path d='M0,0 L64,0 L64,4 L58,4 L55,13 L52,4 L44,4 L41,21 L38,4 L28,4 L25,10 L22,4 L12,4 L9,16 L6,4 L0,4 Z' fill='%23fff'/></svg>");
     --ico-warning-url: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3.2l9.3 16.4a1 1 0 0 1-.87 1.5H3.57a1 1 0 0 1-.87-1.5z'/><path d='M12 9.5v4.8M12 17.8h.01'/></svg>");
 
     /* surfaces are shaded, not flat fills — this is what sells the extrusion */
@@ -326,6 +330,286 @@
     opacity:0.30;
   }
   [data-theme="light"] #bgCanvas3D{ opacity:0.14; }
+
+  /* ================= weather atmosphere =================
+     The existing background canvases keep their own opacity rules untouched;
+     weather only dims them through a filter, so nothing about the original
+     system is permanently modified and CLEAR restores it exactly. */
+  #bgCanvas, #bgCanvas3D{
+    filter:brightness(var(--wx-bg-dim, 1));
+    transition:filter 1.6s ease;
+  }
+  /* full-screen ambience. Both are compositor-only (opacity on a fixed layer),
+     so they cost nothing per frame and never trigger layout. */
+  .wx-dark, .wx-haze, #wxCanvas, #wxFlash{
+    position:fixed; inset:0; pointer-events:none;
+  }
+  /* Atmosphere sits BEHIND the UI, not over it. Measured: at z-index 44 these
+     two washes dropped card titles to 2.5:1 in FOG and 2.6:1 in STORM, because
+     a full-screen tint compresses text and background together. Behind the
+     panels they change the world the app sits in and leave every reading
+     surface untouched. Only the thin canvas particles stay in front, which is
+     also what the mockups show. */
+  .wx-dark{
+    z-index:-1;
+    background:#01060a;
+    opacity:var(--wx-dark, 0);
+    transition:opacity 1.8s ease;
+  }
+  .wx-haze{
+    z-index:-1;
+    opacity:var(--wx-haze, 0);
+    transition:opacity 1.8s ease;
+    background:
+      radial-gradient(120% 70% at 20% 15%, rgba(200,225,240,0.16), transparent 60%),
+      radial-gradient(110% 60% at 80% 75%, rgba(180,215,235,0.13), transparent 62%),
+      linear-gradient(180deg, rgba(190,220,235,0.10), rgba(190,220,235,0.03));
+    backdrop-filter:blur(1.5px);
+    -webkit-backdrop-filter:blur(1.5px);
+    animation:wxHazeDrift 42s ease-in-out infinite;
+  }
+  @keyframes wxHazeDrift{
+    0%,100%{ transform:translate3d(0,0,0) scale(1.04); }
+    50%{ transform:translate3d(2%, -1.5%, 0) scale(1.10); }
+  }
+  /* fog is the one state that leans on the haze hard, so it gets a heavier
+     blur — still behind every panel, so panel text contrast is untouched */
+  [data-weather="FOG"] .wx-haze{
+    backdrop-filter:blur(3.5px);
+    -webkit-backdrop-filter:blur(3.5px);
+  }
+  #wxCanvas{
+    z-index:45;
+    display:block;
+  }
+  /* restrained sheet lightning: opacity is driven by JS and hard-capped at
+     0.16, so it reads as a distant storm rather than a strobe */
+  #wxFlash{
+    z-index:46;
+    background:radial-gradient(120% 80% at 50% 0%, #dff0ff 0%, rgba(160,205,255,0.55) 40%, transparent 75%);
+    opacity:0;
+    mix-blend-mode:screen;
+  }
+
+  /* ---- surface effects ----
+     header/.cc-card/etc. have no pseudo-elements of their own (checked), so
+     snow caps, icicles and wet glass need no injected DOM. isolation:isolate
+     gives each surface its own stacking context, which is what keeps the
+     z-index:-1 decorations reliably above the panel's background and below its
+     text — the guarantee that weather never covers content. */
+  html[data-weather]:not([data-weather="CLEAR"]) header,
+  html[data-weather]:not([data-weather="CLEAR"]) .cc-card,
+  html[data-weather]:not([data-weather="CLEAR"]) .app-section,
+  html[data-weather]:not([data-weather="CLEAR"]) .money-section,
+  html[data-weather]:not([data-weather="CLEAR"]) .cc-status-pill,
+  html[data-weather]:not([data-weather="CLEAR"]) .sidebar,
+  html[data-weather]:not([data-weather="CLEAR"]) .dose-modal{
+    isolation:isolate;
+  }
+  /* Only the statically-positioned surfaces need a containing block for the
+     decorations. `header` is sticky and `.sidebar` is fixed — both already
+     provide one, and forcing them to relative drops the fixed sidebar into
+     normal flow, which pushes the whole page down by its height. */
+  html[data-weather]:not([data-weather="CLEAR"]) .cc-card,
+  html[data-weather]:not([data-weather="CLEAR"]) .app-section,
+  html[data-weather]:not([data-weather="CLEAR"]) .money-section,
+  html[data-weather]:not([data-weather="CLEAR"]) .cc-status-pill,
+  html[data-weather]:not([data-weather="CLEAR"]) .dose-modal{
+    position:relative;
+  }
+  html[data-weather] header::before, html[data-weather] header::after,
+  html[data-weather] .cc-card::before, html[data-weather] .cc-card::after,
+  html[data-weather] .app-section::before, html[data-weather] .app-section::after,
+  html[data-weather] .money-section::before, html[data-weather] .money-section::after,
+  html[data-weather] .cc-status-pill::before, html[data-weather] .cc-status-pill::after,
+  html[data-weather] .sidebar::before, html[data-weather] .sidebar::after,
+  html[data-weather] .dose-modal::before, html[data-weather] .dose-modal::after{
+    content:""; position:absolute; pointer-events:none; z-index:-1;
+  }
+
+  /* --- wet glass: RAIN and STORM --- */
+  html[data-weather="RAIN"] header::before,
+  html[data-weather="RAIN"] .cc-card::before,
+  html[data-weather="RAIN"] .app-section::before,
+  html[data-weather="RAIN"] .money-section::before,
+  html[data-weather="RAIN"] .cc-status-pill::before,
+  html[data-weather="RAIN"] .sidebar::before,
+  html[data-weather="RAIN"] .dose-modal::before,
+  html[data-weather="STORM"] header::before,
+  html[data-weather="STORM"] .cc-card::before,
+  html[data-weather="STORM"] .app-section::before,
+  html[data-weather="STORM"] .money-section::before,
+  html[data-weather="STORM"] .cc-status-pill::before,
+  html[data-weather="STORM"] .sidebar::before,
+  html[data-weather="STORM"] .dose-modal::before{
+    inset:0;
+    border-radius:inherit;
+    opacity:calc(0.55 + var(--wx-intensity, 0.75) * 0.45);
+    /* Each droplet is a soft body plus an offset specular dot — that pairing is
+       what reads as water on glass rather than as noise. Sized up from a first
+       pass that was almost invisible on a phone; contrast was re-measured after
+       and card titles still hold 6.2:1 against a 4.5 requirement. */
+    background-image:
+      radial-gradient(circle 1.4px at 12% 9%, rgba(255,255,255,0.75), transparent 100%),
+      radial-gradient(ellipse 6px 8px at 14% 12%, rgba(206,236,255,0.34), rgba(206,236,255,0.10) 55%, transparent 72%),
+      radial-gradient(circle 1px at 37% 27%, rgba(255,255,255,0.62), transparent 100%),
+      radial-gradient(ellipse 4px 5.4px at 38% 30%, rgba(206,236,255,0.28), rgba(206,236,255,0.08) 55%, transparent 72%),
+      radial-gradient(circle 1.7px at 61% 15%, rgba(255,255,255,0.80), transparent 100%),
+      radial-gradient(ellipse 7.5px 10px at 63% 18%, rgba(206,236,255,0.36), rgba(206,236,255,0.11) 55%, transparent 72%),
+      radial-gradient(circle 1.1px at 85% 37%, rgba(255,255,255,0.66), transparent 100%),
+      radial-gradient(ellipse 4.6px 6px at 86% 40%, rgba(206,236,255,0.30), rgba(206,236,255,0.09) 55%, transparent 72%),
+      radial-gradient(circle 1.3px at 23% 59%, rgba(255,255,255,0.70), transparent 100%),
+      radial-gradient(ellipse 5.4px 7px at 24% 62%, rgba(206,236,255,0.32), rgba(206,236,255,0.09) 55%, transparent 72%),
+      radial-gradient(circle 0.9px at 51% 76%, rgba(255,255,255,0.58), transparent 100%),
+      radial-gradient(ellipse 3.6px 4.6px at 52% 78%, rgba(206,236,255,0.26), rgba(206,236,255,0.07) 55%, transparent 72%),
+      radial-gradient(circle 1.6px at 76% 83%, rgba(255,255,255,0.76), transparent 100%),
+      radial-gradient(ellipse 7px 9px at 77% 86%, rgba(206,236,255,0.34), rgba(206,236,255,0.10) 55%, transparent 72%),
+      linear-gradient(180deg, rgba(200,232,248,0.12), transparent 45%);
+    background-size:
+      96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px,
+      96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px, 96px 128px,
+      100% 100%;
+    animation:wxGlassFade 1.8s ease;
+  }
+  /* a storm throws bigger water at the glass */
+  html[data-weather="STORM"] header::before,
+  html[data-weather="STORM"] .cc-card::before,
+  html[data-weather="STORM"] .app-section::before,
+  html[data-weather="STORM"] .money-section::before,
+  html[data-weather="STORM"] .dose-modal::before{
+    background-size:
+      74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px,
+      74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px, 74px 96px,
+      100% 100%;
+  }
+  /* condensation runs: a few slow vertical highlights over the droplets */
+  html[data-weather="RAIN"] header::after,
+  html[data-weather="RAIN"] .cc-card::after,
+  html[data-weather="RAIN"] .app-section::after,
+  html[data-weather="RAIN"] .money-section::after,
+  html[data-weather="RAIN"] .dose-modal::after,
+  html[data-weather="STORM"] header::after,
+  html[data-weather="STORM"] .cc-card::after,
+  html[data-weather="STORM"] .app-section::after,
+  html[data-weather="STORM"] .money-section::after,
+  html[data-weather="STORM"] .dose-modal::after{
+    inset:0;
+    border-radius:inherit;
+    opacity:calc(0.5 + var(--wx-intensity, 0.75) * 0.5);
+    background-image:
+      linear-gradient(180deg, transparent 0%, rgba(214,240,255,0.16) 30%, transparent 55%),
+      linear-gradient(180deg, transparent 10%, rgba(214,240,255,0.12) 46%, transparent 78%),
+      linear-gradient(180deg, transparent 22%, rgba(214,240,255,0.10) 60%, transparent 92%);
+    background-size:2px 100%, 1.5px 100%, 2.5px 100%;
+    background-position:18% 0, 57% 0, 81% 0;
+    background-repeat:no-repeat;
+    animation:wxRunDrip 7s linear infinite;
+  }
+  @keyframes wxGlassFade{ from{ opacity:0; } }
+  @keyframes wxRunDrip{
+    0%{ background-position:18% -30%, 57% -60%, 81% -10%; }
+    100%{ background-position:18% 130%, 57% 160%, 81% 110%; }
+  }
+
+  /* --- snow caps and icicles --- */
+  /* the ridge silhouette is an inline SVG mask, so the top edge is lumpy
+     instead of a flat white bar. No external image request. */
+  html[data-weather="SNOW"] header::before,
+  html[data-weather="SNOW"] .cc-card::before,
+  html[data-weather="SNOW"] .app-section::before,
+  html[data-weather="SNOW"] .money-section::before,
+  html[data-weather="SNOW"] .cc-status-pill::before,
+  html[data-weather="SNOW"] .sidebar::before,
+  html[data-weather="SNOW"] .dose-modal::before{
+    left:-3px; right:-3px;
+    /* sits mostly outside the panel: at most ~35% of its height reaches into
+       the padding band, which is far shallower than any panel's padding */
+    height:calc(var(--wx-accum, 0) * var(--wx-cap, 13px));
+    top:calc(var(--wx-accum, 0) * var(--wx-cap, 13px) * -0.65);
+    opacity:var(--wx-accum, 0);
+    background:linear-gradient(180deg, #ffffff 0%, #eaf4fb 55%, #cddfec 100%);
+    -webkit-mask-image:var(--wx-cap-mask);
+    mask-image:var(--wx-cap-mask);
+    -webkit-mask-size:118px 100%;
+    mask-size:118px 100%;
+    -webkit-mask-repeat:repeat-x;
+    mask-repeat:repeat-x;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+  }
+  /* icicles hang from the BOTTOM edge, into the gap between panels — the one
+     place nothing is ever rendered, so they cannot reach any text */
+  html[data-weather="SNOW"] header::after,
+  html[data-weather="SNOW"] .cc-card::after,
+  html[data-weather="SNOW"] .app-section::after,
+  html[data-weather="SNOW"] .money-section::after,
+  html[data-weather="SNOW"] .cc-status-pill::after,
+  html[data-weather="SNOW"] .dose-modal::after{
+    left:6%; right:6%;
+    top:100%;
+    height:calc(var(--wx-accum, 0) * var(--wx-icicle, 11px));
+    opacity:calc(var(--wx-accum, 0) * 0.9);
+    background:linear-gradient(180deg, #eaf6ff 0%, rgba(198,226,244,0.75) 60%, rgba(198,226,244,0) 100%);
+    -webkit-mask-image:var(--wx-icicle-mask);
+    mask-image:var(--wx-icicle-mask);
+    -webkit-mask-size:64px 100%;
+    mask-size:64px 100%;
+    -webkit-mask-repeat:repeat-x;
+    mask-repeat:repeat-x;
+  }
+  /* the sidebar is a tall panel, so it takes a deeper cap and no icicles */
+  html[data-weather="SNOW"] .sidebar::before{ --wx-cap:16px; }
+
+  /* --- cloudy: nothing but the shared haze, per the spec's "not opaque
+     clouds covering the interface" --- */
+
+  /* ---- weather controls ---- */
+  .wx-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    font:inherit; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--ink-dim); background:var(--neu-grad-inset); border:none;
+    border-radius:999px; padding:4px 9px; cursor:pointer;
+    box-shadow:var(--neu-inset-sm);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wx-chip .ico{ width:13px; height:13px; }
+  .wx-chip:hover{ color:var(--ink); }
+  .wx-chip:active{ box-shadow:var(--neu-inset-md); }
+  .wx-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  @media (max-width:360px){ .wx-grid{ grid-template-columns:repeat(2, 1fr); } }
+  .wx-grid button{
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    font:inherit; font-size:0.68rem; letter-spacing:0.06em;
+    color:var(--ink-dim); background:var(--neu-grad-raised); border:none;
+    border-radius:var(--neu-radius-sm); padding:11px 6px; cursor:pointer;
+    box-shadow:var(--neu-shadow-sm);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wx-grid button .ico{ width:19px; height:19px; }
+  .wx-grid button:active{ box-shadow:var(--neu-inset-sm); }
+  .wx-grid button.active{
+    color:var(--accent-ink); background:linear-gradient(145deg, #2bff85, #00cc52);
+    box-shadow:var(--neu-inset-sm); font-weight:700;
+  }
+  .wx-val{ color:var(--accent); letter-spacing:0; }
+  .wx-current{
+    font-size:0.68rem; color:var(--ink-dim); letter-spacing:0.06em;
+    text-align:center; margin:2px 0 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .wx-haze{ animation:none; }
+    #wxFlash{ display:none; }
+    html[data-weather] header::after,
+    html[data-weather] .cc-card::after,
+    html[data-weather] .app-section::after,
+    html[data-weather] .money-section::after,
+    html[data-weather] .dose-modal::after{ animation:none; }
+    html[data-weather] header::before,
+    html[data-weather] .cc-card::before,
+    html[data-weather] .app-section::before,
+    html[data-weather] .money-section::before,
+    html[data-weather] .dose-modal::before{ animation:none; }
+  }
   /* subtle scanlines */
   body::before{
     content:"";
@@ -1732,6 +2016,9 @@
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4.5 20V11M12 20V4.6M19.5 20v-6.6"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.8" width="6" height="11.2" rx="3"/><path d="M5.4 11.6a6.6 6.6 0 0 0 13.2 0M12 18.2V21.2"/></symbol>
   <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.8 18.5a4.3 4.3 0 0 1 .6-8.6 5.7 5.7 0 0 1 10.8 1.5 3.8 3.8 0 0 1-.4 7.1z"/></symbol>
+  <symbol id="i-storm" viewBox="0 0 24 24"><path d="M7 14.6a4 4 0 0 1 .5-8 5.4 5.4 0 0 1 10.2 1.4A3.6 3.6 0 0 1 17.3 14.6z"/><path d="M12.8 16.2l-2.6 3.4h3l-1.8 2.6"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M7 14.2a4 4 0 0 1 .5-8 5.4 5.4 0 0 1 10.2 1.4A3.6 3.6 0 0 1 17.3 14.2z"/><path d="M8.6 18h.01M12 19.6h.01M15.4 18h.01M10.3 21.2h.01M13.7 21.2h.01"/></symbol>
+  <symbol id="i-fog" viewBox="0 0 24 24"><path d="M4 9.5h16M6 13.5h13M4 17.5h11M17 17.5h3"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M3.2 12h17.6M12 3.2a13.5 13.5 0 0 1 0 17.6 13.5 13.5 0 0 1 0-17.6z"/></symbol>
   <symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 3.4L20.6 12 12 20.6 3.4 12z"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/></symbol>
@@ -1782,6 +2069,15 @@ function ico(name, cls){
 <div class="app-dust" id="appDust" aria-hidden="true"></div>
 <canvas id="bgCanvas"></canvas>
 <canvas id="bgCanvas3D"></canvas>
+
+<!-- weather atmosphere: one shared canvas for every state's particles, plus two
+     cheap compositor-only overlays for haze and ambience. Above the page and the
+     header so precipitation falls in front of them, below every modal and the
+     sidebar so it can never come between the user and a control. -->
+<div class="wx-dark" aria-hidden="true"></div>
+<div class="wx-haze" aria-hidden="true"></div>
+<canvas id="wxCanvas" aria-hidden="true"></canvas>
+<div id="wxFlash" aria-hidden="true"></div>
 <div class="page-tint" id="pageTint" aria-hidden="true"></div>
 <div class="ambient-screen" id="ambientScreen" aria-hidden="true">
   <canvas id="ambientShipCanvas" class="ambient-ship-canvas"></canvas>
@@ -1809,9 +2105,11 @@ function ico(name, cls){
     <a href="./games/index.html" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Arcade</span></a>
     <button type="button" id="syncBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Sync</span></button>
     <button type="button" id="timerBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Timer</span></button>
+    <button type="button" id="weatherBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Weather</span></button>
   </div>
 </nav>
 <script src="./buam-voice.js"></script>
+<script src="./buam-weather.js"></script>
 <script src="./buam-fx.js"></script>
 <script src="./buam-money.js"></script>
 <div class="wrap">
@@ -1860,7 +2158,13 @@ function ico(name, cls){
       </div>
 
       <div class="cc-card cc-feed">
-        <div class="cc-card-title">live_feed</div>
+        <div class="cc-card-title">live_feed
+          <!-- opens the same picker as the sidebar entry — one implementation -->
+          <button type="button" class="wx-chip" id="wxIndicator" title="Weather" aria-label="Weather">
+            <svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sun" id="wxIndicatorUse"></use></svg>
+            <span id="wxIndicatorText">clear</span>
+          </button>
+        </div>
         <div class="cc-feed-list" id="ccFeedList">
           <div class="cc-feed-item"><span class="cc-feed-text">Add a task or transaction to see activity here</span><span class="cc-feed-tag">INFO</span></div>
         </div>
@@ -2375,6 +2679,40 @@ function ico(name, cls){
     </div>
     <div class="dose-modal-actions">
       <button class="dose-cancel-btn" id="timerCancelBtn" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- weather picker: the tenth user of the existing .dose-overlay component, not
+     a second modal framework -->
+<div class="dose-overlay hidden" id="weatherOverlay">
+  <div class="dose-modal">
+    <div class="prompt-label">atmosphere</div>
+    <div class="dose-field">
+      <label>weather</label>
+      <div class="wx-grid" id="wxGrid">
+        <button type="button" data-wx="CLEAR"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sun"></use></svg> clear</button>
+        <button type="button" data-wx="CLOUDY"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-cloud"></use></svg> cloudy</button>
+        <button type="button" data-wx="RAIN"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-rain"></use></svg> rain</button>
+        <button type="button" data-wx="STORM"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-storm"></use></svg> storm</button>
+        <button type="button" data-wx="SNOW"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-snow"></use></svg> snow</button>
+        <button type="button" data-wx="FOG"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-fog"></use></svg> fog</button>
+      </div>
+    </div>
+    <div class="dose-field">
+      <label>mode</label>
+      <div class="dose-size-row" id="wxModeRow">
+        <button type="button" data-wxmode="MANUAL">manual</button>
+        <button type="button" data-wxmode="ROTATE">rotate</button>
+      </div>
+    </div>
+    <div class="dose-field">
+      <label>intensity <span id="wxIntensityVal" class="wx-val">75%</span></label>
+      <input type="range" id="wxIntensity" min="10" max="100" value="75" data-fx-skip>
+    </div>
+    <div class="wx-current" id="wxCurrent">&mdash;</div>
+    <div class="dose-modal-actions">
+      <button class="dose-cancel-btn" id="weatherCloseBtn" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -3661,6 +3999,82 @@ timerCancelBtn.addEventListener("click", ()=>{
 });
 
 document.getElementById("timerBtn").addEventListener("click", openTimerSetup);
+
+/* ---------------- weather atmosphere: controls ----------------
+   The engine lives in buam-weather.js. This is only the UI around it: one
+   picker, opened from either the sidebar entry or the LIVE_FEED indicator. */
+const weatherOverlay = document.getElementById("weatherOverlay");
+const WX_ICON = { CLEAR:"i-sun", CLOUDY:"i-cloud", RAIN:"i-rain", STORM:"i-storm", SNOW:"i-snow", FOG:"i-fog" };
+
+function renderWeatherUI(){
+  if(!window.BuamWeather) return;
+  const state = BuamWeather.getState();
+  const mode = BuamWeather.getMode();
+  const intensity = BuamWeather.getIntensity();
+
+  const use = document.getElementById("wxIndicatorUse");
+  const text = document.getElementById("wxIndicatorText");
+  if(use) use.setAttribute("href", "#" + (WX_ICON[state] || "i-sun"));
+  if(text) text.textContent = state.toLowerCase();
+
+  document.querySelectorAll("#wxGrid button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.wx === state);
+  });
+  document.querySelectorAll("#wxModeRow button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.wxmode === mode);
+  });
+  const slider = document.getElementById("wxIntensity");
+  const val = document.getElementById("wxIntensityVal");
+  if(slider) slider.value = String(Math.round(intensity * 100));
+  if(val) val.textContent = Math.round(intensity * 100) + "%";
+  const cur = document.getElementById("wxCurrent");
+  if(cur){
+    cur.textContent = mode === "ROTATE"
+      ? `rotating — currently ${state.toLowerCase()}`
+      : `holding ${state.toLowerCase()}`;
+  }
+}
+
+function openWeatherPicker(){
+  renderWeatherUI();
+  weatherOverlay.classList.remove("hidden");
+  if(window.buamFx) buamFx.blip();
+}
+function closeWeatherPicker(){ weatherOverlay.classList.add("hidden"); }
+
+document.getElementById("weatherBtn").addEventListener("click", openWeatherPicker);
+document.getElementById("wxIndicator").addEventListener("click", openWeatherPicker);
+document.getElementById("weatherCloseBtn").addEventListener("click", closeWeatherPicker);
+weatherOverlay.addEventListener("click", e=>{ if(e.target === weatherOverlay) closeWeatherPicker(); });
+
+document.getElementById("wxGrid").addEventListener("click", e=>{
+  const btn = e.target.closest("button[data-wx]");
+  if(!btn || !window.BuamWeather) return;
+  // picking a state by hand is an explicit manual choice, so it also leaves
+  // ROTATE — otherwise the next tick would silently overwrite the selection
+  BuamWeather.setMode("MANUAL");
+  BuamWeather.setState(btn.dataset.wx);
+  renderWeatherUI();
+});
+
+document.getElementById("wxModeRow").addEventListener("click", e=>{
+  const btn = e.target.closest("button[data-wxmode]");
+  if(!btn || !window.BuamWeather) return;
+  BuamWeather.setMode(btn.dataset.wxmode);
+  renderWeatherUI();
+});
+
+document.getElementById("wxIntensity").addEventListener("input", e=>{
+  if(!window.BuamWeather) return;
+  BuamWeather.setState(BuamWeather.getState(), { intensity: Number(e.target.value) / 100 });
+  renderWeatherUI();
+});
+
+if(window.BuamWeather){
+  BuamWeather.init();
+  BuamWeather.onChange(renderWeatherUI);
+  renderWeatherUI();
+}
 
 /* ---------------- sub-note log ---------------- */
 let notesTargetId = null;
@@ -5326,6 +5740,7 @@ let ambientClockTimerId = null;
 function anyOverlayOpen(){
   if(document.getElementById("sidebarNav").classList.contains("open")) return true;
   return [doseOverlay, syncOverlay, timerOverlay, notesOverlay, editOverlay,
+      document.getElementById("weatherOverlay"),
       document.getElementById("moneyEditTxnOverlay"), document.getElementById("moneyEditGroupOverlay"),
       document.getElementById("moneyEditCatOverlay"), document.getElementById("moneyConfirmOverlay")]
     .some(el => el && !el.classList.contains("hidden"));
@@ -5353,6 +5768,7 @@ function showAmbientScreen(){
   if(window.buamDustIdleMode) buamDustIdleMode(true);
   if(window.buamAmbientShip) buamAmbientShip.start();
   if(window.buamAICore) buamAICore.stop(); // the ambient screen fully covers it, no point rendering underneath
+  if(window.BuamWeather) BuamWeather.syncLoop(); // same reason: it is behind a full-screen layer now
   updateAmbientClock();
   ambientClockTimerId = setInterval(updateAmbientClock, 1000);
 }
@@ -5366,6 +5782,7 @@ function hideAmbientScreen(){
   if(window.buamDustIdleMode) buamDustIdleMode(false);
   if(window.buamAmbientShip) buamAmbientShip.stop();
   if(window.buamAICore && currentView === "home") buamAICore.start();
+  if(window.BuamWeather) BuamWeather.syncLoop();
   if(ambientClockTimerId){ clearInterval(ambientClockTimerId); ambientClockTimerId = null; }
 }
 
