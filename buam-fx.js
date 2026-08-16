@@ -419,9 +419,23 @@
     ]
   };
 
-  function pickLine(pool){
+  /* Plain random repeats itself, which is exactly what makes canned voice
+     feedback feel canned. buam-voice.js owns the anti-repetition picker, so
+     delegate to it when it is loaded and fall back to random when it is not.
+     Resolved at call time, so script order does not matter. */
+  var jarvisPicker = null;
+  function pickLine(kind, pool){
+    if(!pool || !pool.length) return "";
+    if(!jarvisPicker && global.BuamVoice && global.BuamVoice.createPicker){
+      jarvisPicker = global.BuamVoice.createPicker(JARVIS_LINES);
+    }
+    if(jarvisPicker && JARVIS_LINES[kind]) return jarvisPicker(kind);
     return pool[Math.floor(Math.random() * pool.length)];
   }
+
+  /* Returns a line without speaking it, so a caller that wants to show the
+     same words on screen and speak them once can do both. */
+  function jarvisLine(kind){ return pickLine(kind, JARVIS_LINES[kind] || []); }
 
   function speak(text){
     try{
@@ -444,7 +458,7 @@
     }catch(e){}
   }
 
-  function jarvisSay(kind){ speak(pickLine(JARVIS_LINES[kind] || [])); }
+  function jarvisSay(kind){ speak(pickLine(kind, JARVIS_LINES[kind] || [])); }
   function jarvisTaskAdded(){ jarvisSay("taskAdded"); }
   function jarvisTaskDone(){ jarvisSay("taskDone"); }
   function jarvisMoneyAdded(){ jarvisSay("moneyAdded"); }
@@ -484,6 +498,7 @@
     jarvisMoneyDeleted: jarvisMoneyDeleted,
     jarvisOnline: jarvisOnline,
     jarvisSayCustom: jarvisSayCustom,
+    jarvisLine: jarvisLine,
     isJarvisEnabled: isJarvisEnabled,
     setJarvisEnabled: setJarvisEnabled,
     toggleJarvisEnabled: toggleJarvisEnabled

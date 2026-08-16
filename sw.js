@@ -1,10 +1,11 @@
-const CACHE = "buam-v54";
+const CACHE = "buam-v55";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
+  "./buam-voice.js",
   "./buam-fx.js",
   "./buam-money.js",
   "./bgm.mp3",

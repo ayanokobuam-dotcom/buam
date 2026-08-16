@@ -791,6 +791,43 @@
     0%{ opacity:0.55; transform:scale(0.6); }
     100%{ opacity:0; transform:scale(2.05); }
   }
+  /* ---- voice pipeline states on the orb.
+     These are CSS overlays rather than Three.js material changes on purpose:
+     the core's additive blending is finely balanced (every layer has to stay
+     saturated or the centre washes out to white), so state feedback stays
+     outside the GL scene where it cannot disturb that. ---- */
+  .cc-hero-orb::after{ transition:opacity 0.35s ease; }
+  .cc-core-state{
+    position:absolute; inset:2%; border-radius:50%; pointer-events:none;
+    opacity:0; transition:opacity 0.3s ease, box-shadow 0.3s ease;
+  }
+  .cc-hero-orb.is-listening .cc-core-state{
+    opacity:1;
+    box-shadow:0 0 0 1px rgba(0,255,106,0.35), 0 0 34px 4px rgba(0,255,106,0.20) inset;
+    animation:ccStateBreathe 1.6s ease-in-out infinite;
+  }
+  .cc-hero-orb.is-processing .cc-core-state{
+    opacity:1;
+    box-shadow:0 0 0 1px rgba(57,214,255,0.30), 0 0 26px 2px rgba(57,214,255,0.16) inset;
+  }
+  .cc-hero-orb.is-error .cc-core-state{
+    opacity:1;
+    box-shadow:0 0 0 1px rgba(255,198,92,0.45), 0 0 26px 2px rgba(255,198,92,0.16) inset;
+  }
+  @keyframes ccStateBreathe{ 0%,100%{ opacity:0.55; } 50%{ opacity:1; } }
+  @media (prefers-reduced-motion: reduce){
+    .cc-hero-orb.is-listening .cc-core-state{ animation:none; opacity:1; }
+  }
+  .cc-core-caption{
+    margin-top:10px; min-height:1.15em;
+    font-size:0.82rem; line-height:1.4; color:var(--ink);
+    text-align:center; max-width:min(88vw, 460px);
+    opacity:0; transition:opacity 0.2s ease;
+  }
+  .cc-core-caption.show{ opacity:1; }
+  .cc-core-caption.interim{ color:var(--ink-dim); font-style:italic; }
+  .cc-core-caption.warn{ color:var(--amber); }
+
   /* one-time affordance under the label; retires once the core has been used */
   .cc-core-hint{
     margin-top:8px; font-size:0.64rem; letter-spacing:0.22em; text-transform:uppercase;
@@ -1774,6 +1811,7 @@ function ico(name, cls){
     <button type="button" id="timerBtn" class="sidebar-link"><span class="sb-glyph">&gt;</span><span>Timer</span></button>
   </div>
 </nav>
+<script src="./buam-voice.js"></script>
 <script src="./buam-fx.js"></script>
 <script src="./buam-money.js"></script>
 <div class="wrap">
@@ -1801,9 +1839,13 @@ function ico(name, cls){
       <div class="cc-hero-orb" id="aiCoreOrb"
            role="button" tabindex="0" aria-label="Activate B.U.A.M." title="Tap the core to speak">
         <span class="cc-core-ripple" id="ccCoreRipple" aria-hidden="true"></span>
+        <span class="cc-core-state" id="ccCoreState" aria-hidden="true"></span>
         <canvas id="aiCoreCanvas"></canvas>
       </div>
       <div class="cc-hero-label">B.U.A.M.<span>CORE</span></div>
+      <!-- live transcript while listening: the recognizer takes ~3s to decide
+           you have stopped talking, so without this the app looks frozen -->
+      <div class="cc-core-caption" id="ccCoreCaption" role="status" aria-live="polite"></div>
       <div class="cc-core-hint" id="ccCoreHint">tap core to speak</div>
     </div>
 
@@ -2905,28 +2947,47 @@ function fmtDateTime(ts){
   return `${hh}:${mi} ${dd}/${mm}`;
 }
 
-function addTask(){
-  const titleEl = document.getElementById("titleInput");
-  const title = titleEl.value.trim();
-  if(!title) return;
-  const cat = document.getElementById("catInput").value;
-  const due = document.getElementById("dueInput").value;
+/* The one place a task is created. addTask() below reads the form and calls
+   this; the voice engine calls it with parsed fields. Both therefore travel
+   the identical path — storage, sync, celebration, spoken feedback — so a
+   voice-created task is a real task, never a mocked one.
+   `speak` is opt-out so voice can supply its own richer reply instead of
+   stacking two utterances. */
+function createTask({ title, cat, due }, opts){
+  title = (title || "").trim();
+  if(!title) return null;
   const id = Date.now() + Math.random().toString(36).slice(2);
   const newTask = {
-    id, title, cat, due,
+    id,
+    title,
+    cat: cat || "other",
+    due: due || "",
     done:false,
     doses:[],
     notes:[],
     createdAt: Date.now()
   };
   tasks.unshift(newTask);
-  titleEl.value = "";
-  document.getElementById("dueInput").value = "";
   save();
   pushTaskUpsert(newTask);
+  celebrateTask(id, newTask.cat);
+  if(window.buamFx && (!opts || opts.speak !== false)) buamFx.jarvisTaskAdded();
+  return newTask;
+}
+
+function addTask(){
+  const titleEl = document.getElementById("titleInput");
+  const title = titleEl.value.trim();
+  if(!title) return;
+  const created = createTask({
+    title,
+    cat: document.getElementById("catInput").value,
+    due: document.getElementById("dueInput").value
+  });
+  if(!created) return;
+  titleEl.value = "";
+  document.getElementById("dueInput").value = "";
   titleEl.focus();
-  celebrateTask(id, cat);
-  if(window.buamFx) buamFx.jarvisTaskAdded();
 }
 
 function toggleDone(id){
@@ -4946,6 +5007,10 @@ window.buamAICore = (function(){
   let hover = 0, hoverTarget = 0;
   let press = 0, pressTarget = 0;
   let speaking = false;
+  // voice pipeline states, eased like the others so the core never snaps
+  // between them. `listen` is a sustained latch; `think` rides alongside it.
+  let listen = 0, listenTarget = 0;
+  let think = 0, thinkTarget = 0;
   window.addEventListener("buam-jarvis-speak", ()=>{ activity = 1; });
 
   function makeGlowTexture(){
@@ -5177,16 +5242,21 @@ window.buamAICore = (function(){
       // ease interaction states toward their targets so nothing snaps
       hover += (hoverTarget - hover) * Math.min(1, dt * 8);
       press += (pressTarget - press) * Math.min(1, dt * 12);
+      listen += (listenTarget - listen) * Math.min(1, dt * 6);
+      think += (thinkTarget - think) * Math.min(1, dt * 6);
       if(pressTarget > 0 && press > 0.92) pressTarget = 0; // auto-release the tap kick
 
-      const energy = Math.max(activity, hover * 0.45);
+      const energy = Math.max(activity, hover * 0.45, listen * 0.7);
 
       // layers turn at slightly different rates — the parallax between them is
       // what sells the depth, more than any single layer's motion does
-      core.rotation.y += dt * (0.12 + energy * 0.22);
-      shell.rotation.y -= dt * (0.05 + hover * 0.05);
+      // LISTENING lifts the whole core's activity; PROCESSING is deliberately
+      // quieter — extra orbital turn, no extra brightness — so the two states
+      // read as different rather than as "more of the same"
+      core.rotation.y += dt * (0.12 + energy * 0.22 + think * 0.30);
+      shell.rotation.y -= dt * (0.05 + hover * 0.05 + think * 0.18);
       shell.rotation.x += dt * 0.02;
-      dust.rotation.y -= dt * (0.045 + energy * 0.05);
+      dust.rotation.y -= dt * (0.045 + energy * 0.05 + think * 0.10);
       dust.rotation.z += dt * 0.015;
 
       // press pulls the particle layers inward, then they spring back out
@@ -5196,15 +5266,16 @@ window.buamAICore = (function(){
       dust.scale.setScalar(1 - press * 0.09 + hover * 0.02);
 
       coreHalo.scale.setScalar(5.0 * (1 + (breathe - 1) * 0.6));
-      coreHalo.material.opacity = 0.15 + energy * 0.1 + hover * 0.05 + press * 0.12;
+      coreHalo.material.opacity = 0.15 + energy * 0.1 + hover * 0.05 + press * 0.12 + listen * 0.10;
       coreGlow.scale.setScalar(2.75 * breathe);
-      coreGlow.material.opacity = 0.22 + energy * 0.12 + hover * 0.06 + press * 0.14;
+      coreGlow.material.opacity = 0.22 + energy * 0.12 + hover * 0.06 + press * 0.14 + listen * 0.12;
       coreHot.scale.setScalar(0.95 * breathe * (1 + press * 0.5));
-      coreHot.material.opacity = 0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22;
+      coreHot.material.opacity = 0.20 + Math.sin(t * 1.9) * 0.04 + activity * 0.14 + hover * 0.1 + press * 0.22
+        + listen * (0.10 + Math.sin(t * 4.2) * 0.05);
       nucleus.material.opacity = 1;
       shell.material.opacity = 1;
 
-      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5); });
+      electrons.forEach(pivot=>{ pivot.rotation.y += dt * pivot.userData.speed * (1 + energy * 0.6 + press * 1.5 + think * 1.2); });
       if(controls) controls.update();
       renderer.render(scene, camera);
     };
@@ -5234,7 +5305,14 @@ window.buamAICore = (function(){
     setHover(on){ hoverTarget = on ? 1 : 0; },
     // one-shot inward compression + brightness kick on activation
     kick(){ press = 0; pressTarget = 1; activity = 1; },
-    setSpeaking(on){ speaking = !!on; if(on) activity = 1; }
+    setSpeaking(on){ speaking = !!on; if(on) activity = 1; },
+    /* voice pipeline state. SUCCESS/ERROR are momentary and handled by the
+       caller (ripple / CSS ring), so only the sustained ones land here. */
+    setState(name){
+      listenTarget = name === "listening" ? 1 : 0;
+      thinkTarget  = name === "processing" ? 1 : 0;
+      if(name === "listening" || name === "processing") activity = Math.max(activity, 0.55);
+    }
   };
 })();
 
@@ -5359,6 +5437,11 @@ function switchView(name){
   if(name === "calendar") renderCalendar();
   if(name === "money") initMoneyView();
   if(window.buamAICore){ if(name === "home") buamAICore.start(); else buamAICore.stop(); }
+  // "that task" only means anything inside one short exchange — leaving the
+  // screen ends the exchange, so the reference is dropped rather than aging.
+  // Declared as a hoisted function further down, so this is safe to call even
+  // if a view is restored before that block has evaluated.
+  clearVoiceContext();
   if(window.buamFx) buamFx.blip();
 }
 
@@ -5466,9 +5549,14 @@ window.addEventListener("online", updateCcNetStat);
 window.addEventListener("offline", updateCcNetStat);
 
 /* ---------------- B.U.A.M. Core: the primary voice interaction ----------------
-   The briefing used to be triggered by the "B.U.A.M. READY" pill. That element
-   is now a status readout only; the 3D Core is the control. The voice logic
-   itself is unchanged — only the trigger moved. */
+   Tapping the Core starts listening. Everything below is the runtime half of
+   the voice engine — microphone lifecycle, pipeline states and dispatch into
+   the app's real functions. The language understanding lives in buam-voice.js,
+   which has no DOM access and is unit-tested separately.
+
+   Where recognition is unavailable or the microphone is refused, a tap does
+   exactly what it did before this feature existed: speak the briefing. Saying
+   nothing does the same, so the one-tap briefing is never lost. */
 function buildBriefingText(){
   const today = todayStr();
   const overdueCount = tasks.filter(t=>!t.done && t.due && t.due<today).length;
@@ -5492,12 +5580,383 @@ const coreHint = document.getElementById("ccCoreHint");
 const CORE_USED_KEY = "buam-core-used";
 try{ if(localStorage.getItem(CORE_USED_KEY) === "1") coreHint.classList.add("retired"); }catch(e){}
 
+const coreCaption = document.getElementById("ccCoreCaption");
+const coreStateEl = document.getElementById("ccCoreState");
+
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const voiceSupported = !!(SpeechRec && window.BuamVoice);
+const voicePick = window.BuamVoice ? BuamVoice.createPicker(BuamVoice.RESPONSES) : null;
+const voiceCtx = window.BuamVoice ? BuamVoice.createContext() : null;
+
+let voiceRec = null;
+let voiceListening = false;
+let voiceGotResult = false;
+let micDenied = false;          // set once the browser refuses; never nagged again
+let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
+let captionTimer = null;
+let idleTimer = null;
+
+function voiceReply(key){ return voicePick ? voicePick(key) : ""; }
+
+/* A function declaration so switchView() can call it from anywhere in the file
+   without tripping over the temporal dead zone of the consts above. */
+function clearVoiceContext(){
+  try{
+    if(voiceCtx) voiceCtx.clear();
+    pendingConfirm = null;
+  }catch(e){}   // called before this block evaluated: nothing to clear yet
+}
+
+function setCoreState(name){
+  if(!coreOrb) return;
+  coreOrb.classList.remove("is-listening", "is-processing", "is-error");
+  if(name === "listening") coreOrb.classList.add("is-listening");
+  else if(name === "processing") coreOrb.classList.add("is-processing");
+  else if(name === "error") coreOrb.classList.add("is-error");
+  if(window.buamAICore && buamAICore.setState) buamAICore.setState(name);
+
+  const stateEl = document.getElementById("ccJarvisState");
+  const bar = document.getElementById("ccJarvisBar");
+  if(stateEl && bar && !bar.classList.contains("talking")){
+    if(name === "listening") stateEl.textContent = "B.U.A.M. LISTENING…";
+    else if(name === "processing") stateEl.textContent = "B.U.A.M. THINKING…";
+    else updateCcJarvisBar();
+  }
+  if(name === "error"){
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 2200);
+  }
+}
+
+function showCaption(text, cls){
+  if(!coreCaption) return;
+  clearTimeout(captionTimer);
+  coreCaption.textContent = text || "";
+  coreCaption.className = "cc-core-caption" + (text ? " show" : "") + (cls ? " " + cls : "");
+  if(text && cls !== "interim"){
+    captionTimer = setTimeout(()=>{
+      coreCaption.textContent = "";
+      coreCaption.className = "cc-core-caption";
+    }, 6000);
+  }
+}
+
+/* Speak and caption the same words once. When the voice is muted or disabled
+   the caption still appears, so a tap is never silently ignored — and the
+   pipeline still returns to idle, since no utterance will ever end. */
+function voiceSay(text, cls){
+  if(!text) { setCoreState("idle"); return; }
+  showCaption(text, cls);
+  const canSpeak = window.buamFx && buamFx.isJarvisEnabled() && !buamFx.isMuted();
+  if(!canSpeak){
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 1600);
+    return;
+  }
+  let dispatched = false;
+  const onSpeak = e => {
+    dispatched = true;
+    const done = ()=>{ if(!voiceListening) setCoreState("idle"); };
+    e.detail.utterance.addEventListener("end", done);
+    e.detail.utterance.addEventListener("error", done);
+  };
+  // buam-fx dispatches this synchronously from inside jarvisSayCustom
+  window.addEventListener("buam-jarvis-speak", onSpeak);
+  buamFx.jarvisSayCustom(text);
+  window.removeEventListener("buam-jarvis-speak", onSpeak);
+  if(!dispatched){
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 1600);
+  }
+}
+
+function coreSuccess(){
+  setCoreState("idle");
+  if(window.buamAICore) buamAICore.kick();
+  fireCoreRipple();
+}
+
+function fireCoreRipple(){
+  if(!coreRipple) return;
+  coreRipple.classList.remove("go");
+  void coreRipple.offsetWidth; // restart the animation
+  coreRipple.classList.add("go");
+}
+
+function speakBriefing(){ voiceSay(buildBriefingText()); }
+
+/* ---- read-only answers ---- */
+
+function spokenTaskList(list, lead, empty){
+  if(!list.length) return empty;
+  const titles = list.slice(0, 3).map(t=>t.title);
+  const more = list.length - titles.length;
+  let text = lead.replace("{n}", list.length) + " " + titles.join(", ");
+  if(more > 0) text += `, and ${more} more`;
+  return text + ".";
+}
+
+function answerTasksToday(){
+  const today = todayStr();
+  const due = tasks.filter(t=>!t.done && t.due === today);
+  return spokenTaskList(due,
+    due.length === 1 ? "One thing today:" : "{n} today:",
+    "Nothing due today. Enjoy that.");
+}
+
+function answerOverdue(){
+  const today = todayStr();
+  const late = tasks.filter(t=>!t.done && t.due && t.due < today);
+  return spokenTaskList(late,
+    late.length === 1 ? "One overdue:" : "{n} overdue:",
+    "Nothing overdue. You're on top of it.");
+}
+
+function answerBudget(){
+  const today = todayStr();
+  const income = moneyState.settings.monthlyIncome || 0;
+  const dash = BuamMoney.calcDashboard(moneyState.transactions, BuamMoney.monthKeyOf(today), null);
+  const spent = Math.round(dash.expense).toLocaleString("en-US");
+  if(income <= 0) return `You've spent ${spent} baht this month. Set a monthly income and I can give you a percentage too.`;
+  const pct = Math.round((dash.expense / income) * 100);
+  return pct >= 100
+    ? `You're over budget, at ${pct} percent. ${spent} baht spent this month.`
+    : `You're at ${pct} percent of this month's budget. ${spent} baht so far.`;
+}
+
+function answerTime(){
+  const d = new Date();
+  return "It's " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + ".";
+}
+
+/* ---- actions ----
+   Each returns a string to speak, or "" for a silent action (navigation says
+   nothing on purpose — narrating every screen change gets old fast). */
+
+function voiceAddTask(params){
+  if(!params.title){
+    switchView("tasks");
+    setTimeout(()=>{ const el = document.getElementById("titleInput"); if(el) el.focus(); }, 60);
+    return voiceReply("needTitle");
+  }
+  const created = createTask({ title: params.title, cat: "other", due: params.due || "" }, { speak: false });
+  if(!created) return voiceReply("needTitle");
+  if(voiceCtx) voiceCtx.set(created.id, "task.add", new Date());
+  coreSuccess();
+  const line = (window.buamFx && buamFx.jarvisLine) ? buamFx.jarvisLine("taskAdded") : "Added.";
+  return params.due ? line + " Due " + friendlyDue(params.due) + "." : line;
+}
+
+function friendlyDue(dateStr){
+  const today = todayStr();
+  if(dateStr === today) return "today";
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  if(dateStr === localDateStr(d)) return "tomorrow";
+  const parsed = new Date(dateStr + "T00:00:00");
+  return isNaN(parsed) ? dateStr : parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function voiceCompleteTask(params){
+  let target = null;
+  if(params.title) target = BuamVoice.findTaskByTitle(params.title, tasks);
+  if(!target && voiceCtx){
+    const ctx = voiceCtx.get(new Date());
+    if(ctx) target = tasks.filter(t=>t.id === ctx.taskId)[0] || null;
+  }
+  if(!target) return voiceReply(params.title ? "taskNotFound" : "nothingToComplete");
+  if(target.done) return `"${target.title}" is already done.`;
+  toggleDone(target.id);   // the app's own path: save, sync, celebrate, speak
+  if(voiceCtx) voiceCtx.set(target.id, "task.done", new Date());
+  coreSuccess();
+  return "";               // toggleDone already speaks a taskDone line
+}
+
+function voiceAddMoney(params){
+  const res = addMoneyTxn({
+    amount: params.amount,
+    type: "expense",
+    categoryId: params.categoryId,
+    date: params.date,
+    note: params.note || ""
+  }, { speak: false });
+  if(!res.ok) return "I couldn't log that. " + res.errors.join(". ");
+  coreSuccess();
+  const line = (window.buamFx && buamFx.jarvisLine) ? buamFx.jarvisLine("moneyAdded") : "Logged.";
+  return line + " " + Math.round(params.amount).toLocaleString("en-US") + " baht.";
+}
+
+function voiceStartTimer(params){
+  if(params.minutes){
+    timerTaskId = "";
+    timerMinutes = params.minutes;
+    startStandaloneTimer(params.minutes);
+    coreSuccess();
+    return `${params.minutes} minutes, starting now.`;
+  }
+  openTimerSetup();
+  return "";
+}
+
+/* Maps an intent onto a real application action. Anything this cannot do says
+   so out loud rather than pretending — no fake success messages. */
+function runVoiceIntent(intent, params){
+  switch(intent){
+    case "briefing":            return buildBriefingText();
+    case "query.tasksToday":    return answerTasksToday();
+    case "query.overdue":       return answerOverdue();
+    case "query.budget":        return answerBudget();
+    case "query.time":          return answerTime();
+
+    case "nav.calendar":        switchView("calendar"); return "";
+    case "nav.money":           switchView("money"); return "";
+    case "nav.tasks":           switchView("tasks"); return "";
+    case "nav.analytics":       switchView("analytics"); return "";
+    case "nav.home":            switchView("home"); return "";
+
+    case "task.add":            return voiceAddTask(params);
+    case "task.done":           return voiceCompleteTask(params);
+    case "money.add":           return voiceAddMoney(params);
+    case "timer.start":         return voiceStartTimer(params);
+
+    case "unsupported.delete":       return voiceReply("unsupportedDelete");
+    case "unsupported.reschedule":   return voiceReply("unsupportedReschedule");
+
+    default: {
+      const key = intent.indexOf("chat.") === 0 ? intent.slice(5) : "fallback";
+      return voiceReply(BuamVoice.RESPONSES[key] ? key : "fallback");
+    }
+  }
+}
+
+function describeForConfirm(intent, params){
+  if(intent === "money.add"){
+    return `That's ${Math.round(params.amount).toLocaleString("en-US")} baht${params.note ? " for " + params.note : ""}. Confirm?`;
+  }
+  if(intent === "task.add") return `Add "${params.title}"?`;
+  if(intent === "task.done") return `Mark ${params.title ? '"' + params.title + '"' : "that"} as done?`;
+  if(intent === "timer.start") return `Start a ${params.minutes || ""} minute timer?`;
+  return "Go ahead?";
+}
+
+function handleTranscript(text, score){
+  setCoreState("processing");
+
+  // an outstanding confirmation swallows the next yes/no before anything else
+  if(pendingConfirm){
+    const answer = BuamVoice.parseIntent(text, { now: new Date() });
+    const pending = pendingConfirm;
+    if(answer.intent === "confirm.yes"){
+      pendingConfirm = null;
+      voiceSay(pending.run() || voiceReply("confirmed"));
+      return;
+    }
+    if(answer.intent === "confirm.no"){
+      pendingConfirm = null;
+      voiceSay(voiceReply("cancelled"));
+      return;
+    }
+    pendingConfirm = null;   // anything else abandons the confirmation
+  }
+
+  const parsed = BuamVoice.parseIntent(text, { now: new Date(), categories: moneyState.categories });
+  const verdict = BuamVoice.gate(parsed.intent, score, parsed.params);
+
+  if(verdict === "retry"){
+    setCoreState("error");
+    voiceSay(voiceReply("retry"), "warn");
+    return;
+  }
+  if(verdict === "confirm"){
+    pendingConfirm = { run: ()=> runVoiceIntent(parsed.intent, parsed.params) };
+    voiceSay(describeForConfirm(parsed.intent, parsed.params));
+    return;
+  }
+  const reply = runVoiceIntent(parsed.intent, parsed.params);
+  if(reply) voiceSay(reply);
+  else { setCoreState("idle"); showCaption(""); }
+}
+
+function stopListening(){
+  if(voiceRec){ try{ voiceRec.abort(); }catch(e){} }
+  voiceListening = false;
+}
+
+function startListening(){
+  let rec;
+  try{ rec = new SpeechRec(); }
+  catch(e){ speakBriefing(); return; }
+
+  voiceRec = rec;
+  voiceGotResult = false;
+  rec.lang = "th-TH";          // Thai transcribes at 0.99+ here; English collapses
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = ()=>{
+    voiceListening = true;
+    setCoreState("listening");
+    showCaption("Listening…", "interim");
+  };
+
+  rec.onresult = e => {
+    let finalText = "", interim = "", score = null;
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const r = e.results[i];
+      if(r.isFinal){ finalText += r[0].transcript; score = r[0].confidence; }
+      else interim += r[0].transcript;
+    }
+    if(interim) showCaption(interim, "interim");
+    if(finalText){
+      voiceGotResult = true;
+      voiceListening = false;
+      showCaption(finalText, "interim");
+      handleTranscript(finalText, score);
+    }
+  };
+
+  rec.onerror = e => {
+    voiceListening = false;
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      micDenied = true;
+      setCoreState("error");
+      voiceSay(voiceReply("micDenied"), "warn");
+      return;
+    }
+    if(e.error === "network"){
+      setCoreState("processing");
+      voiceSay(voiceReply("offline") + " " + buildBriefingText());
+      return;
+    }
+    // no-speech, aborted, audio-capture: fall back to the briefing, which is
+    // what a tap used to do anyway
+    if(!voiceGotResult) speakBriefing();
+  };
+
+  rec.onend = ()=>{
+    voiceListening = false;
+    // nothing was said and no error fired — the user tapped and stayed quiet,
+    // which is the deliberate shortcut back to the old one-tap briefing
+    if(!voiceGotResult && !pendingConfirm && !coreOrb.classList.contains("is-error")){
+      const bar = document.getElementById("ccJarvisBar");
+      if(!bar || !bar.classList.contains("talking")) speakBriefing();
+    }
+  };
+
+  try{ rec.start(); }
+  catch(e){ voiceListening = false; speakBriefing(); }
+}
+
 let lastCoreActivate = 0;
 function activateBuamCore(){
   const bar = document.getElementById("ccJarvisBar");
-  // state protection: never stack a second briefing onto one already speaking,
+  // state protection: never stack a second reply onto one already speaking,
   // and swallow double-taps that would otherwise queue two utterances
   if(bar && bar.classList.contains("talking")) return;
+
+  // a tap while listening cancels, so the Core is never a one-way trip
+  if(voiceListening){ stopListening(); setCoreState("idle"); showCaption(""); return; }
+
   const now = Date.now();
   if(now - lastCoreActivate < 700) return;
   lastCoreActivate = now;
@@ -5505,18 +5964,27 @@ function activateBuamCore(){
   // visual acknowledgement fires even when the voice is muted, so a tap is
   // never silently ignored
   if(window.buamAICore) buamAICore.kick();
-  if(coreRipple){
-    coreRipple.classList.remove("go");
-    void coreRipple.offsetWidth; // restart the animation
-    coreRipple.classList.add("go");
-  }
+  fireCoreRipple();
   if(coreHint && !coreHint.classList.contains("retired")){
     coreHint.classList.add("retired");
     try{ localStorage.setItem(CORE_USED_KEY, "1"); }catch(e){}
   }
 
-  if(window.buamFx) buamFx.jarvisSayCustom(buildBriefingText());
+  // no recognition, or the microphone was refused earlier: behave exactly as
+  // this button did before voice existed
+  if(!voiceSupported || micDenied){ speakBriefing(); return; }
+  startListening();
 }
+
+/* iOS hands the microphone to one consumer at a time and mutes a held stream
+   when the app is backgrounded, permanently — a lesson from mic-test.html. The
+   app never opens getUserMedia itself, and recognition is dropped the moment
+   the page is hidden so nothing survives the transition half-alive. */
+document.addEventListener("visibilitychange", ()=>{
+  if(!document.hidden) return;
+  if(voiceListening){ stopListening(); setCoreState("idle"); showCaption(""); }
+  pendingConfirm = null;
+});
 
 /* tap vs. orbit-drag: OrbitControls owns dragging on this same canvas, so only
    a press that stayed put and ended inside the orb counts as an activation */
@@ -5826,6 +6294,29 @@ const MONEY_STATUS_LABELS = {
 function moneyStatusLabel(status){ return MONEY_STATUS_LABELS[status] || MONEY_STATUS_LABELS.normal; }
 
 /* ---- budget alerts: notify when a transaction pushes a group into a worse status ---- */
+/* The one place a transaction is created. The Add button reads the form and
+   calls this; the voice engine calls it with parsed fields. Validation, save,
+   cloud push, budget alerts and re-render all happen here, so a spoken expense
+   is indistinguishable from a typed one.
+   Returns BuamMoney.addTransaction's result untouched, so the caller can show
+   the real validation errors rather than inventing a success message. */
+function addMoneyTxn(input, opts){
+  const mKey = BuamMoney.isValidDateStr(input.date) ? BuamMoney.monthKeyOf(input.date) : null;
+  const beforeMap = mKey ? moneyGroupUsageStatusMap(mKey) : null;
+  const res = BuamMoney.addTransaction(moneyState.transactions, moneyState.categories, input);
+  if(!res.ok) return res;
+  saveMoneyTransactions();
+  moneyTxnSync.pushUpsert(res.transaction);
+  if(mKey) checkMoneyBudgetAlerts(mKey, beforeMap);
+  renderMoneyTransactionsView();
+  if(moneyState.currentSubview==="dashboard") renderMoneyDashboard();
+  if(window.buamFx){
+    buamFx.blip();
+    if(!opts || opts.speak !== false) buamFx.jarvisMoneyAdded();
+  }
+  return res;
+}
+
 function moneyGroupUsageStatusMap(mKey){
   const budget = BuamMoney.ensureMonthlyBudget(moneyState.monthlyBudgets, moneyState.budgetGroups, moneyState.settings, mKey);
   const usage = BuamMoney.calcGroupUsage(moneyState.transactions, moneyState.categories, moneyState.budgetGroups, budget, mKey);
@@ -6330,29 +6821,20 @@ function setupMoneyEventListeners(){
     if(window.buamFx) buamFx.blip();
   });
   document.getElementById("moneyAddBtn").addEventListener("click", ()=>{
-    const input = {
+    const res = addMoneyTxn({
       amount: document.getElementById("moneyAmountInput").value,
       type: moneyState.txnType,
       categoryId: document.getElementById("moneyCategoryInput").value,
       date: document.getElementById("moneyDateInput").value,
       note: document.getElementById("moneyNoteInput").value,
       asset: document.getElementById("moneyAssetInput").value
-    };
-    const mKey = BuamMoney.isValidDateStr(input.date) ? BuamMoney.monthKeyOf(input.date) : null;
-    const beforeMap = mKey ? moneyGroupUsageStatusMap(mKey) : null;
-    const res = BuamMoney.addTransaction(moneyState.transactions, moneyState.categories, input);
+    });
     const errBox = document.getElementById("moneyAddError");
     if(!res.ok){ errBox.textContent = res.errors.join(" · "); errBox.style.display = ""; return; }
     errBox.style.display = "none";
-    saveMoneyTransactions();
-    moneyTxnSync.pushUpsert(res.transaction);
-    if(mKey) checkMoneyBudgetAlerts(mKey, beforeMap);
     document.getElementById("moneyAmountInput").value = "";
     document.getElementById("moneyNoteInput").value = "";
     document.getElementById("moneyAssetInput").value = "";
-    renderMoneyTransactionsView();
-    if(moneyState.currentSubview==="dashboard") renderMoneyDashboard();
-    if(window.buamFx){ buamFx.blip(); buamFx.jarvisMoneyAdded(); }
   });
   document.getElementById("moneyFilters").addEventListener("click", e=>{
     const btn = e.target.closest(".chip");
