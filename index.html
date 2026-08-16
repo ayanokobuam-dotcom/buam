@@ -6244,20 +6244,28 @@ function showCaption(text, cls){
 
 /* Speak and caption the same words once. When the voice is muted or disabled
    the caption still appears, so a tap is never silently ignored — and the
-   pipeline still returns to idle, since no utterance will ever end. */
-function voiceSay(text, cls){
+   pipeline still returns to idle, since no utterance will ever end.
+   `after` runs when the line is finished, whichever of those routes it took;
+   returning true from it means it has taken over the Core and idle is skipped.
+   That is how a question can hand straight over to listening for its answer. */
+function voiceSay(text, cls, after){
   if(!text) { setCoreState("idle"); return; }
   showCaption(text, cls);
+  const settle = ()=>{
+    if(after && after()) return;
+    if(!voiceListening) setCoreState("idle");
+  };
   const canSpeak = window.buamFx && buamFx.isJarvisEnabled() && !buamFx.isMuted();
   if(!canSpeak){
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 1600);
+    idleTimer = setTimeout(settle, 1600);
     return;
   }
   let dispatched = false;
   const onSpeak = e => {
     dispatched = true;
-    const done = ()=>{ if(!voiceListening) setCoreState("idle"); };
+    let settled = false;
+    const done = ()=>{ if(settled) return; settled = true; settle(); };
     e.detail.utterance.addEventListener("end", done);
     e.detail.utterance.addEventListener("error", done);
   };
@@ -6267,7 +6275,7 @@ function voiceSay(text, cls){
   window.removeEventListener("buam-jarvis-speak", onSpeak);
   if(!dispatched){
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 1600);
+    idleTimer = setTimeout(settle, 1600);
   }
 }
 
@@ -6505,7 +6513,7 @@ function handleTranscript(text, score){
   }
   if(verdict === "confirm"){
     pendingConfirm = { run: ()=> runVoiceIntent(parsed.intent, parsed.params) };
-    voiceSay(describeForConfirm(parsed.intent, parsed.params));
+    voiceSay(describeForConfirm(parsed.intent, parsed.params), null, listenForAnswer);
     return;
   }
   const reply = runVoiceIntent(parsed.intent, parsed.params);
@@ -6518,6 +6526,25 @@ function stopListening(){
   voiceListening = false;
 }
 
+/* A question that closes the microphone is not really a question. As soon as
+   BUAM finishes asking, the microphone re-opens so "ใช่" can be the very next
+   thing said — before this, the Core dropped to idle and the answer had
+   nowhere to go, leaving the only way through a second tap nobody expects.
+   Returns true when it has taken the Core over. */
+function listenForAnswer(){
+  if(!pendingConfirm) return false;              // already answered or dropped
+  if(!voiceSupported || micGivenUp()) return false;
+  startListening();
+  return true;
+}
+
+/* A briefing must never barge into an outstanding question: the question is
+   still on screen and the answer still has somewhere to go. */
+function fallbackToBriefing(){
+  if(pendingConfirm) return;
+  speakBriefing();
+}
+
 function startListening(){
   // iOS hands the microphone to one consumer at a time, so a warm-up session
   // still waiting on its dialog has to let go first
@@ -6525,10 +6552,13 @@ function startListening(){
 
   let rec;
   try{ rec = new SpeechRec(); }
-  catch(e){ speakBriefing(); return; }
+  catch(e){ fallbackToBriefing(); return; }
 
   voiceRec = rec;
   voiceGotResult = false;
+  // whether the microphone really opened. A window that never opened must not
+  // be read as "the user declined to answer".
+  let recStarted = false;
   rec.lang = "th-TH";          // Thai transcribes at 0.99+ here; English collapses
   rec.interimResults = true;
   rec.continuous = false;
@@ -6536,9 +6566,12 @@ function startListening(){
 
   rec.onstart = ()=>{
     voiceListening = true;
+    recStarted = true;
     micRefusals = 0;             // the microphone is clearly ours now
     setCoreState("listening");
-    showCaption("Listening…", "interim");
+    // while a question is outstanding the question itself stays on screen —
+    // replacing it with "Listening…" hides the thing being answered
+    if(!pendingConfirm) showCaption("Listening…", "interim");
   };
 
   rec.onresult = e => {
@@ -6572,21 +6605,31 @@ function startListening(){
     }
     // no-speech, aborted, audio-capture: fall back to the briefing, which is
     // what a tap used to do anyway
-    if(!voiceGotResult) speakBriefing();
+    if(!voiceGotResult) fallbackToBriefing();
   };
 
   rec.onend = ()=>{
     voiceListening = false;
+    if(voiceGotResult) return;
+    if(pendingConfirm){
+      /* The answer window closed with nothing said. A write action must not sit
+         half-committed, so the question is dropped — but only if the window
+         actually opened; if it never did, the question stands and a tap can
+         still answer it. */
+      if(recStarted){ pendingConfirm = null; showCaption(""); }
+      setCoreState("idle");
+      return;
+    }
     // nothing was said and no error fired — the user tapped and stayed quiet,
     // which is the deliberate shortcut back to the old one-tap briefing
-    if(!voiceGotResult && !pendingConfirm && !coreOrb.classList.contains("is-error")){
+    if(!coreOrb.classList.contains("is-error")){
       const bar = document.getElementById("ccJarvisBar");
-      if(!bar || !bar.classList.contains("talking")) speakBriefing();
+      if(!bar || !bar.classList.contains("talking")) fallbackToBriefing();
     }
   };
 
   try{ rec.start(); }
-  catch(e){ voiceListening = false; speakBriefing(); }
+  catch(e){ voiceListening = false; fallbackToBriefing(); }
 }
 
 /* iOS asks for the microphone once per launch of a Home Screen web app, and
@@ -6637,8 +6680,15 @@ function activateBuamCore(){
   // and swallow double-taps that would otherwise queue two utterances
   if(bar && bar.classList.contains("talking")) return;
 
-  // a tap while listening cancels, so the Core is never a one-way trip
-  if(voiceListening){ stopListening(); setCoreState("idle"); showCaption(""); return; }
+  // a tap while listening cancels, so the Core is never a one-way trip — and
+  // that includes walking away from a question rather than answering it
+  if(voiceListening){
+    stopListening();
+    pendingConfirm = null;
+    setCoreState("idle");
+    showCaption("");
+    return;
+  }
 
   const now = Date.now();
   if(now - lastCoreActivate < 700) return;
