@@ -3110,6 +3110,12 @@ function ico(name, cls){
     gate.remove();
     if(hint) hint.style.display = "";
     if(window.buamFx){ buamFx.confirm(); buamFx.forceRestartMusic(); }
+    /* Both of these need a user gesture on iOS, and this tap is the only one
+       guaranteed to happen every launch: the microphone prompt is raised here
+       so it lands at the door rather than mid-sentence later, and the greeting
+       unlocks speech for the rest of the session at the same time. */
+    if(window.warmMicrophone) warmMicrophone();
+    if(window.speakBootGreeting) speakBootGreeting();
     boot.classList.add("ignite-flash");
     boot.classList.add("boot-ignited");
     if(ignite) ignite.classList.add("ignite-active");
@@ -6186,6 +6192,7 @@ let voiceGotResult = false;
 const MIC_REFUSALS_BEFORE_GIVING_UP = 2;
 let micRefusals = 0;
 function micGivenUp(){ return micRefusals >= MIC_REFUSALS_BEFORE_GIVING_UP; }
+let warmRec = null;             // a throwaway session used only to raise the mic prompt
 let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
 let captionTimer = null;
 let idleTimer = null;
@@ -6512,6 +6519,10 @@ function stopListening(){
 }
 
 function startListening(){
+  // iOS hands the microphone to one consumer at a time, so a warm-up session
+  // still waiting on its dialog has to let go first
+  if(warmRec){ try{ warmRec.abort(); }catch(e){} warmRec = null; }
+
   let rec;
   try{ rec = new SpeechRec(); }
   catch(e){ speakBriefing(); return; }
@@ -6577,6 +6588,47 @@ function startListening(){
   try{ rec.start(); }
   catch(e){ voiceListening = false; speakBriefing(); }
 }
+
+/* iOS asks for the microphone once per launch of a Home Screen web app, and
+   nothing on the web can make that grant outlive the launch. What can be
+   chosen is *when* it is asked. Folding it into the ENTER tap — a real user
+   gesture, so the request is allowed — puts the dialog at the door, once,
+   instead of interrupting the first thing the user actually wanted to say.
+
+   Only for someone who has used the Core before: a first-time visitor should
+   not be asked for a microphone they have not tried to use yet. */
+window.warmMicrophone = function(){
+  if(!voiceSupported || micGivenUp() || warmRec) return;
+  let used = false;
+  try{ used = localStorage.getItem(CORE_USED_KEY) === "1"; }catch(e){}
+  if(!used) return;
+
+  let rec;
+  try{ rec = new SpeechRec(); }catch(e){ return; }
+  rec.lang = "th-TH";
+  rec.interimResults = false;
+  rec.continuous = false;
+  /* This session exists only to raise the permission dialog. None of the real
+     handlers are attached, so it cannot report a transcript, trip the briefing
+     fallback, or leave the Core looking like it is listening. */
+  rec.onstart = ()=>{
+    micRefusals = 0;
+    warmRec = null;
+    try{ rec.abort(); }catch(e){}
+  };
+  rec.onerror = ()=>{ warmRec = null; };
+  rec.onend = ()=>{ warmRec = null; };
+  warmRec = rec;
+  try{ rec.start(); }
+  catch(e){ warmRec = null; }
+};
+
+/* Spoken from the ENTER tap, where iOS allows speech to start. */
+window.speakBootGreeting = function(){
+  if(!window.buamFx || !voicePick) return;
+  if(!buamFx.isJarvisEnabled() || buamFx.isMuted()) return;
+  buamFx.jarvisSayCustom(voiceReply("bootGreeting"));
+};
 
 let lastCoreActivate = 0;
 function activateBuamCore(){

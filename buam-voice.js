@@ -822,6 +822,18 @@
       "Fine by me.", "Consider it never mentioned."
     ],
 
+    /* Spoken once, as the app opens — a system coming up rather than someone
+       saying hello mid-conversation, which is what `greeting` is for. */
+    bootGreeting: [
+      "Everything's up. What are we doing today?",
+      "I'm awake. Say the word.",
+      "Back online. Your list is where you left it.",
+      "All systems yours. What's first?",
+      "Here we go again. I'm listening whenever you are.",
+      "Up and running. Tap me when you need me.",
+      "Morning, or whatever it is. I'm ready."
+    ],
+
     /* ---- conversation ---- */
     greeting: [
       "Hey. Good to see you.",
