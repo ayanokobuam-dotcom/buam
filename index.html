@@ -6588,29 +6588,51 @@ function voiceCompleteTaskById(id){
 }
 
 function voiceAddMoney(params){
-  const income = params.type === "income";
+  const type = params.type === "income" || params.type === "investment" ? params.type : "expense";
   const res = addMoneyTxn({
     amount: params.amount,
-    type: income ? "income" : "expense",
+    type: type,
     categoryId: params.categoryId,
     date: params.date,
     note: params.note || ""
   }, { speak: false });
   if(!res.ok) return "I couldn't log that. " + res.errors.join(". ");
   coreSuccess();
+
   const baht = Math.round(params.amount).toLocaleString("en-US") + " baht";
-  if(income){
+  // a category the user named out loud is worth reading back, and one that
+  // matched nothing they have is worth admitting to
+  const named = params.categoryName ? ` Filed under ${params.categoryName}.` : "";
+  const missed = params.categoryMissed
+    ? ` I don't have a ${params.categoryMissed} category, so it went to ${categoryNameFor(params.categoryId)}.`
+    : "";
+
+  if(type === "income"){
     // money in reads differently from money out, and the running total is the
     // thing worth hearing back
-    const mKey = BuamMoney.monthKeyOf(params.date);
-    const dash = BuamMoney.calcDashboard(moneyState.transactions, mKey, null);
-    // the ledger keeps satang, not baht — reading the raw total aloud said
-    // "1,500,000 baht" for a 15,000 baht salary
-    const total = dash && dash.income ? Math.round(BuamMoney.toBaht(dash.income)) : 0;
-    return `${baht} in.` + (total ? ` That's ${total.toLocaleString("en-US")} baht this month.` : "");
+    const total = monthTotalBaht(params.date, "income");
+    return `${baht} in.` + (total ? ` That's ${total.toLocaleString("en-US")} baht this month.` : "") + named + missed;
+  }
+  if(type === "investment"){
+    const total = monthTotalBaht(params.date, "investment");
+    return `${baht} invested.` + (total ? ` ${total.toLocaleString("en-US")} baht put away this month.` : "") + named + missed;
   }
   const line = (window.buamFx && buamFx.jarvisLine) ? buamFx.jarvisLine("moneyAdded") : "Logged.";
-  return line + " " + baht + ".";
+  return line + " " + baht + "." + named + missed;
+}
+
+/* The ledger keeps satang; everything spoken is baht. Reading the raw figure
+   aloud once announced "1,500,000 baht" for a 15,000 baht salary. */
+function monthTotalBaht(dateStr, kind){
+  const dash = BuamMoney.calcDashboard(moneyState.transactions, BuamMoney.monthKeyOf(dateStr), null);
+  return dash && dash[kind] ? Math.round(BuamMoney.toBaht(dash[kind])) : 0;
+}
+
+function categoryNameFor(id){
+  const all = [].concat(moneyState.categories.income || [], moneyState.categories.expense || [],
+                        moneyState.categories.investment || []);
+  const hit = all.filter(c=>c.id === id)[0];
+  return hit ? hit.name : "the default category";
 }
 
 function voiceStartTimer(params){
@@ -6662,6 +6684,9 @@ function describeForConfirm(intent, params){
     const baht = Math.round(params.amount).toLocaleString("en-US") + " baht";
     if(params.type === "income"){
       return `That's ${baht} coming in${params.note ? " from " + params.note : ""}. Confirm?`;
+    }
+    if(params.type === "investment"){
+      return `That's ${baht} into ${categoryNameFor(params.categoryId)}. Confirm?`;
     }
     return `That's ${baht}${params.note ? " for " + params.note : ""}. Confirm?`;
   }

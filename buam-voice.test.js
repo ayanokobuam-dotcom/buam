@@ -249,10 +249,15 @@
   /* ================= income ================= */
 
   var CATS = {
-    expense: [{ id: "exp-food", name: "อาหาร" }, { id: "exp-other", name: "อื่น ๆ" }],
+    expense: [{ id: "exp-food", name: "อาหาร" }, { id: "exp-transport", name: "เดินทาง" },
+              { id: "exp-other", name: "อื่น ๆ" }],
     income: [{ id: "inc-allowance", name: "เงินเดือน/ค่าขนม" },
              { id: "inc-work", name: "รายได้จากงาน" },
-             { id: "inc-other", name: "รายได้อื่น ๆ" }]
+             { id: "inc-other", name: "รายได้อื่น ๆ" }],
+    investment: [{ id: "inv-fund", name: "กองทุน" }, { id: "inv-stock", name: "หุ้น" },
+                 { id: "inv-etf", name: "ETF" },
+                 { id: "inv-savings", name: "เงินออมเพื่อการลงทุน" },
+                 { id: "inv-other", name: "อื่น ๆ" }]
   };
 
   test("money coming in is recognised as income, not as another expense", function () {
@@ -306,6 +311,61 @@
   test("income is a write, so a large one still asks first", function () {
     var r = V.parseIntent("เงินเดือนออก 15000", { now: NOW, categories: CATS });
     assertEqual(V.gate(r.intent, 0.99, r.params), "confirm");
+  });
+
+  test("money put away is investment, not an expense against the budget", function () {
+    [["ลงทุน 5000 บาท", "inv-other"], ["ซื้อหุ้น 3000 บาท", "inv-stock"],
+     ["ซื้อกองทุน 2000 บาท", "inv-fund"], ["ออมเงิน 500 บาท", "inv-savings"],
+     ["DCA 1000 บาท", "inv-other"]].forEach(function (c) {
+      var r = V.parseIntent(c[0], { now: NOW, categories: CATS });
+      assertEqual(r.intent, "money.add", c[0]);
+      assertEqual(r.params.type, "investment", c[0]);
+      assertEqual(r.params.categoryId, c[1], c[0]);
+    });
+  });
+
+  test("buying an investment is not read as spending, even though it is buying", function () {
+    // "ซื้อหุ้น" starts with a spending verb; the money still leaves, but the
+    // ledger must not count it against the monthly budget
+    var r = V.parseIntent("ซื้อหุ้น 3000 บาท", { now: NOW, categories: CATS });
+    assertEqual(r.params.type, "investment");
+    assertEqual(V.parseIntent("ซื้อของ 200 บาท", { now: NOW, categories: CATS }).params.type, "expense");
+  });
+
+  test("a spoken category name is used instead of the guess", function () {
+    [["กาแฟ 60 บาท หมวดเดินทาง", "expense", "exp-transport"],
+     ["ได้เงิน 500 หมวดรายได้จากงาน", "income", "inc-work"],
+     ["จ่าย 500 หมวดอาหาร", "expense", "exp-food"]].forEach(function (c) {
+      var r = V.parseIntent(c[0], { now: NOW, categories: CATS });
+      assertEqual(r.params.type, c[1], c[0]);
+      assertEqual(r.params.categoryId, c[2], c[0]);
+    });
+  });
+
+  test("a category that only exists under one type brings its type with it", function () {
+    // no verb at all, just an amount and a category
+    var r = V.parseIntent("2000 บาท หมวดกองทุน", { now: NOW, categories: CATS });
+    assertEqual(r.params.type, "investment");
+    assertEqual(r.params.categoryId, "inv-fund");
+  });
+
+  test("a category name nobody has falls back, and says so", function () {
+    var r = V.parseIntent("ได้เงิน 500 หมวดฟรีแลนซ์", { now: NOW, categories: CATS });
+    assertEqual(r.params.type, "income");
+    assertEqual(r.params.categoryMissed, "ฟรีแลนซ์", "the miss is reported, not swallowed");
+    assertTrue(!!r.params.categoryId, "and it still lands somewhere");
+  });
+
+  test("the category phrase never survives into the note", function () {
+    var r = V.parseIntent("กาแฟ 60 บาท หมวดอาหาร", { now: NOW, categories: CATS });
+    assertEqual(V.compact(r.params.note), "กาแฟ");
+  });
+
+  test("resolveCategory prefers the stated type when a name exists in two", function () {
+    // "อื่น ๆ" exists under both expense and investment
+    assertEqual(V.resolveCategory("อื่น ๆ", CATS, "investment").id, "inv-other");
+    assertEqual(V.resolveCategory("อื่น ๆ", CATS, "expense").id, "exp-other");
+    assertNull(V.resolveCategory("ไม่มีหมวดนี้จริง ๆ", CATS, "expense"));
   });
 
   /* ================= task.add with a date ================= */
