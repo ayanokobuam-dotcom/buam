@@ -218,6 +218,42 @@
     FOG:    { bgDim: 0.34, haze: 0.78, dark: 0.14 }
   };
 
+  /* The haze is two stacked layers rather than one. A single layer could only
+     fade its own opacity, while the gradients underneath it swapped in a single
+     frame — measured, 96% of the change between two lit states landed in the
+     first 120ms of an 1800ms transition, which is a cut, not a crossfade. The
+     outgoing state now fades out while the incoming one fades in. */
+  var hazeLayers = null, hazeActive = 0;
+  function getHazeLayers() {
+    if (!hazeLayers && global.document) {
+      var a = global.document.getElementById("wxHazeA");
+      var b = global.document.getElementById("wxHazeB");
+      if (a && b) hazeLayers = [a, b];
+    }
+    return hazeLayers;
+  }
+
+  function applyHaze(target) {
+    var layers = getHazeLayers();
+    if (!layers) return;
+    var active = layers[hazeActive];
+    if (active.getAttribute("data-wx") === state) {
+      // same state, only the intensity moved — nothing to cross anything with
+      active.style.opacity = target;
+      return;
+    }
+    var incoming = layers[hazeActive ^ 1];
+    // land the new look at zero before fading it up, or the swap is the pop
+    incoming.style.transition = "none";
+    incoming.style.opacity = "0";
+    incoming.setAttribute("data-wx", state);
+    void incoming.offsetWidth;
+    incoming.style.transition = "";
+    incoming.style.opacity = target;
+    active.style.opacity = "0";
+    hazeActive ^= 1;
+  }
+
   function applyCssState() {
     if (!root) return;
     root.setAttribute("data-weather", state);
@@ -227,6 +263,7 @@
     root.style.setProperty("--wx-bg-dim", (1 - (1 - a.bgDim) * k).toFixed(3));
     root.style.setProperty("--wx-haze", (a.haze * k).toFixed(3));
     root.style.setProperty("--wx-dark", (a.dark * k).toFixed(3));
+    applyHaze((a.haze * k).toFixed(3));
   }
 
   /* The accumulation ramp is driven by the wall clock, not by accumulated
