@@ -6320,6 +6320,7 @@ let warmRec = null;             // a throwaway session used only to raise the mi
 let pendingAsk = null;          // a question awaiting an answer that is not yes/no
 let thinkingWatchdog = null;
 const THINKING_MAX_MS = 8000;   // nothing legitimate spends this long thinking
+const TALKING_MAX_MS = 20000;   // and no single spoken line runs this long
 let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
 let captionTimer = null;
 let idleTimer = null;
@@ -6361,14 +6362,27 @@ function setCoreState(name){
      them: whatever happens, the Core comes back. */
   clearTimeout(thinkingWatchdog);
   if(name === "processing"){
-    thinkingWatchdog = setTimeout(()=>{
+    /* The first version deferred to the talking flag indefinitely, which is
+       precisely where the real hang lived: a line that never finished left the
+       box animating, and the watchdog treated that as work in progress and
+       stood down. Talking now only buys time, it does not buy forever. */
+    const startedAt = Date.now();
+    const check = ()=>{
       if(voiceListening || pendingConfirm || pendingAsk) return;
       const bar = document.getElementById("ccJarvisBar");
-      if(bar && bar.classList.contains("talking")) return;
-      console.warn("[voice] stuck in processing — releasing the Core");
+      const talking = bar && bar.classList.contains("talking");
+      if(talking && Date.now() - startedAt < TALKING_MAX_MS){
+        thinkingWatchdog = setTimeout(check, 2000);
+        return;
+      }
+      console.warn("[voice] stuck" + (talking ? " mid-line" : " in processing") + " — releasing the Core");
+      if(talking && bar) bar.classList.remove("talking");
+      const box = document.querySelector(".jarvis-box");
+      if(box) box.classList.remove("talking");
       setCoreState("idle");
       showCaption("");
-    }, THINKING_MAX_MS);
+    };
+    thinkingWatchdog = setTimeout(check, THINKING_MAX_MS);
   }
 }
 
