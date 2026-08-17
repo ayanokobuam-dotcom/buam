@@ -414,8 +414,10 @@
       }
     }
 
-    // bare number, only with an explicit spending verb
-    if (hasAny(s, MONEY_VERBS)) {
+    /* bare number, only when something in the sentence says it is money —
+       a spending verb, or an income marker, which is just as explicit:
+       "ได้โบนัส 5000" is no more ambiguous than "จ่าย 5000" */
+    if (hasAny(s, MONEY_VERBS) || matchedIncomeMarker(s) || firstMarker(s.toLowerCase(), INVESTMENT_MARKERS)) {
       var bm = raw.match(/(\d[\d,]*(?:\.\d+)?)/);
       if (bm) return { amount: Number(bm[1].replace(/,/g, "")), matched: bm[0] };
     }
@@ -435,22 +437,121 @@
     { words: ["แฟน", "ของขวัญ", "เดท"], name: "แฟน/ความสัมพันธ์" }
   ];
 
-  /* categories: the money module's shape, { expense: [{id, name, archived}] }.
-     Falls back to the first non-archived expense category, then exp-other. */
-  function guessCategory(note, categories) {
-    var list = (categories && categories.expense) || [];
+  var INCOME_HINTS = [
+    { words: ["เงินเดือน", "ค่าขนม", "ขนม", "แม่ให้", "พ่อให้", "ที่บ้านให้", "ให้มา"], name: "เงินเดือน/ค่าขนม" },
+    { words: ["งาน", "ค่าจ้าง", "จ้าง", "ฟรีแลนซ์", "ขายของ", "ขายได้", "ทิป", "โบนัส", "พาร์ทไทม์"], name: "รายได้จากงาน" }
+  ];
+
+  /* Money coming in. These are checked against the whole utterance, not the
+     note, because the marker is usually the verb: "ได้เงิน 500". Anything with
+     a spending verb in front is money going out regardless — "จ่ายเงินเดือน"
+     contains an income word and is not income. */
+  var INCOME_MARKERS = [
+    "ได้เงิน", "ได้รับเงิน", "รับเงิน", "เงินเข้า", "รายรับ", "รายได้",
+    "เงินเดือนออก", "เงินเดือน", "ได้ค่าขนม", "ได้ค่าจ้าง", "ได้โบนัส", "โบนัส",
+    "ได้ทิป", "ขายได้", "ขายของได้", "โอนเข้า", "ได้มา", "ได้เพิ่ม",
+    "แม่ให้", "พ่อให้", "ที่บ้านให้", "เงินคืน", "ได้คืน", "คืนเงิน"
+  ];
+  var SPENDING_VERBS = /^\s*(?:จ่าย|ซื้อ|เสียเงิน|ใช้ไป|หมดไป|บันทึกรายจ่าย)/;
+
+  /* Money put away rather than spent. Checked before the spending verbs,
+     because "ซื้อหุ้น" and "ซื้อกองทุน" are buying — the money leaves the
+     account either way, but the ledger tracks it as investment, and calling it
+     an expense would count it against the monthly budget. */
+  var INVESTMENT_MARKERS = [
+    "ลงทุน", "ซื้อหุ้น", "ซื้อกองทุน", "ซื้อกอง", "ซื้อetf", "ซื้อทอง", "ซื้อคริปโต",
+    "กองทุน", "หุ้น", "etf", "dca", "ออมหุ้น", "พอร์ต", "คริปโต", "บิทคอยน์",
+    "เงินออม", "ออมเงิน", "เก็บออม", "สลากออมสิน"
+  ];
+
+  var INVESTMENT_HINTS = [
+    { words: ["กองทุน", "กอง", "ssf", "rmf", "thaiesg"], name: "กองทุน" },
+    { words: ["หุ้น", "ออมหุ้น", "พอร์ต", "set"], name: "หุ้น" },
+    { words: ["etf"], name: "ETF" },
+    { words: ["เงินออม", "ออมเงิน", "เก็บออม", "สลากออมสิน"], name: "เงินออมเพื่อการลงทุน" }
+  ];
+
+  function firstMarker(s, markers) {
+    var best = "";
+    for (var i = 0; i < markers.length; i++) {
+      if (s.indexOf(markers[i]) !== -1 && markers[i].length > best.length) best = markers[i];
+    }
+    return best;
+  }
+
+  function detectMoneyType(text) {
+    var raw = normalize(text);
+    var s = compact(raw).toLowerCase();
+    if (firstMarker(s, INVESTMENT_MARKERS)) return "investment";
+    if (SPENDING_VERBS.test(raw)) return "expense";
+    if (firstMarker(s, INCOME_MARKERS)) return "income";
+    return "expense";
+  }
+
+  /* "…หมวดกองทุน" — naming the category outright, instead of leaving it to be
+     guessed from the note. The name is matched against the categories that
+     actually exist, never created, and a name that matches nothing falls back
+     to the guess so the entry still lands somewhere sensible. */
+  function extractCategoryPhrase(text) {
+    var m = normalize(text).match(/(?:เข้า|ลง|ใส่)?\s*หมวด(?:หมู่)?\s*(.+)$/);
+    if (!m) return null;
+    var name = normalize(m[1]);
+    return name ? { name: name, matched: m[0] } : null;
+  }
+
+  function bestCategoryIn(name, list) {
+    var best = null, score = 0;
+    (list || []).forEach(function (c) {
+      if (c.archived) return;
+      var sc = scoreTitleMatch(name, c.name);
+      if (sc > score) { score = sc; best = c; }
+    });
+    return score >= MATCH_MIN ? { category: best, score: score } : null;
+  }
+
+  /* Resolves a spoken category name. The stated type is preferred, but a name
+     that only exists under another type carries its type with it: saying
+     "หมวดกองทุน" is saying this is an investment, whatever the verb was. */
+  function resolveCategory(name, categories, preferredType) {
+    if (!name || !categories) return null;
+    var order = [preferredType, "expense", "income", "investment"];
+    var seen = {};
+    for (var i = 0; i < order.length; i++) {
+      var kind = order[i];
+      if (!kind || seen[kind]) continue;
+      seen[kind] = true;
+      var hit = bestCategoryIn(name, categories[kind]);
+      if (hit) return { id: hit.category.id, name: hit.category.name, type: kind };
+    }
+    return null;
+  }
+
+  function matchedIncomeMarker(text) {
+    return firstMarker(compact(text), INCOME_MARKERS);
+  }
+
+  /* categories: the money module's shape, { expense: [...], income: [...] }.
+     Falls back to the first non-archived category of that type, then to the
+     module's own default id. */
+  function guessCategory(note, categories, type) {
+    var kind = (type === "income" || type === "investment") ? type : "expense";
+    var list = (categories && categories[kind]) || [];
     var active = list.filter(function (c) { return !c.archived; });
     var s = compact(note).toLowerCase();
+    var hints = kind === "income" ? INCOME_HINTS
+              : kind === "investment" ? INVESTMENT_HINTS
+              : CATEGORY_HINTS;
 
-    for (var i = 0; i < CATEGORY_HINTS.length; i++) {
-      var hint = CATEGORY_HINTS[i];
+    for (var i = 0; i < hints.length; i++) {
+      var hint = hints[i];
       if (!hasAny(s, hint.words)) continue;
       var byName = active.filter(function (c) { return compact(c.name) === compact(hint.name); })[0];
       if (byName) return byName.id;
     }
     var other = active.filter(function (c) { return /อื่น/.test(c.name); })[0];
     if (other) return other.id;
-    return active.length ? active[0].id : "exp-other";
+    if (active.length) return active[0].id;
+    return kind === "income" ? "inc-other" : kind === "investment" ? "inv-other" : "exp-other";
   }
 
   /* ================================================================
@@ -695,15 +796,41 @@
       if (compact(note).indexOf(compact(amt.matched)) !== -1) {
         note = normalize(compact(note).replace(compact(amt.matched), " "));
       }
+      var moneyType = detectMoneyType(raw);
+
+      // a named category is lifted out before anything else reads the note
+      var said = extractCategoryPhrase(note) || extractCategoryPhrase(raw);
+      if (said) note = stripPhrase(note, said.matched);
+      var chosen = said ? resolveCategory(said.name, categories, moneyType) : null;
+      if (chosen) moneyType = chosen.type;
+
       // strip the spending verb, but never the "ค่า" of a compound like
       // "ค่าเทอม" — that prefix is part of the name, not a verb
       note = note.replace(/^\s*(?:จ่าย|ซื้อ|เสียเงิน|ใช้ไป|หมดไป|บันทึกรายจ่าย)\s*/, "");
+      if (moneyType === "income") {
+        // the marker is the verb here, so it is not part of what the money was
+        var marker = matchedIncomeMarker(note) || matchedIncomeMarker(raw);
+        if (marker) note = stripPhrase(note, marker);
+        note = normalize(note.replace(/(?:^|\s)(?:ได้|รับ|เข้า|มา|ออก|แล้ว|จาก)(?=\s|$)/g, " "));
+      } else if (moneyType === "investment") {
+        // same as income: the marker is the verb, not what was bought. Taking
+        // only the leading word left "ออมเงิน" as the fragment "เงิน", which
+        // then matched no category at all.
+        var im = firstMarker(compact(note).toLowerCase(), INVESTMENT_MARKERS) ||
+                 firstMarker(compact(raw).toLowerCase(), INVESTMENT_MARKERS);
+        if (im) note = stripPhrase(note, im);
+        note = normalize(note.replace(/^\s*(?:ลงทุน|ออม|เก็บ|ซื้อ)\s*/, ""));
+      }
       note = note.replace(/(?:^|\s)(?:ค่า|บาท|฿)(?=\s|$)/g, " ");
       note = normalize(note);
       return out("money.add", {
         amount: amt.amount,
         note: note,
-        categoryId: guessCategory(note || raw, categories),
+        type: moneyType,
+        categoryId: chosen ? chosen.id : guessCategory(note || raw, categories, moneyType),
+        categoryName: chosen ? chosen.name : "",
+        // the user named one and it matched nothing that exists — worth saying
+        categoryMissed: said && !chosen ? said.name : "",
         date: toDateStr(now)
       });
     }
@@ -1145,7 +1272,8 @@
       "Tasks, money, timers, and getting around the app. Say the name of a task with 'done', or something like 'coffee sixty baht'. And I'll talk about anything else you feel like.",
       "I can add and finish tasks, log spending, start a focus timer, open any screen, and tell you where things stand. Or we can just talk.",
       "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company.",
-      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up."
+      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up.",
+      "Money goes both ways with me. Say what you spent, tell me what came in, or say you invested it. Add 'หมวด' and a name if you want it filed somewhere specific."
     ],
     ambiguous: [
       "I found a few that could be it. Which one?",
@@ -1246,6 +1374,9 @@
     parseThaiDate: parseThaiDate,
     parseAmount: parseAmount,
     guessCategory: guessCategory,
+    detectMoneyType: detectMoneyType,
+    resolveCategory: resolveCategory,
+    INCOME_MARKERS: INCOME_MARKERS,
     findTaskByTitle: findTaskByTitle,
     findTaskMatches: findTaskMatches,
     isAmbiguousMatch: isAmbiguousMatch,

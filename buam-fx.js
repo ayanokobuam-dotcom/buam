@@ -524,29 +524,87 @@
         return;
       }
 
-      var pending = runs.length;
-      runs.forEach(function(run){
-        var u = new SpeechSynthesisUtterance(run.text);
-        var voice = run.kind === "th" ? thaiVoice : jarvisVoice;
-        if(voice){ u.voice = voice; u.lang = voice.lang; }
-        else if(run.kind === "th"){ u.lang = "th-TH"; }
-        u.rate = rate;
-        u.pitch = pitch;
-        u.volume = 0.9;
-        u.addEventListener("boundary", function(ev){
-          if(ev.charIndex == null) return;
-          var out = new Event("boundary");
-          out.charIndex = run.start + ev.charIndex;
-          relay.dispatchEvent(out);
-        });
-        function partDone(){
-          if(--pending > 0) return;
-          relay.dispatchEvent(new Event("end"));
+      /* The line finishes when every part has reported — and the page hangs if
+         one never does. Splitting one utterance into several multiplied that
+         risk: a queued utterance the engine silently drops, or a speak() that
+         throws halfway through the loop, both left the dialogue box animating
+         forever with no sound and no way back. Observed on device with
+         "That's 1,500 baht for ใช้เงิน. Confirm?".
+
+         So the line ends on whichever comes first: every part reporting, or a
+         deadline. The deadline extends itself while the synthesizer really is
+         producing audio, so a long briefing is never cut short, but it will not
+         extend forever. */
+      var finished = false;
+      var deadline = null;
+      var extensions = 0;
+      var budget = Math.min(30000, 1500 + text.length * 160);
+      /* An engine that has wedged still reports speaking:true, so that flag
+         alone cannot tell "mid-sentence" from "stuck" — it only earns more time
+         when something has actually happened since the last check. */
+      var lastProgress = Date.now();
+      function progress(){ lastProgress = Date.now(); }
+
+      function finishLine(stuck){
+        if(finished) return;
+        finished = true;
+        clearTimeout(deadline);
+        if(stuck){
+          // nothing is coming; clear the queue so a late utterance cannot
+          // start talking over whatever happens next
+          try{ synth.cancel(); }catch(e){}
         }
-        u.addEventListener("end", partDone);
-        u.addEventListener("error", partDone);
-        synth.speak(u);
-      });
+        relay.dispatchEvent(new Event("end"));
+      }
+
+      function armDeadline(ms){
+        clearTimeout(deadline);
+        deadline = setTimeout(function(){
+          if(finished) return;
+          var busy = false;
+          try{ busy = !!synth.speaking && !synth.paused; }catch(e){}
+          var moving = Date.now() - lastProgress < budget / 2;
+          if(busy && moving && extensions < 2){ extensions++; armDeadline(budget / 2); return; }
+          finishLine(true);
+        }, ms);
+      }
+
+      /* One part at a time, rather than pushing all of them into the queue at
+         once. A queue of three was what the device was holding when it wedged,
+         and an engine that drops a queued item leaves nothing to recover from;
+         chaining means each part is handed over only once the previous one has
+         actually come back. */
+      var idx = 0;
+      function speakNext(){
+        if(finished) return;
+        if(idx >= runs.length){ finishLine(false); return; }
+        var run = runs[idx++];
+        try{
+          var u = new SpeechSynthesisUtterance(run.text);
+          var voice = run.kind === "th" ? thaiVoice : jarvisVoice;
+          if(voice){ u.voice = voice; u.lang = voice.lang; }
+          else if(run.kind === "th"){ u.lang = "th-TH"; }
+          u.rate = rate;
+          u.pitch = pitch;
+          u.volume = 0.9;
+          u.addEventListener("boundary", function(ev){
+            if(ev.charIndex == null) return;
+            progress();
+            var out = new Event("boundary");
+            out.charIndex = run.start + ev.charIndex;
+            relay.dispatchEvent(out);
+          });
+          u.addEventListener("end", function(){ progress(); speakNext(); });
+          u.addEventListener("error", function(){ progress(); speakNext(); });
+          synth.speak(u);
+        }catch(e){
+          // one part failing is not the line failing
+          progress();
+          speakNext();
+        }
+      }
+      speakNext();
+      armDeadline(budget);
     }catch(e){}
   }
 

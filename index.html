@@ -6320,6 +6320,7 @@ let warmRec = null;             // a throwaway session used only to raise the mi
 let pendingAsk = null;          // a question awaiting an answer that is not yes/no
 let thinkingWatchdog = null;
 const THINKING_MAX_MS = 8000;   // nothing legitimate spends this long thinking
+const TALKING_MAX_MS = 20000;   // and no single spoken line runs this long
 let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
 let captionTimer = null;
 let idleTimer = null;
@@ -6361,14 +6362,27 @@ function setCoreState(name){
      them: whatever happens, the Core comes back. */
   clearTimeout(thinkingWatchdog);
   if(name === "processing"){
-    thinkingWatchdog = setTimeout(()=>{
+    /* The first version deferred to the talking flag indefinitely, which is
+       precisely where the real hang lived: a line that never finished left the
+       box animating, and the watchdog treated that as work in progress and
+       stood down. Talking now only buys time, it does not buy forever. */
+    const startedAt = Date.now();
+    const check = ()=>{
       if(voiceListening || pendingConfirm || pendingAsk) return;
       const bar = document.getElementById("ccJarvisBar");
-      if(bar && bar.classList.contains("talking")) return;
-      console.warn("[voice] stuck in processing — releasing the Core");
+      const talking = bar && bar.classList.contains("talking");
+      if(talking && Date.now() - startedAt < TALKING_MAX_MS){
+        thinkingWatchdog = setTimeout(check, 2000);
+        return;
+      }
+      console.warn("[voice] stuck" + (talking ? " mid-line" : " in processing") + " — releasing the Core");
+      if(talking && bar) bar.classList.remove("talking");
+      const box = document.querySelector(".jarvis-box");
+      if(box) box.classList.remove("talking");
       setCoreState("idle");
       showCaption("");
-    }, THINKING_MAX_MS);
+    };
+    thinkingWatchdog = setTimeout(check, THINKING_MAX_MS);
   }
 }
 
@@ -6574,17 +6588,51 @@ function voiceCompleteTaskById(id){
 }
 
 function voiceAddMoney(params){
+  const type = params.type === "income" || params.type === "investment" ? params.type : "expense";
   const res = addMoneyTxn({
     amount: params.amount,
-    type: "expense",
+    type: type,
     categoryId: params.categoryId,
     date: params.date,
     note: params.note || ""
   }, { speak: false });
   if(!res.ok) return "I couldn't log that. " + res.errors.join(". ");
   coreSuccess();
+
+  const baht = Math.round(params.amount).toLocaleString("en-US") + " baht";
+  // a category the user named out loud is worth reading back, and one that
+  // matched nothing they have is worth admitting to
+  const named = params.categoryName ? ` Filed under ${params.categoryName}.` : "";
+  const missed = params.categoryMissed
+    ? ` I don't have a ${params.categoryMissed} category, so it went to ${categoryNameFor(params.categoryId)}.`
+    : "";
+
+  if(type === "income"){
+    // money in reads differently from money out, and the running total is the
+    // thing worth hearing back
+    const total = monthTotalBaht(params.date, "income");
+    return `${baht} in.` + (total ? ` That's ${total.toLocaleString("en-US")} baht this month.` : "") + named + missed;
+  }
+  if(type === "investment"){
+    const total = monthTotalBaht(params.date, "investment");
+    return `${baht} invested.` + (total ? ` ${total.toLocaleString("en-US")} baht put away this month.` : "") + named + missed;
+  }
   const line = (window.buamFx && buamFx.jarvisLine) ? buamFx.jarvisLine("moneyAdded") : "Logged.";
-  return line + " " + Math.round(params.amount).toLocaleString("en-US") + " baht.";
+  return line + " " + baht + "." + named + missed;
+}
+
+/* The ledger keeps satang; everything spoken is baht. Reading the raw figure
+   aloud once announced "1,500,000 baht" for a 15,000 baht salary. */
+function monthTotalBaht(dateStr, kind){
+  const dash = BuamMoney.calcDashboard(moneyState.transactions, BuamMoney.monthKeyOf(dateStr), null);
+  return dash && dash[kind] ? Math.round(BuamMoney.toBaht(dash[kind])) : 0;
+}
+
+function categoryNameFor(id){
+  const all = [].concat(moneyState.categories.income || [], moneyState.categories.expense || [],
+                        moneyState.categories.investment || []);
+  const hit = all.filter(c=>c.id === id)[0];
+  return hit ? hit.name : "the default category";
 }
 
 function voiceStartTimer(params){
@@ -6633,7 +6681,14 @@ function runVoiceIntent(intent, params){
 
 function describeForConfirm(intent, params){
   if(intent === "money.add"){
-    return `That's ${Math.round(params.amount).toLocaleString("en-US")} baht${params.note ? " for " + params.note : ""}. Confirm?`;
+    const baht = Math.round(params.amount).toLocaleString("en-US") + " baht";
+    if(params.type === "income"){
+      return `That's ${baht} coming in${params.note ? " from " + params.note : ""}. Confirm?`;
+    }
+    if(params.type === "investment"){
+      return `That's ${baht} into ${categoryNameFor(params.categoryId)}. Confirm?`;
+    }
+    return `That's ${baht}${params.note ? " for " + params.note : ""}. Confirm?`;
   }
   if(intent === "task.add") return `Add "${params.title}"?`;
   if(intent === "task.done") return `Mark ${params.title ? '"' + params.title + '"' : "that"} as done?`;
