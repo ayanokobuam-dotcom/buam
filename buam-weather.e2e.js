@@ -115,6 +115,26 @@ async function boot(browser, viewport, extra) {
 }
 
 // contrast measured from the real rendered pixels of an element's box
+/* Sampled over time, not once. The logo is animated gradient-clipped text, so
+   its contrast is whatever the sweep happens to be showing; a single capture
+   per state reported 4.9-8.9 across runs and never caught the trough, which
+   was 3.83 — under AA. One reading of a moving target is an anecdote. The
+   worst sample is what has to clear the bar. */
+async function measureContrastOverTime(page, selector, samples, spanMs) {
+  const readings = [];
+  for (let i = 0; i < samples; i++) {
+    const m = await measureContrast(page, selector);
+    if (m && m.error) return m;
+    if (m) readings.push(m);
+    if (i < samples - 1) await page.waitForTimeout(Math.round(spanMs / (samples - 1)));
+  }
+  if (!readings.length) return { error: 'no readings for ' + selector };
+  const worst = readings.reduce((a, b) => (a.ratio <= b.ratio ? a : b));
+  const best = readings.reduce((a, b) => (a.ratio >= b.ratio ? a : b));
+  return { ratio: worst.ratio, best: best.ratio, samples: readings.length,
+           spread: +(best.ratio - worst.ratio).toFixed(2) };
+}
+
 async function measureContrast(page, selector) {
   const el = await page.$(selector);
   if (!el) return { error: 'no element for ' + selector };
@@ -201,9 +221,13 @@ const PART = process.env.PART || 'ALL';
       await page.waitForTimeout(2600); // let the crossfade and accumulation settle
       const row = {};
       for (const [name, sel] of Object.entries(targets)) {
-        const m = await measureContrast(page, sel);
+        // the logo animates on a 6s cycle, so it needs a window wide enough to
+        // contain the dim part of its own sweep; the rest are static
+        const animated = name === 'headerLogo';
+        const m = await measureContrastOverTime(page, sel, animated ? 10 : 3, animated ? 5200 : 900);
         row[name] = m;
         if (m && m.error) R.errors.push(`contrast ${st}/${name}: ${m.error}`);
+        else if (m && m.ratio < 4.5) R.errors.push(`contrast ${st}/${name}: ${m.ratio} is below AA`);
       }
       R.contrast[st] = row;
     }

@@ -42,6 +42,16 @@
     --amber:#ffd23f;
     --red:#ff5b5b;
     --magenta:#ff3fd6;
+    /* The logo sweeps through the brand colours as animated gradient-clipped
+       text, so its contrast is whatever the sweep happens to be showing. Two
+       of the three stops are dark enough on the dark header to dip the ratio —
+       sampled across a full 6s sweep the trough was 3.83, under AA, which a
+       single screenshot per run never caught. These are the same hues lifted
+       to a lightness the whole sweep can hold. The light theme keeps the
+       original dark inks, which are already high-contrast on a light header. */
+    --logo-a:#00ff66;
+    --logo-b:#7ce7ff;
+    --logo-c:#ff9be9;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
     /* deliberately not the HUD mono: the idle message is the one place the
        system speaks rather than reports */
@@ -104,6 +114,10 @@
     --ink:#1b2b22; --ink-dim:#5a6b61;
     --accent:#07742e; --accent-dim:rgba(7,116,46,0.12);
     --cyan:#0077a8; --amber:#8a6300; --red:#c92a2a; --magenta:#a3168a;
+    /* dark ink on a light header, so these go the other way — the same sweep
+       measured a 3.80 trough here too, and it was never touched by the dark
+       theme's fix */
+    --logo-a:#04491b; --logo-b:#004a6b; --logo-c:#640c54;
 
     --shadow-dark:150,163,157;
     --shadow-light:255,255,255;
@@ -744,13 +758,20 @@
     font-size:1.3rem;
     font-weight:700;
     letter-spacing:0.02em;
-    background:linear-gradient(90deg, var(--accent), var(--cyan), var(--magenta), var(--accent));
+    background:linear-gradient(90deg, var(--logo-a), var(--logo-b), var(--logo-c), var(--logo-a));
     background-size:300% 100%;
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    text-shadow:0 0 14px rgba(0,255,102,0.35);
+    /* a wide glow lifts the pixels around the glyphs, which is the other half
+       of the dip: it raises the measured background as the ink dims */
+    text-shadow:0 0 8px rgba(0,255,102,0.26);
     animation:logoSweep 6s linear infinite;
+  }
+  /* the glow exists to make the logo sit on a dark surface; on a light one it
+     only washes out the ink it is meant to lift */
+  [data-theme="light"] .logo{
+    text-shadow:none;
   }
   @keyframes logoSweep{
     0%{ background-position:0% 50%; }
