@@ -368,6 +368,7 @@
     z-index:-1;
     opacity:var(--wx-haze, 0);
     transition:opacity 1.8s ease;
+    overflow:hidden;   /* the cloud masses below are deliberately oversized */
     background:
       radial-gradient(120% 70% at 20% 15%, rgba(200,225,240,0.16), transparent 60%),
       radial-gradient(110% 60% at 80% 75%, rgba(180,215,235,0.13), transparent 62%),
@@ -385,6 +386,40 @@
     0%,100%{ transform:translate3d(0,0,0) scale(1.04); }
     50%{ transform:translate3d(2%, -1.5%, 0) scale(1.10); }
   }
+  /* CLOUDY is the only state with no particles at all, so the CSS has to carry
+     it alone — and it was not carrying anything. Measured against CLEAR, the
+     shared wash moved the screen by a mean channel delta of 4/255: 1.6%, which
+     is not a subtle weather change, it is nothing. Overcast now reads through
+     cloud masses that actually move, a much heavier dim on the code rain, and
+     a colder cast. */
+  [data-weather="CLOUDY"] .wx-haze{
+    background:
+      radial-gradient(70% 45% at 22% 18%, rgba(150,172,192,0.34), transparent 64%),
+      radial-gradient(85% 40% at 78% 30%, rgba(124,148,170,0.30), transparent 66%),
+      radial-gradient(90% 50% at 45% 78%, rgba(108,132,156,0.26), transparent 68%),
+      linear-gradient(180deg, rgba(118,142,166,0.14), rgba(96,120,146,0.05));
+    animation:wxCloudDrift 68s ease-in-out infinite;
+  }
+  /* A second mass drifting the other way, and slower. The counter-motion is
+     what makes an overcast sky read as moving air rather than as a flat tint —
+     one layer alone just looks like a gradient someone forgot to remove. */
+  [data-weather="CLOUDY"] .wx-haze::before{
+    content:"";
+    position:absolute; inset:-14%;
+    background:
+      radial-gradient(60% 38% at 65% 22%, rgba(164,186,204,0.26), transparent 62%),
+      radial-gradient(72% 42% at 25% 62%, rgba(132,158,180,0.22), transparent 66%);
+    animation:wxCloudDriftB 96s ease-in-out infinite;
+  }
+  @keyframes wxCloudDrift{
+    0%,100%{ transform:translate3d(-3%, 0, 0) scale(1.12); }
+    50%{ transform:translate3d(4%, 2%, 0) scale(1.18); }
+  }
+  @keyframes wxCloudDriftB{
+    0%,100%{ transform:translate3d(4%, 1%, 0) scale(1.15); }
+    50%{ transform:translate3d(-5%, -2%, 0) scale(1.22); }
+  }
+
   /* Fog is the one state that leans on the haze hard. With no blur available
      it reads through density instead: a second, slower-drifting veil layered
      over the first, so the air itself looks thick. */
@@ -626,7 +661,9 @@
   }
 
   @media (prefers-reduced-motion: reduce){
-    .wx-haze{ animation:none; }
+    .wx-haze,
+    [data-weather="CLOUDY"] .wx-haze,
+    [data-weather="CLOUDY"] .wx-haze::before{ animation:none; }
     #wxFlash{ display:none; }
     html[data-weather] header::after,
     html[data-weather] .cc-card::after,

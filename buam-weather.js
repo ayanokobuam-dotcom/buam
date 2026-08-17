@@ -207,7 +207,9 @@
      opacity rules, so the original background system is left intact. */
   var ATMOSPHERE = {
     CLEAR:  { bgDim: 1.00, haze: 0.00, dark: 0.00 },
-    CLOUDY: { bgDim: 0.82, haze: 0.30, dark: 0.10 },
+    // overcast has no particles to carry it, so the wash has to be strong
+    // enough to read on its own — at the old numbers it moved the screen 1.6%
+    CLOUDY: { bgDim: 0.55, haze: 0.62, dark: 0.34 },
     RAIN:   { bgDim: 0.70, haze: 0.22, dark: 0.18 },
     STORM:  { bgDim: 0.48, haze: 0.30, dark: 0.38 },
     SNOW:   { bgDim: 0.62, haze: 0.26, dark: 0.12 },
