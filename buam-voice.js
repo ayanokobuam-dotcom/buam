@@ -775,6 +775,14 @@
     /* First refusal is often not a refusal at all — iOS answers start() with
        "not-allowed" while its own permission dialog is still on screen. So the
        first one asks for another tap; only a second one in a row gives up. */
+    /* Something went wrong inside the action itself — a full disk, a broken
+       write. Saying so is the whole point: the old behaviour was silence and a
+       Core that kept spinning. */
+    actionFailed: [
+      "That didn't go through. Something's wrong on my end.",
+      "I couldn't finish that one. Try again in a moment?",
+      "Something broke while I was doing that. It didn't save."
+    ],
     micRetry: [
       "Tap me again and choose Allow — I can't hear you until you do.",
       "I need the microphone for that. One more tap, then Allow.",

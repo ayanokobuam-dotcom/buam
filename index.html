@@ -42,6 +42,16 @@
     --amber:#ffd23f;
     --red:#ff5b5b;
     --magenta:#ff3fd6;
+    /* The logo sweeps through the brand colours as animated gradient-clipped
+       text, so its contrast is whatever the sweep happens to be showing. Two
+       of the three stops are dark enough on the dark header to dip the ratio —
+       sampled across a full 6s sweep the trough was 3.83, under AA, which a
+       single screenshot per run never caught. These are the same hues lifted
+       to a lightness the whole sweep can hold. The light theme keeps the
+       original dark inks, which are already high-contrast on a light header. */
+    --logo-a:#00ff66;
+    --logo-b:#7ce7ff;
+    --logo-c:#ff9be9;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
     /* deliberately not the HUD mono: the idle message is the one place the
        system speaks rather than reports */
@@ -104,6 +114,10 @@
     --ink:#1b2b22; --ink-dim:#5a6b61;
     --accent:#07742e; --accent-dim:rgba(7,116,46,0.12);
     --cyan:#0077a8; --amber:#8a6300; --red:#c92a2a; --magenta:#a3168a;
+    /* dark ink on a light header, so these go the other way — the same sweep
+       measured a 3.80 trough here too, and it was never touched by the dark
+       theme's fix */
+    --logo-a:#04491b; --logo-b:#004a6b; --logo-c:#640c54;
 
     --shadow-dark:150,163,157;
     --shadow-light:255,255,255;
@@ -346,7 +360,16 @@
      canvases forced a filter pass every frame — measured at 9-12ms, which is
      most of a frame budget on a phone. Opacity is compositor-only and free.
      Each canvas keeps its own base value; --wx-bg-dim just scales it. */
+  /* Registering the custom property is what makes the dim animate at all.
+     .wx-dark reads --wx-dark straight into opacity and transitions fine; the
+     canvases read theirs through calc(), and an unregistered custom property
+     inside calc() changes in one step — measured, the code rain jumped its
+     whole distance within 60ms while everything around it eased over 1.8s.
+     With a declared type the value itself is interpolable. Browsers without
+     @property fall back to the step change, which is what happens today. */
+  @property --wx-bg-dim{ syntax:"<number>"; inherits:true; initial-value:1; }
   #bgCanvas, #bgCanvas3D{ transition:opacity 1.6s ease; }
+  :root{ transition:--wx-bg-dim 1.6s ease; }
   /* full-screen ambience. Both are compositor-only (opacity on a fixed layer),
      so they cost nothing per frame and never trigger layout. */
   .wx-dark, .wx-haze, #wxCanvas, #wxFlash{
@@ -364,9 +387,15 @@
     opacity:var(--wx-dark, 0);
     transition:opacity 1.8s ease;
   }
+  /* Two of these, stacked. One layer whose background was swapped on the state
+     change did not crossfade at all: opacity eased over 1.8s, but the gradients
+     underneath changed in a single frame, so 96% of the visible change landed
+     in the first 120ms. It was a cut. With two layers the outgoing state fades
+     out while the incoming one fades in, which is what a crossfade is.
+     buam-weather.js owns which layer is which; opacity is set inline. */
   .wx-haze{
     z-index:-1;
-    opacity:var(--wx-haze, 0);
+    opacity:0;
     transition:opacity 1.8s ease;
     overflow:hidden;   /* the cloud masses below are deliberately oversized */
     background:
@@ -392,7 +421,7 @@
      is not a subtle weather change, it is nothing. Overcast now reads through
      cloud masses that actually move, a much heavier dim on the code rain, and
      a colder cast. */
-  [data-weather="CLOUDY"] .wx-haze{
+  .wx-haze[data-wx="CLOUDY"]{
     background:
       radial-gradient(70% 45% at 22% 18%, rgba(150,172,192,0.34), transparent 64%),
       radial-gradient(85% 40% at 78% 30%, rgba(124,148,170,0.30), transparent 66%),
@@ -403,7 +432,7 @@
   /* A second mass drifting the other way, and slower. The counter-motion is
      what makes an overcast sky read as moving air rather than as a flat tint —
      one layer alone just looks like a gradient someone forgot to remove. */
-  [data-weather="CLOUDY"] .wx-haze::before{
+  .wx-haze[data-wx="CLOUDY"]::before{
     content:"";
     position:absolute; inset:-14%;
     background:
@@ -423,7 +452,7 @@
   /* Fog is the one state that leans on the haze hard. With no blur available
      it reads through density instead: a second, slower-drifting veil layered
      over the first, so the air itself looks thick. */
-  [data-weather="FOG"] .wx-haze{
+  .wx-haze[data-wx="FOG"]{
     background:
       radial-gradient(130% 80% at 25% 20%, rgba(214,232,244,0.30), transparent 62%),
       radial-gradient(120% 70% at 75% 70%, rgba(196,222,238,0.26), transparent 64%),
@@ -662,8 +691,8 @@
 
   @media (prefers-reduced-motion: reduce){
     .wx-haze,
-    [data-weather="CLOUDY"] .wx-haze,
-    [data-weather="CLOUDY"] .wx-haze::before{ animation:none; }
+    .wx-haze[data-wx="CLOUDY"],
+    .wx-haze[data-wx="CLOUDY"]::before{ animation:none; }
     #wxFlash{ display:none; }
     html[data-weather] header::after,
     html[data-weather] .cc-card::after,
@@ -729,13 +758,20 @@
     font-size:1.3rem;
     font-weight:700;
     letter-spacing:0.02em;
-    background:linear-gradient(90deg, var(--accent), var(--cyan), var(--magenta), var(--accent));
+    background:linear-gradient(90deg, var(--logo-a), var(--logo-b), var(--logo-c), var(--logo-a));
     background-size:300% 100%;
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    text-shadow:0 0 14px rgba(0,255,102,0.35);
+    /* a wide glow lifts the pixels around the glyphs, which is the other half
+       of the dip: it raises the measured background as the ink dims */
+    text-shadow:0 0 8px rgba(0,255,102,0.26);
     animation:logoSweep 6s linear infinite;
+  }
+  /* the glow exists to make the logo sit on a dark surface; on a light one it
+     only washes out the ink it is meant to lift */
+  [data-theme="light"] .logo{
+    text-shadow:none;
   }
   @keyframes logoSweep{
     0%{ background-position:0% 50%; }
@@ -1889,6 +1925,34 @@
     box-shadow:var(--neu-shadow-sm);
     transition:box-shadow 0.2s ease-out, color 0.2s ease-out;
   }
+  /* ---- touch targets ----
+     Measured: the toolbar icons are 34x34 and the pill buttons 32-33px tall,
+     against the ~44px guideline. Their visual size is deliberate — the header
+     is a dense terminal strip — so the *hit* area is grown with a pseudo
+     element instead. Nothing moves, nothing is redrawn.
+
+     Horizontal growth is capped at 3px a side on purpose. The tightest gap
+     measured between two different controls is 6px (theme vs ambient), so
+     3+3 makes neighbouring targets meet exactly. Growing further would make
+     them overlap, which just trades one kind of mis-tap for another. Height is
+     free: a toolbar row has room above and below, so every one of these
+     reaches the full 44px vertically. */
+  .icon-btn, .snd-toggle, .tvt-btn, .dose-start-btn, .cal-day,
+  .chip, .wx-chip, .btn-add, .quick-link{ position:relative; }
+  .icon-btn::after, .snd-toggle::after, .tvt-btn::after,
+  .dose-start-btn::after, .cal-day::after,
+  .chip::after, .wx-chip::after, .btn-add::after, .quick-link::after{
+    content:"";
+    position:absolute;
+    left:-3px; right:-3px;
+    top:50%; height:44px; transform:translateY(-50%);
+    /* the expander is a hit area only; it must never paint or capture styling */
+    border-radius:inherit;
+    pointer-events:auto;
+  }
+  /* a surface that already uses ::after for weather decoration keeps it */
+  html[data-weather="SNOW"] .cal-day::after{ display:none; }
+
   .tvt-btn.active{
     background:var(--neu-grad-inset); color:var(--accent);
     box-shadow:var(--neu-inset-sm);
@@ -1926,7 +1990,10 @@
   .more-menu{ display:flex; flex-direction:column; gap:8px; }
 
   /* ---------- money ---------- */
-  .money-subnav{ display:flex; gap:4px; margin-bottom:16px; overflow-x:auto; padding-bottom:2px; }
+  /* overflow-x:auto clips vertically too, which cut the touch expanders on the
+     buttons inside. The padding gives them room and the negative margin puts
+     the row back exactly where it was — nothing moves on screen. */
+  .money-subnav{ display:flex; gap:4px; margin:-6px 0 10px; overflow-x:auto; padding:6px 0 8px; }
   .money-subnav .tvt-btn{ flex:none; white-space:nowrap; }
 
   /* boxed section — app-wide "one box per topic" primitive. Introduced for Money,
@@ -2141,7 +2208,8 @@ function ico(name, cls){
      header so precipitation falls in front of them, below every modal and the
      sidebar so it can never come between the user and a control. -->
 <div class="wx-dark" aria-hidden="true"></div>
-<div class="wx-haze" aria-hidden="true"></div>
+<div class="wx-haze" id="wxHazeA" aria-hidden="true"></div>
+<div class="wx-haze" id="wxHazeB" aria-hidden="true"></div>
 <canvas id="wxCanvas" aria-hidden="true"></canvas>
 <div id="wxFlash" aria-hidden="true"></div>
 <div class="page-tint" id="pageTint" aria-hidden="true"></div>
@@ -3194,8 +3262,26 @@ const catLabel = {homework:"Homework", work:"Work", personal:"Personal", other:"
 // matches the --cyan/--accent/--amber/--ink-dim border colors already used for .cat-* tags/rows
 const catRgb = {homework:"57,214,255", work:"0,255,102", personal:"255,210,63", other:"79,143,92"};
 
+/* localStorage is small and it does fill up. An unguarded write threw, which
+   left the task in memory only — it looked saved until the next reload and was
+   then simply gone — and the exception escaped createTask() and took the rest
+   of the action with it, including the spoken reply. Writes are now reported,
+   never thrown, and a failure is shown rather than swallowed. */
+let storageFailed = false;
+function safeStore(key, value){
+  try{
+    localStorage.setItem(key, value);
+    storageFailed = false;
+    return true;
+  }catch(e){
+    storageFailed = true;
+    console.warn("[storage] write failed for", key, e && e.name);
+    return false;
+  }
+}
+
 function save(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  safeStore(STORAGE_KEY, JSON.stringify(tasks));
   render();
   renderCalendar();
 }
@@ -3332,12 +3418,12 @@ function makeCloudSync(collectionName, list, onChange){
 
 const GOALS_KEY = "buam-goals-v1";
 let goals = JSON.parse(localStorage.getItem(GOALS_KEY) || "[]");
-function saveGoals(){ localStorage.setItem(GOALS_KEY, JSON.stringify(goals)); renderGoals(); }
+function saveGoals(){ safeStore(GOALS_KEY, JSON.stringify(goals)); renderGoals(); }
 const goalsSync = makeCloudSync("goals", goals, saveGoals);
 
 const REFLECTIONS_KEY = "buam-reflections-v1";
 let reflections = JSON.parse(localStorage.getItem(REFLECTIONS_KEY) || "[]");
-function saveReflections(){ localStorage.setItem(REFLECTIONS_KEY, JSON.stringify(reflections)); renderCalendar(); }
+function saveReflections(){ safeStore(REFLECTIONS_KEY, JSON.stringify(reflections)); renderCalendar(); }
 const reflectionsSync = makeCloudSync("reflections", reflections, saveReflections);
 
 function localDateStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -3591,6 +3677,7 @@ function renderCommandCenter(){
   }
 
   const feedItems = [];
+  if(storageFailed) feedItems.push({ text: "Storage is full — changes are not being saved", tag:"ALERT", cls:"cc-feed-alert" });
   if(budgetIncome > 0 && budgetPct >= 100) feedItems.push({ text: `Monthly budget exceeded (${budgetPct}%)`, tag:"WARN", cls:"cc-feed-warn" });
   overdueTasks.slice(0,3).forEach(t=> feedItems.push({ text: `Overdue: ${t.title}`, tag:"ALERT", cls:"cc-feed-alert" }));
   tasks.filter(t=>!t.done && t.due===today).slice(0,3).forEach(t=> feedItems.push({ text: `Due today: ${t.title}`, tag:"WARN", cls:"cc-feed-warn" }));
@@ -6230,6 +6317,9 @@ const MIC_REFUSALS_BEFORE_GIVING_UP = 2;
 let micRefusals = 0;
 function micGivenUp(){ return micRefusals >= MIC_REFUSALS_BEFORE_GIVING_UP; }
 let warmRec = null;             // a throwaway session used only to raise the mic prompt
+let pendingAsk = null;          // a question awaiting an answer that is not yes/no
+let thinkingWatchdog = null;
+const THINKING_MAX_MS = 8000;   // nothing legitimate spends this long thinking
 let pendingConfirm = null;      // { run, describe } awaiting a spoken yes/no
 let captionTimer = null;
 let idleTimer = null;
@@ -6263,6 +6353,22 @@ function setCoreState(name){
   if(name === "error"){
     clearTimeout(idleTimer);
     idleTimer = setTimeout(()=>{ if(!voiceListening) setCoreState("idle"); }, 2200);
+  }
+  /* Nothing may leave the Core spinning forever. Every path out of "thinking"
+     is supposed to land somewhere else, but a throw skips all of them, and the
+     result was a ring that turned indefinitely with no sound, no caption and
+     no way to tell that anything had failed. This is the floor under all of
+     them: whatever happens, the Core comes back. */
+  clearTimeout(thinkingWatchdog);
+  if(name === "processing"){
+    thinkingWatchdog = setTimeout(()=>{
+      if(voiceListening || pendingConfirm || pendingAsk) return;
+      const bar = document.getElementById("ccJarvisBar");
+      if(bar && bar.classList.contains("talking")) return;
+      console.warn("[voice] stuck in processing — releasing the Core");
+      setCoreState("idle");
+      showCaption("");
+    }, THINKING_MAX_MS);
   }
 }
 
@@ -6395,6 +6501,7 @@ function voiceAddTask(params){
       const el = document.getElementById("titleInput");
       if(el) el.focus();
     }, 60);
+    askTitle(params.due);        // the next thing said is the name
     return params.due
       ? voiceReply("needTitle") + " I've set the date to " + friendlyDue(params.due) + "."
       : voiceReply("needTitle");
@@ -6435,7 +6542,10 @@ function voiceCompleteTask(params){
     const open = tasks.filter(t=>!t.done);
     const matches = BuamVoice.findTaskMatches(params.title, open.length ? open : tasks);
     if(BuamVoice.isAmbiguousMatch(matches)){
-      // two titles fit the keyword equally well — ask rather than guess wrong
+      // two titles fit the keyword equally well — ask rather than guess wrong,
+      // and keep listening, because a question you cannot answer is worse than
+      // a wrong guess
+      askChoice([matches[0].task, matches[1].task]);
       return voiceReply("ambiguous") + ' "' + matches[0].task.title + '" or "' + matches[1].task.title + '"?';
     }
     if(matches.length) target = matches[0].task;
@@ -6445,11 +6555,22 @@ function voiceCompleteTask(params){
     if(ctx) target = tasks.filter(t=>t.id === ctx.taskId)[0] || null;
   }
   if(!target) return voiceReply(params.title ? "taskNotFound" : "nothingToComplete");
+  return completeTaskAloud(target);
+}
+
+/* The tail of voiceCompleteTask, reachable on its own once a two-way question
+   has settled which task was meant. */
+function completeTaskAloud(target){
+  if(!target) return voiceReply("taskNotFound");
   if(target.done) return `"${target.title}" is already done.`;
   toggleDone(target.id);   // the app's own path: save, sync, celebrate, speak
   if(voiceCtx) voiceCtx.set(target.id, "task.done", new Date());
   coreSuccess();
   return "";               // toggleDone already speaks a taskDone line
+}
+
+function voiceCompleteTaskById(id){
+  return completeTaskAloud(tasks.filter(t=>t.id === id)[0] || null);
 }
 
 function voiceAddMoney(params){
@@ -6520,6 +6641,68 @@ function describeForConfirm(intent, params){
   return "Go ahead?";
 }
 
+/* Every action goes through here. A throw used to escape into handleTranscript,
+   skip the reply, and strand the Core mid-thought; now it becomes something
+   BUAM can actually say. */
+function runVoiceIntentSafely(intent, params){
+  try{
+    return runVoiceIntent(intent, params);
+  }catch(e){
+    console.error("[voice] action failed", intent, e);
+    return voiceReply("actionFailed");
+  }
+}
+
+/* ---- questions BUAM asks, and the answers it is waiting for ----
+   A yes/no confirmation had somewhere to put the answer. Every other question
+   did not: "which one?", "say it again?" and "what should I call it?" all
+   closed the microphone and then discarded whatever came next, because a bare
+   reply like "ประชุมทีมเช้า" carries no command word and parses as small talk.
+   pendingAsk is that missing place. */
+
+function askChoice(candidates){
+  pendingAsk = {
+    kind: "choice",
+    answer(text){
+      const t = BuamVoice.compact(text);
+      if(/^(ยกเลิก|ไม่เอา|ช่างมัน|ไม่ต้อง)$/.test(t)) return voiceReply("cancelled");
+      // "อันแรก" / "อันที่สอง" — people answer a two-way question by position
+      let pick = null;
+      if(/แรก|หนึ่ง|อันบน/.test(t)) pick = candidates[0];
+      else if(/สอง|ที่2|อันล่าง/.test(t)) pick = candidates[1];
+      if(!pick){
+        // otherwise score the answer against just these two, so the one word
+        // that tells them apart is enough
+        const m = BuamVoice.findTaskMatches(text, candidates);
+        if(m.length && !BuamVoice.isAmbiguousMatch(m)) pick = m[0].task;
+      }
+      if(!pick) return null;          // not an answer — treat as a new command
+      return voiceCompleteTaskById(pick.id);
+    }
+  };
+}
+
+function askTitle(due){
+  pendingAsk = {
+    kind: "title",
+    answer(text){
+      const parsed = BuamVoice.parseIntent(text, { now: new Date(), categories: moneyState.categories });
+      // "เพิ่มงานซื้อนม" as the answer is fine too — take the title out of it
+      const title = parsed.intent === "task.add" && parsed.params.title
+        ? parsed.params.title
+        : BuamVoice.normalize(text);
+      if(!title) return null;
+      const parsedDue = parsed.intent === "task.add" ? parsed.params.due : "";
+      return voiceAddTask({ title: title, due: parsedDue || due || "" });
+    }
+  };
+}
+
+function askRepeat(){
+  // nothing to interpret — the next thing said is simply the command again
+  pendingAsk = { kind: "repeat", answer(){ return null; } };
+}
+
 function handleTranscript(text, score){
   setCoreState("processing");
 
@@ -6529,7 +6712,10 @@ function handleTranscript(text, score){
     const pending = pendingConfirm;
     if(answer.intent === "confirm.yes"){
       pendingConfirm = null;
-      voiceSay(pending.run() || voiceReply("confirmed"));
+      let reply;
+      try{ reply = pending.run(); }
+      catch(e){ console.error("[voice] confirmed action failed", e); reply = voiceReply("actionFailed"); }
+      voiceSay(reply || voiceReply("confirmed"));
       return;
     }
     if(answer.intent === "confirm.no"){
@@ -6540,12 +6726,26 @@ function handleTranscript(text, score){
     pendingConfirm = null;   // anything else abandons the confirmation
   }
 
+  /* an outstanding question gets first refusal on the answer. If it does not
+     recognise one, the words fall through and are read as a fresh command —
+     which is what "say it again?" wants, and what saying something unrelated
+     should do anyway. */
+  if(pendingAsk){
+    const ask = pendingAsk;
+    pendingAsk = null;
+    let reply = null;
+    try{ reply = ask.answer(text); }
+    catch(e){ console.error("[voice] answer failed", e); reply = voiceReply("actionFailed"); }
+    if(reply != null){ voiceSay(reply); return; }
+  }
+
   const parsed = BuamVoice.parseIntent(text, { now: new Date(), categories: moneyState.categories });
   const verdict = BuamVoice.gate(parsed.intent, score, parsed.params);
 
   if(verdict === "retry"){
     setCoreState("error");
-    voiceSay(voiceReply("retry"), "warn");
+    askRepeat();
+    voiceSay(voiceReply("retry"), "warn", listenForAnswer);
     return;
   }
   if(verdict === "confirm"){
@@ -6553,8 +6753,9 @@ function handleTranscript(text, score){
     voiceSay(describeForConfirm(parsed.intent, parsed.params), null, listenForAnswer);
     return;
   }
-  const reply = runVoiceIntent(parsed.intent, parsed.params);
-  if(reply) voiceSay(reply);
+  const reply = runVoiceIntentSafely(parsed.intent, parsed.params);
+  // an action that ended by asking something listens for the answer
+  if(reply) voiceSay(reply, null, listenForAnswer);
   else { setCoreState("idle"); showCaption(""); }
 }
 
@@ -6569,7 +6770,7 @@ function stopListening(){
    nowhere to go, leaving the only way through a second tap nobody expects.
    Returns true when it has taken the Core over. */
 function listenForAnswer(){
-  if(!pendingConfirm) return false;              // already answered or dropped
+  if(!pendingConfirm && !pendingAsk) return false;   // already answered or dropped
   if(!voiceSupported || micGivenUp()) return false;
   startListening();
   return true;
@@ -6578,7 +6779,7 @@ function listenForAnswer(){
 /* A briefing must never barge into an outstanding question: the question is
    still on screen and the answer still has somewhere to go. */
 function fallbackToBriefing(){
-  if(pendingConfirm) return;
+  if(pendingConfirm || pendingAsk) return;
   speakBriefing();
 }
 
@@ -6608,7 +6809,7 @@ function startListening(){
     setCoreState("listening");
     // while a question is outstanding the question itself stays on screen —
     // replacing it with "Listening…" hides the thing being answered
-    if(!pendingConfirm) showCaption("Listening…", "interim");
+    if(!pendingConfirm && !pendingAsk) showCaption("Listening…", "interim");
   };
 
   rec.onresult = e => {
@@ -6648,12 +6849,12 @@ function startListening(){
   rec.onend = ()=>{
     voiceListening = false;
     if(voiceGotResult) return;
-    if(pendingConfirm){
+    if(pendingConfirm || pendingAsk){
       /* The answer window closed with nothing said. A write action must not sit
          half-committed, so the question is dropped — but only if the window
          actually opened; if it never did, the question stands and a tap can
          still answer it. */
-      if(recStarted){ pendingConfirm = null; showCaption(""); }
+      if(recStarted){ pendingConfirm = null; pendingAsk = null; showCaption(""); }
       setCoreState("idle");
       return;
     }
@@ -6722,6 +6923,7 @@ function activateBuamCore(){
   if(voiceListening){
     stopListening();
     pendingConfirm = null;
+    pendingAsk = null;
     setCoreState("idle");
     showCaption("");
     return;
@@ -6759,6 +6961,7 @@ document.addEventListener("visibilitychange", ()=>{
   }
   if(voiceListening){ stopListening(); setCoreState("idle"); showCaption(""); }
   pendingConfirm = null;
+  pendingAsk = null;
 });
 
 /* tap vs. orbit-drag: OrbitControls owns dragging on this same canvas, so only
@@ -6900,7 +7103,11 @@ let moneyUiInitialized = false;
 function saveMoneySettings(){ BuamMoney.saveSettings(moneyState.settings); pushMoneyConfig(); }
 function saveMoneyBudgetGroups(){ BuamMoney.saveBudgetGroups(moneyState.budgetGroups); pushMoneyConfig(); }
 function saveMoneyCategories(){ BuamMoney.saveCategories(moneyState.categories); pushMoneyConfig(); }
-function saveMoneyTransactions(){ BuamMoney.saveTransactions(moneyState.transactions); }
+function saveMoneyTransactions(){
+  // buam-money reports rather than throws; the app was discarding the answer
+  const r = BuamMoney.saveTransactions(moneyState.transactions);
+  storageFailed = !(r && r.ok !== false);
+}
 function saveMoneyMonthlyBudgets(){ BuamMoney.saveMonthlyBudgets(moneyState.monthlyBudgets); }
 function saveMoneyRecurring(){ BuamMoney.saveRecurring(moneyState.recurring); }
 
