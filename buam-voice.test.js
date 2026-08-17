@@ -246,6 +246,68 @@
       });
   });
 
+  /* ================= income ================= */
+
+  var CATS = {
+    expense: [{ id: "exp-food", name: "อาหาร" }, { id: "exp-other", name: "อื่น ๆ" }],
+    income: [{ id: "inc-allowance", name: "เงินเดือน/ค่าขนม" },
+             { id: "inc-work", name: "รายได้จากงาน" },
+             { id: "inc-other", name: "รายได้อื่น ๆ" }]
+  };
+
+  test("money coming in is recognised as income, not as another expense", function () {
+    ["ได้เงิน 500 บาท", "รับเงิน 500 บาท", "เงินเข้า 500 บาท", "รายรับ 500 บาท",
+     "เงินเดือนออก 15000", "แม่ให้ 2000 บาท", "ขายของได้ 350 บาท", "ได้โบนัส 5000",
+     "ได้ทิป 200", "เงินคืน 90 บาท", "ได้ค่าขนม 300 บาท"].forEach(function (t) {
+      var r = V.parseIntent(t, { now: NOW, categories: CATS });
+      assertEqual(r.intent, "money.add", t);
+      assertEqual(r.params.type, "income", t);
+    });
+  });
+
+  test("spending still reads as spending, including when it names an income word", function () {
+    ["กาแฟ 60 บาท", "จ่ายค่าเทอม 15,000 บาท", "ค่าข้าว 120 บาท", "ซื้อของ 200 บาท"]
+      .forEach(function (t) {
+        var r = V.parseIntent(t, { now: NOW, categories: CATS });
+        assertEqual(r.intent, "money.add", t);
+        assertEqual(r.params.type, "expense", t);
+      });
+    // an employer paying a salary is money going out, however it is worded
+    var r = V.parseIntent("จ่ายเงินเดือนพนักงาน 9000", { now: NOW, categories: CATS });
+    assertEqual(r.params.type, "expense", "a spending verb wins over an income word");
+  });
+
+  test("income picks an income category, never an expense one", function () {
+    [["เงินเดือนออก 15000", "inc-allowance"], ["แม่ให้ 2000 บาท", "inc-allowance"],
+     ["ขายของได้ 350 บาท", "inc-work"], ["ได้โบนัส 5000", "inc-work"],
+     ["ได้เงิน 500 บาท", "inc-other"]].forEach(function (c) {
+      var r = V.parseIntent(c[0], { now: NOW, categories: CATS });
+      assertEqual(r.params.categoryId, c[1], c[0]);
+    });
+  });
+
+  test("an income marker is enough to read a bare number as money", function () {
+    // without one, a number on its own is not an amount
+    assertEqual(V.parseIntent("ได้ทิป 200", { now: NOW, categories: CATS }).params.amount, 200);
+    assertEqual(V.parseIntent("อ่านหนังสือ 30 หน้า", { now: NOW, categories: CATS }).intent, "chat.fallback");
+  });
+
+  test("spelled-out income amounts parse", function () {
+    var r = V.parseIntent("ได้เงินห้าร้อยบาท", { now: NOW, categories: CATS });
+    assertEqual(r.params.type, "income");
+    assertEqual(r.params.amount, 500);
+  });
+
+  test("guessCategory keeps its old behaviour when no type is given", function () {
+    assertEqual(V.guessCategory("กาแฟ", CATS), "exp-food", "expense stays the default");
+    assertEqual(V.guessCategory("กาแฟ", CATS, "expense"), "exp-food");
+  });
+
+  test("income is a write, so a large one still asks first", function () {
+    var r = V.parseIntent("เงินเดือนออก 15000", { now: NOW, categories: CATS });
+    assertEqual(V.gate(r.intent, 0.99, r.params), "confirm");
+  });
+
   /* ================= task.add with a date ================= */
 
   test("task.add takes the date out of the sentence and leaves a clean title", function () {

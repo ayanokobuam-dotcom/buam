@@ -414,8 +414,10 @@
       }
     }
 
-    // bare number, only with an explicit spending verb
-    if (hasAny(s, MONEY_VERBS)) {
+    /* bare number, only when something in the sentence says it is money —
+       a spending verb, or an income marker, which is just as explicit:
+       "ได้โบนัส 5000" is no more ambiguous than "จ่าย 5000" */
+    if (hasAny(s, MONEY_VERBS) || matchedIncomeMarker(s)) {
       var bm = raw.match(/(\d[\d,]*(?:\.\d+)?)/);
       if (bm) return { amount: Number(bm[1].replace(/,/g, "")), matched: bm[0] };
     }
@@ -435,22 +437,64 @@
     { words: ["แฟน", "ของขวัญ", "เดท"], name: "แฟน/ความสัมพันธ์" }
   ];
 
-  /* categories: the money module's shape, { expense: [{id, name, archived}] }.
-     Falls back to the first non-archived expense category, then exp-other. */
-  function guessCategory(note, categories) {
-    var list = (categories && categories.expense) || [];
+  var INCOME_HINTS = [
+    { words: ["เงินเดือน", "ค่าขนม", "ขนม", "แม่ให้", "พ่อให้", "ที่บ้านให้", "ให้มา"], name: "เงินเดือน/ค่าขนม" },
+    { words: ["งาน", "ค่าจ้าง", "จ้าง", "ฟรีแลนซ์", "ขายของ", "ขายได้", "ทิป", "โบนัส", "พาร์ทไทม์"], name: "รายได้จากงาน" }
+  ];
+
+  /* Money coming in. These are checked against the whole utterance, not the
+     note, because the marker is usually the verb: "ได้เงิน 500". Anything with
+     a spending verb in front is money going out regardless — "จ่ายเงินเดือน"
+     contains an income word and is not income. */
+  var INCOME_MARKERS = [
+    "ได้เงิน", "ได้รับเงิน", "รับเงิน", "เงินเข้า", "รายรับ", "รายได้",
+    "เงินเดือนออก", "เงินเดือน", "ได้ค่าขนม", "ได้ค่าจ้าง", "ได้โบนัส", "โบนัส",
+    "ได้ทิป", "ขายได้", "ขายของได้", "โอนเข้า", "ได้มา", "ได้เพิ่ม",
+    "แม่ให้", "พ่อให้", "ที่บ้านให้", "เงินคืน", "ได้คืน", "คืนเงิน"
+  ];
+  var SPENDING_VERBS = /^\s*(?:จ่าย|ซื้อ|เสียเงิน|ใช้ไป|หมดไป|บันทึกรายจ่าย)/;
+
+  function detectMoneyType(text) {
+    var raw = normalize(text);
+    if (SPENDING_VERBS.test(raw)) return "expense";
+    var s = compact(raw);
+    for (var i = 0; i < INCOME_MARKERS.length; i++) {
+      if (s.indexOf(INCOME_MARKERS[i]) !== -1) return "income";
+    }
+    return "expense";
+  }
+
+  function matchedIncomeMarker(text) {
+    var s = compact(text);
+    var best = "";
+    for (var i = 0; i < INCOME_MARKERS.length; i++) {
+      if (s.indexOf(INCOME_MARKERS[i]) !== -1 && INCOME_MARKERS[i].length > best.length) {
+        best = INCOME_MARKERS[i];
+      }
+    }
+    return best;
+  }
+
+  /* categories: the money module's shape, { expense: [...], income: [...] }.
+     Falls back to the first non-archived category of that type, then to the
+     module's own default id. */
+  function guessCategory(note, categories, type) {
+    var kind = type === "income" ? "income" : "expense";
+    var list = (categories && categories[kind]) || [];
     var active = list.filter(function (c) { return !c.archived; });
     var s = compact(note).toLowerCase();
+    var hints = kind === "income" ? INCOME_HINTS : CATEGORY_HINTS;
 
-    for (var i = 0; i < CATEGORY_HINTS.length; i++) {
-      var hint = CATEGORY_HINTS[i];
+    for (var i = 0; i < hints.length; i++) {
+      var hint = hints[i];
       if (!hasAny(s, hint.words)) continue;
       var byName = active.filter(function (c) { return compact(c.name) === compact(hint.name); })[0];
       if (byName) return byName.id;
     }
     var other = active.filter(function (c) { return /อื่น/.test(c.name); })[0];
     if (other) return other.id;
-    return active.length ? active[0].id : "exp-other";
+    if (active.length) return active[0].id;
+    return kind === "income" ? "inc-other" : "exp-other";
   }
 
   /* ================================================================
@@ -695,15 +739,23 @@
       if (compact(note).indexOf(compact(amt.matched)) !== -1) {
         note = normalize(compact(note).replace(compact(amt.matched), " "));
       }
+      var moneyType = detectMoneyType(raw);
       // strip the spending verb, but never the "ค่า" of a compound like
       // "ค่าเทอม" — that prefix is part of the name, not a verb
       note = note.replace(/^\s*(?:จ่าย|ซื้อ|เสียเงิน|ใช้ไป|หมดไป|บันทึกรายจ่าย)\s*/, "");
+      if (moneyType === "income") {
+        // the marker is the verb here, so it is not part of what the money was
+        var marker = matchedIncomeMarker(note) || matchedIncomeMarker(raw);
+        if (marker) note = stripPhrase(note, marker);
+        note = normalize(note.replace(/(?:^|\s)(?:ได้|รับ|เข้า|มา|ออก|แล้ว|จาก)(?=\s|$)/g, " "));
+      }
       note = note.replace(/(?:^|\s)(?:ค่า|บาท|฿)(?=\s|$)/g, " ");
       note = normalize(note);
       return out("money.add", {
         amount: amt.amount,
         note: note,
-        categoryId: guessCategory(note || raw, categories),
+        type: moneyType,
+        categoryId: guessCategory(note || raw, categories, moneyType),
         date: toDateStr(now)
       });
     }
@@ -1145,7 +1197,8 @@
       "Tasks, money, timers, and getting around the app. Say the name of a task with 'done', or something like 'coffee sixty baht'. And I'll talk about anything else you feel like.",
       "I can add and finish tasks, log spending, start a focus timer, open any screen, and tell you where things stand. Or we can just talk.",
       "Add a task, mark one done, log an expense, run a timer, open a screen, or ask what's due. Anything else and I'll just keep you company.",
-      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up."
+      "When you add a task you can put the date straight in the sentence — tomorrow, next Monday, the fifth of next month, the twentieth of August. I'll pick it up.",
+      "Money goes both ways with me. Say what you spent, or tell me what came in — allowance, salary, something you sold."
     ],
     ambiguous: [
       "I found a few that could be it. Which one?",
@@ -1246,6 +1299,8 @@
     parseThaiDate: parseThaiDate,
     parseAmount: parseAmount,
     guessCategory: guessCategory,
+    detectMoneyType: detectMoneyType,
+    INCOME_MARKERS: INCOME_MARKERS,
     findTaskByTitle: findTaskByTitle,
     findTaskMatches: findTaskMatches,
     isAmbiguousMatch: isAmbiguousMatch,
