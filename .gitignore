@@ -1,0 +1,4 @@
+# screenshots and JSON written by buam-weather.e2e.js
+.e2e-out/
+# only needed if you install playwright/three locally to run the e2e suite
+node_modules/
