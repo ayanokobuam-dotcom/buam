@@ -287,6 +287,11 @@
     budgetGroups.sort(function (a, b) {
       return (isFiniteNumber(a.order) ? a.order : 0) - (isFiniteNumber(b.order) ? b.order : 0);
     });
+    // re-stamp sequential order values every time — older data (or groups
+    // added/deleted before this field was normalized) can carry duplicate
+    // order numbers, which makes an up/down swap trade two equal values and
+    // look like it did nothing. This heals that on every sort, not just once.
+    budgetGroups.forEach(function (g, i) { g.order = i; });
     return budgetGroups;
   }
   function reorderBudgetGroup(budgetGroups, id, direction) {

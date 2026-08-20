@@ -7213,6 +7213,10 @@ let moneyUiInitialized = false;
 if(BuamMoney.migrateUnlinkedInvestmentCategories(moneyState.categories, moneyState.budgetGroups)){
   BuamMoney.saveCategories(moneyState.categories);
 }
+// sortBudgetGroups() above already re-stamped sequential order values in
+// memory (healing any duplicates from older data) — persist that so a
+// stale duplicate on disk doesn't make the very next reorder a no-op again
+BuamMoney.saveBudgetGroups(moneyState.budgetGroups);
 
 function saveMoneySettings(){ BuamMoney.saveSettings(moneyState.settings); pushMoneyConfig(); }
 function saveMoneyBudgetGroups(){ BuamMoney.saveBudgetGroups(moneyState.budgetGroups); pushMoneyConfig(); }
@@ -7268,7 +7272,7 @@ function attachMoneyConfigListener(){
     const remote = doc.data();
     let changed = false;
     if(remote.settings && JSON.stringify(remote.settings) !== JSON.stringify(moneyState.settings)){ moneyState.settings = remote.settings; BuamMoney.saveSettings(moneyState.settings); changed = true; }
-    if(remote.budgetGroups && JSON.stringify(remote.budgetGroups) !== JSON.stringify(moneyState.budgetGroups)){ moneyState.budgetGroups = remote.budgetGroups; BuamMoney.saveBudgetGroups(moneyState.budgetGroups); changed = true; }
+    if(remote.budgetGroups && JSON.stringify(remote.budgetGroups) !== JSON.stringify(moneyState.budgetGroups)){ moneyState.budgetGroups = BuamMoney.sortBudgetGroups(remote.budgetGroups); BuamMoney.saveBudgetGroups(moneyState.budgetGroups); changed = true; }
     if(remote.categories && JSON.stringify(remote.categories) !== JSON.stringify(moneyState.categories)){ moneyState.categories = remote.categories; BuamMoney.saveCategories(moneyState.categories); changed = true; }
     if(changed && moneyUiInitialized) renderMoneySubview();
   }, err => console.error("[sync] money config listener error", err));
@@ -7279,7 +7283,7 @@ async function moneyConfigOnSignIn(){
   if(doc.exists){
     const remote = doc.data();
     if(remote.settings){ moneyState.settings = remote.settings; BuamMoney.saveSettings(moneyState.settings); }
-    if(remote.budgetGroups){ moneyState.budgetGroups = remote.budgetGroups; BuamMoney.saveBudgetGroups(moneyState.budgetGroups); }
+    if(remote.budgetGroups){ moneyState.budgetGroups = BuamMoney.sortBudgetGroups(remote.budgetGroups); BuamMoney.saveBudgetGroups(moneyState.budgetGroups); }
     if(remote.categories){ moneyState.categories = remote.categories; BuamMoney.saveCategories(moneyState.categories); }
   } else {
     pushMoneyConfig();
