@@ -179,14 +179,14 @@
     // Investment budget = 3000 baht — investing exactly 3000 hits the target, it doesn't exceed it.
     BuamMoney.addTransaction(s.transactions, s.categories, { amount: 3000, type: "investment", categoryId: "inv-etf", date: "2026-08-01" });
     var usage = BuamMoney.calcGroupUsage(s.transactions, s.categories, s.budgetGroups, budget, mKey);
-    var inv = usage.filter(function (g) { return g.isInvestmentGroup; })[0];
+    var inv = usage.filter(function (g) { return g.groupId === "grp-investment"; })[0];
     assertEqual(inv.pct, 1);
     assertEqual(inv.status, "reached", "spending exactly the budget should be its own milestone status, not 'over'");
     assertEqual(inv.remaining, 0);
 
     BuamMoney.addTransaction(s.transactions, s.categories, { amount: 1, type: "investment", categoryId: "inv-etf", date: "2026-08-02" });
     usage = BuamMoney.calcGroupUsage(s.transactions, s.categories, s.budgetGroups, budget, mKey);
-    inv = usage.filter(function (g) { return g.isInvestmentGroup; })[0];
+    inv = usage.filter(function (g) { return g.groupId === "grp-investment"; })[0];
     assertEqual(inv.status, "over", "spending even slightly more than the budget should read as 'over'");
   });
 
@@ -213,14 +213,21 @@
     assertEqual(rel.status, "over", "any spend against a zero budget is 'over'");
   });
 
-  test("investment-type transactions roll up into the Investment budget group regardless of investment category", function () {
+  test("investment transactions roll up via their category's linked group, not automatically by type", function () {
     var s = freshState();
     var mKey = "2026-08";
     BuamMoney.addTransaction(s.transactions, s.categories, { amount: 1000, type: "investment", categoryId: "inv-etf", date: "2026-08-01", asset: "ETF" });
     var budget = BuamMoney.getMonthlyBudget(s.monthlyBudgets, s.budgetGroups, s.settings, mKey);
     var usage = BuamMoney.calcGroupUsage(s.transactions, s.categories, s.budgetGroups, budget, mKey);
-    var inv = usage.filter(function (g) { return g.isInvestmentGroup; })[0];
+    var inv = usage.filter(function (g) { return g.groupId === "grp-investment"; })[0];
     assertEqual(inv.spent, 100000);
+
+    // unlink the category from its group: the transaction should stop counting
+    // toward it, proving this is link-based rather than an automatic catch-all
+    BuamMoney.setCategoryGroup(s.categories, "inv-etf", null);
+    var usage2 = BuamMoney.calcGroupUsage(s.transactions, s.categories, s.budgetGroups, budget, mKey);
+    var inv2 = usage2.filter(function (g) { return g.groupId === "grp-investment"; })[0];
+    assertEqual(inv2.spent, 0);
   });
 
   /* ---------------- dashboard ---------------- */

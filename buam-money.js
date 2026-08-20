@@ -122,10 +122,10 @@
   /* ---------------- defaults ---------------- */
 
   var DEFAULT_BUDGET_GROUPS = [
-    { id: "grp-living", name: "Living", monthlyAmount: 900000, order: 0 },
-    { id: "grp-investment", name: "Investment", monthlyAmount: 300000, order: 1, isInvestmentGroup: true },
-    { id: "grp-selfdev", name: "Self Development", monthlyAmount: 75000, order: 2 },
-    { id: "grp-relationship", name: "Relationship & Fun", monthlyAmount: 125000, order: 3 }
+    { id: "grp-living", name: "Living", monthlyAmount: 900000, order: 0, type: "expense" },
+    { id: "grp-investment", name: "Investment", monthlyAmount: 300000, order: 1, type: "investment" },
+    { id: "grp-selfdev", name: "Self Development", monthlyAmount: 75000, order: 2, type: "expense" },
+    { id: "grp-relationship", name: "Relationship & Fun", monthlyAmount: 125000, order: 3, type: "expense" }
   ];
   var DEFAULT_SETTINGS = { monthlyIncome: 1400000 };
 
@@ -147,11 +147,11 @@
         { id: "exp-other", name: "อื่น ๆ", type: "expense", groupId: "grp-living", builtIn: true, archived: false }
       ],
       investment: [
-        { id: "inv-fund", name: "กองทุน", type: "investment", builtIn: true, archived: false },
-        { id: "inv-stock", name: "หุ้น", type: "investment", builtIn: true, archived: false },
-        { id: "inv-etf", name: "ETF", type: "investment", builtIn: true, archived: false },
-        { id: "inv-savings", name: "เงินออมเพื่อการลงทุน", type: "investment", builtIn: true, archived: false },
-        { id: "inv-other", name: "อื่น ๆ", type: "investment", builtIn: true, archived: false }
+        { id: "inv-fund", name: "กองทุน", type: "investment", groupId: "grp-investment", builtIn: true, archived: false },
+        { id: "inv-stock", name: "หุ้น", type: "investment", groupId: "grp-investment", builtIn: true, archived: false },
+        { id: "inv-etf", name: "ETF", type: "investment", groupId: "grp-investment", builtIn: true, archived: false },
+        { id: "inv-savings", name: "เงินออมเพื่อการลงทุน", type: "investment", groupId: "grp-investment", builtIn: true, archived: false },
+        { id: "inv-other", name: "อื่น ๆ", type: "investment", groupId: "grp-investment", builtIn: true, archived: false }
       ]
     };
   }
@@ -169,7 +169,12 @@
 
   function loadBudgetGroups() {
     var g = readJSON(KEYS.budgetGroups, null);
-    if (Array.isArray(g) && g.length) return g;
+    if (Array.isArray(g) && g.length) {
+      // older saves predate per-group type: migrate the old investment
+      // catch-all flag into the new type field, default the rest to expense
+      g.forEach(function (x) { if (!x.type) x.type = x.isInvestmentGroup ? "investment" : "expense"; });
+      return g;
+    }
     var seeded = DEFAULT_BUDGET_GROUPS.map(function (x) { return Object.assign({}, x); });
     writeJSON(KEYS.budgetGroups, seeded);
     return seeded;
@@ -230,8 +235,7 @@
     var name = input.name, type = input.type, groupId = input.groupId;
     if (!name || !name.trim()) return { ok: false, error: "invalid-name" };
     if (TYPES.indexOf(type) === -1) return { ok: false, error: "invalid-type" };
-    var cat = { id: uid("cat"), name: name.trim(), type: type, builtIn: false, archived: false };
-    if (type === "expense") cat.groupId = groupId || null;
+    var cat = { id: uid("cat"), name: name.trim(), type: type, groupId: groupId || null, builtIn: false, archived: false };
     categories[type].push(cat);
     return { ok: true, category: cat };
   }
@@ -244,9 +248,22 @@
   }
   function setCategoryGroup(categories, id, groupId) {
     var cat = findCategory(categories, id);
-    if (!cat || cat.type !== "expense") return { ok: false, error: "not-found" };
+    if (!cat) return { ok: false, error: "not-found" };
     cat.groupId = groupId || null;
     return { ok: true };
+  }
+  // one-time upgrade path: pre-existing saves may have investment categories
+  // with no groupId (the old Investment group auto-caught every investment
+  // transaction regardless of category, so nothing needed linking before).
+  // Links them to whichever budget group is typed "investment", if any.
+  function migrateUnlinkedInvestmentCategories(categories, budgetGroups) {
+    var invGroup = budgetGroups.filter(function (g) { return g.type === "investment"; })[0];
+    if (!invGroup) return false;
+    var changed = false;
+    (categories.investment || []).forEach(function (c) {
+      if (!c.groupId) { c.groupId = invGroup.id; changed = true; }
+    });
+    return changed;
   }
   function deleteCategory(categories, transactions, id) {
     var cat = findCategory(categories, id);
@@ -261,12 +278,36 @@
 
   /* ---------------- budget groups ---------------- */
 
+  function nextGroupOrder(budgetGroups) {
+    return budgetGroups.reduce(function (max, g) {
+      return Math.max(max, isFiniteNumber(g.order) ? g.order : 0);
+    }, -1) + 1;
+  }
+  function sortBudgetGroups(budgetGroups) {
+    budgetGroups.sort(function (a, b) {
+      return (isFiniteNumber(a.order) ? a.order : 0) - (isFiniteNumber(b.order) ? b.order : 0);
+    });
+    return budgetGroups;
+  }
+  function reorderBudgetGroup(budgetGroups, id, direction) {
+    sortBudgetGroups(budgetGroups);
+    var i = budgetGroups.findIndex(function (g) { return g.id === id; });
+    if (i === -1) return { ok: false, error: "not-found" };
+    var j = direction === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= budgetGroups.length) return { ok: false, error: "boundary" };
+    var tmp = budgetGroups[i].order;
+    budgetGroups[i].order = budgetGroups[j].order;
+    budgetGroups[j].order = tmp;
+    sortBudgetGroups(budgetGroups);
+    return { ok: true };
+  }
   function addBudgetGroup(budgetGroups, input) {
-    var name = input.name, monthlyAmount = input.monthlyAmount, isInvestmentGroup = input.isInvestmentGroup;
+    var name = input.name, monthlyAmount = input.monthlyAmount, type = input.type || "expense";
     if (!name || !name.trim()) return { ok: false, error: "invalid-name" };
     var amt = Number(monthlyAmount);
     if (!isFiniteNumber(amt) || amt < 0) return { ok: false, error: "invalid-amount" };
-    var group = { id: uid("grp"), name: name.trim(), monthlyAmount: toMinor(amt), order: budgetGroups.length, isInvestmentGroup: !!isInvestmentGroup };
+    if (TYPES.indexOf(type) === -1) return { ok: false, error: "invalid-type" };
+    var group = { id: uid("grp"), name: name.trim(), monthlyAmount: toMinor(amt), order: nextGroupOrder(budgetGroups), type: type };
     budgetGroups.push(group);
     return { ok: true, group: group };
   }
@@ -450,19 +491,13 @@
   /* ---------------- budget usage / dashboard ---------------- */
 
   function spentByGroup(transactions, categories, budgetGroups, mKey) {
-    var investmentGroup = budgetGroups.filter(function (g) { return g.isInvestmentGroup; })[0];
     var catIndex = {};
     allCategories(categories).forEach(function (c) { catIndex[c.id] = c; });
     var byGroup = {};
     transactions.forEach(function (t) {
       if (monthKeyOf(t.date) !== mKey) return;
-      var groupId = null;
-      if (t.type === "investment" && investmentGroup) {
-        groupId = investmentGroup.id;
-      } else if (t.type === "expense") {
-        var cat = catIndex[t.categoryId];
-        groupId = (cat && cat.groupId) ? cat.groupId : null;
-      }
+      var cat = catIndex[t.categoryId];
+      var groupId = (cat && cat.groupId) ? cat.groupId : null;
       if (!groupId) return;
       byGroup[groupId] = (byGroup[groupId] || 0) + t.amount;
     });
@@ -483,7 +518,7 @@
       else if (budget > 0 && spentAmt === budget) status = "reached";
       else if (pct !== null && pct > 1) status = "over";
       else if (pct !== null && pct >= NEAR_THRESHOLD) status = "near";
-      return { groupId: g.id, name: g.name, budget: budget, spent: spentAmt, remaining: remaining, pct: pct, isInvestmentGroup: !!g.isInvestmentGroup, status: status };
+      return { groupId: g.id, name: g.name, budget: budget, spent: spentAmt, remaining: remaining, pct: pct, type: g.type || "expense", status: status };
     });
   }
 
@@ -737,8 +772,10 @@
     allCategories: allCategories, findCategory: findCategory, categoriesForType: categoriesForType,
     isCategoryInUse: isCategoryInUse, addCategory: addCategory, renameCategory: renameCategory,
     setCategoryGroup: setCategoryGroup, deleteCategory: deleteCategory,
+    migrateUnlinkedInvestmentCategories: migrateUnlinkedInvestmentCategories,
 
     addBudgetGroup: addBudgetGroup, updateBudgetGroup: updateBudgetGroup, deleteBudgetGroup: deleteBudgetGroup,
+    sortBudgetGroups: sortBudgetGroups, reorderBudgetGroup: reorderBudgetGroup,
     updateSettings: updateSettings,
 
     validateTransactionInput: validateTransactionInput, validateRecurringInput: validateRecurringInput,

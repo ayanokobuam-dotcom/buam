@@ -19,6 +19,13 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
+  /* boot-sequence display face — bundled locally (fonts/ByteBounce.ttf) so it
+     works fully offline; falls back to the app's mono stack if it fails to load */
+  @font-face{
+    font-family:"ByteBounce";
+    src:url("fonts/ByteBounce.ttf") format("truetype");
+    font-display:swap;
+  }
   :root{
     /* ---- matte charcoal base surface. the whole UI is one continuous
        physical material; depth comes from elevation, not outlines. ---- */
@@ -53,6 +60,7 @@
     --logo-b:#7ce7ff;
     --logo-c:#ff9be9;
     --font: "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+    --font-boot: "ByteBounce", "Consolas", "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
     /* deliberately not the HUD mono: the idle message is the one place the
        system speaks rather than reports */
     --font-quote: ui-serif, "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
@@ -132,7 +140,11 @@
 
     --header-surface: linear-gradient(145deg, rgba(251,253,252,0.90), rgba(207,216,211,0.90));
     --accent-ink: #ffffff;
+    --boot-blue:#0077a8;
   }
+  /* .dose-overlay used a hardcoded near-black backdrop instead of a theme
+     variable, so it stayed black even in light mode */
+  [data-theme="light"] .dose-overlay{ background:rgba(232,236,234,0.92); }
   [data-theme="light"] input[type=text],
   [data-theme="light"] select,
   [data-theme="light"] input[type=date]{ color-scheme:light; }
@@ -790,8 +802,8 @@
 
   .boot-screen{
     position:fixed; inset:0; z-index:999;
-    background:#080b0a; color:var(--accent);
-    font-family:var(--font);
+    background:var(--bg); color:var(--accent);
+    font-family:var(--font-boot);
     padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     cursor:pointer;
@@ -945,18 +957,20 @@
     animation:panelKick 0.55s cubic-bezier(0.2,0.8,0.3,1);
   }
   @keyframes panelKick{
-    0%{ transform:scale(0.95); box-shadow:0 0 40px rgba(0,255,102,0.55), inset 0 0 30px rgba(0,255,102,0.18); }
-    100%{ transform:scale(1); box-shadow:0 0 22px rgba(0,255,102,0.10), inset 0 0 18px rgba(0,255,102,0.03); }
+    0%{ transform:scale(0.95); box-shadow:var(--neu-inset-md); }
+    100%{ transform:scale(1); box-shadow:var(--neu-floating); }
   }
 
+  /* raised neumorphic tile, same material/shadow system as .dose-modal and
+     .add-card — shape comes from elevation, not an outline */
   .boot-panel{
     position:relative; z-index:1;
     max-width:560px; width:100%;
-    border:1px solid var(--border-bright);
-    border-radius:4px;
-    padding:16px 18px 14px;
-    background:rgba(0,255,102,0.02);
-    box-shadow:0 0 22px rgba(0,255,102,0.10), inset 0 0 18px rgba(0,255,102,0.03);
+    border:none;
+    border-radius:var(--neu-radius-lg);
+    padding:20px 22px 18px;
+    background:var(--neu-grad-raised);
+    box-shadow:var(--neu-floating);
   }
   .boot-panel-label{
     font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase;
@@ -967,7 +981,6 @@
   }
   .boot-line{
     min-height:1.7em;
-    text-shadow:0 0 8px rgba(0,255,102,0.35);
     word-break:break-word;
   }
   .boot-ok{ color:var(--accent); font-weight:700; margin-left:8px; }
@@ -990,23 +1003,21 @@
   .boot-progress.on{ opacity:1; }
   .boot-progress-track{
     position:relative; height:12px; overflow:hidden;
-    border:1px solid rgba(0,255,102,0.35);
-    background:
-      repeating-linear-gradient(to right,
-        rgba(0,255,102,0.10) 0 6px, transparent 6px 10px);
+    border:none; border-radius:var(--neu-radius-sm);
+    background:var(--neu-grad-inset);
+    box-shadow:var(--neu-inset-sm);
   }
   .boot-progress-fill{
     position:relative;   /* anchors the leading edge to the fill, not the track */
     height:100%; width:0%;
+    border-radius:var(--neu-radius-sm);
     background:linear-gradient(to right, rgba(0,255,102,0.5), var(--accent));
-    box-shadow:0 0 12px rgba(0,255,102,0.6);
     transition:width 0.45s cubic-bezier(0.3,0.8,0.4,1);
   }
   /* electric-blue leading edge riding the end of the fill */
   .boot-progress-fill::after{
     content:""; position:absolute; top:-1px; bottom:-1px; width:2px;
     right:0; background:var(--boot-blue);
-    box-shadow:0 0 10px 2px var(--boot-blue);
   }
   .boot-progress-meta{
     display:flex; justify-content:space-between; align-items:baseline;
@@ -1020,17 +1031,20 @@
   }
   .boot-gate-q{ color:var(--ink); opacity:0.85; }
   .boot-enter-btn{
-    background:var(--accent-dim); color:var(--accent);
-    border:1px solid var(--border-bright); border-radius:3px;
-    font-family:var(--font); font-size:0.86rem; font-weight:700;
-    padding:6px 14px; letter-spacing:0.03em;
-    text-shadow:0 0 8px rgba(0,255,102,0.5);
-    animation:gatePulse 1.3s ease-in-out infinite;
+    background:var(--accent); color:var(--accent-ink);
+    border:none; border-radius:var(--neu-radius-sm);
+    font-family:var(--font-boot); font-size:0.86rem; font-weight:700;
+    padding:8px 16px; letter-spacing:0.03em;
+    animation:gatePulse 1.6s ease-in-out infinite;
+    transition:box-shadow 0.2s ease-out, transform 0.2s ease-out;
   }
-  .boot-enter-btn:hover{ background:var(--accent); color:var(--accent-ink); }
+  .boot-enter-btn:hover{ box-shadow:var(--neu-shadow-lg); transform:translateY(-1px); }
+  .boot-enter-btn:active{ box-shadow:var(--neu-inset-sm); transform:translateY(0); animation:none; }
+  /* a soft rise-and-settle in shadow depth, standing in for the old glow
+     pulse — the invitation reads through elevation, not light emission */
   @keyframes gatePulse{
-    0%, 100%{ box-shadow:0 0 4px rgba(0,255,102,0.25); }
-    50%{ box-shadow:0 0 16px rgba(0,255,102,0.6); }
+    0%, 100%{ box-shadow:var(--neu-shadow-md); }
+    50%{ box-shadow:var(--neu-shadow-lg); }
   }
 
 
@@ -1039,7 +1053,7 @@
      the bar stays compact — the labels live on title/aria-label. Sizing the
      text to 0 works because .ico is sized in px, not em. */
   @media (max-width:430px){
-    #sndToggle, #jarvisToggle{ font-size:0; padding:9px 11px; gap:0; }
+    #sndToggle, #jarvisToggle, #musicToggle{ font-size:0; padding:9px 11px; gap:0; }
     .logo{ font-size:1.1rem; }
     header{ padding:9px 10px; }
   }
@@ -2119,6 +2133,10 @@
   .money-form-row{ display:flex; gap:8px; flex-wrap:wrap; }
   .money-form-field{ flex:1; min-width:120px; display:flex; flex-direction:column; gap:5px; }
   .money-form-field label{ font-size:0.72rem; color:var(--ink-dim); }
+  .money-cat-picker{ max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; background:var(--neu-grad-inset); border-radius:var(--neu-radius-sm); padding:8px 10px; }
+  .money-cat-picker label{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:var(--ink); padding:4px 0; cursor:pointer; }
+  .money-cat-picker input[type=checkbox]{ accent-color:var(--accent); width:16px; height:16px; flex:none; }
+  .money-cat-picker .empty{ font-size:0.78rem; color:var(--ink-dim); padding:4px 0; }
   .money-danger-btn{ background:transparent; border:1px solid var(--red); color:var(--red); }
   .money-sync-hint{ font-size:0.72rem; color:var(--ink-dim); }
 </style>
@@ -2257,6 +2275,7 @@ function ico(name, cls){
       <button class="icon-btn ambient-trigger-btn" id="ambientTriggerBtn" type="button" title="Ambient screen" aria-label="Ambient screen"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-contrast"></use></svg></button>
       <button class="snd-toggle" id="sndToggle" type="button" title="Sound" aria-label="Sound" data-fx-skip><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-volume"></use></svg> snd</button>
       <button class="snd-toggle" id="jarvisToggle" type="button" data-fx-skip title="B.U.A.M. voice feedback" aria-label="B.U.A.M. voice feedback"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bot"></use></svg> B.U.A.M.</button>
+      <button class="snd-toggle muted" id="musicToggle" type="button" data-fx-skip title="Play background music" aria-label="Play background music"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg> music</button>
       <input type="range" id="musicVolInput" class="vol-slider" min="0" max="100" value="55" data-fx-skip title="Music volume">
     </div>
   </header>
@@ -2559,6 +2578,11 @@ function ico(name, cls){
       </div>
       <div class="add-card">
         <div class="prompt-label" style="margin-bottom:4px;">add_budget_group</div>
+        <div class="task-view-toggle" id="moneyGroupTypeToggle" style="margin-bottom:8px;">
+          <button type="button" class="tvt-btn" data-grouptype="income">income</button>
+          <button type="button" class="tvt-btn active" data-grouptype="expense">expense</button>
+          <button type="button" class="tvt-btn" data-grouptype="investment">investment</button>
+        </div>
         <div class="money-form-row">
           <div class="money-form-field">
             <label for="moneyGroupNameInput">name</label>
@@ -2568,6 +2592,10 @@ function ico(name, cls){
             <label for="moneyGroupAmountInput">monthly amount (บาท)</label>
             <input type="number" id="moneyGroupAmountInput" min="0" step="0.01">
           </div>
+        </div>
+        <div class="money-form-field">
+          <label>categories</label>
+          <div class="money-cat-picker" id="moneyGroupAddCatPicker"></div>
         </div>
         <div id="moneyGroupAddError" style="color:var(--red); font-size:0.78rem; display:none;"></div>
         <button class="dose-start-btn" id="moneyGroupAddBtn" type="button">+ add_group</button>
@@ -2955,6 +2983,7 @@ function ico(name, cls){
 <div class="dose-overlay hidden" id="moneyEditGroupOverlay">
   <div class="dose-modal" id="moneyEditGroupModal" style="max-width:340px;">
     <div class="prompt-label">edit_budget_group</div>
+    <div class="dose-field" id="moneyEditGroupTypeRow" style="font-size:0.78rem; color:var(--ink-dim);"></div>
     <div class="dose-field">
       <label for="moneyEditGroupNameInput">name</label>
       <input type="text" id="moneyEditGroupNameInput" maxlength="60">
@@ -2962,6 +2991,10 @@ function ico(name, cls){
     <div class="dose-field">
       <label for="moneyEditGroupAmountInput">monthly amount (บาท)</label>
       <input type="number" id="moneyEditGroupAmountInput" min="0" step="0.01">
+    </div>
+    <div class="dose-field">
+      <label>categories</label>
+      <div class="money-cat-picker" id="moneyEditGroupCatPicker"></div>
     </div>
     <div id="moneyEditGroupError" style="color:var(--red); font-size:0.78rem; margin-bottom:10px; display:none;"></div>
     <div class="dose-modal-actions">
@@ -3214,7 +3247,7 @@ function ico(name, cls){
     started = true;
     gate.remove();
     if(hint) hint.style.display = "";
-    if(window.buamFx){ buamFx.confirm(); buamFx.forceRestartMusic(); }
+    if(window.buamFx){ buamFx.confirm(); }
     /* Both of these need a user gesture on iOS, and this tap is the only one
        guaranteed to happen every launch: the microphone prompt is raised here
        so it lands at the door rather than mid-sentence later, and the greeting
@@ -4889,6 +4922,22 @@ jarvisBtn.addEventListener("click", ()=>{
   if(on) buamFx.jarvisOnline();
 });
 updateJarvisBtn();
+
+const musicBtn = document.getElementById("musicToggle");
+function updateMusicBtn(){
+  const playing = window.buamFx ? buamFx.isMusicPlaying() : false;
+  musicBtn.innerHTML = (playing ? ico("volume") : ico("play")) + " music";
+  musicBtn.classList.toggle("muted", !playing);
+  const label = playing ? "Stop background music" : "Play background music";
+  musicBtn.title = label;
+  musicBtn.setAttribute("aria-label", label);
+}
+musicBtn.addEventListener("click", ()=>{
+  if(!window.buamFx) return;
+  if(buamFx.isMusicPlaying()) buamFx.stopMusic(); else buamFx.startMusic();
+  updateMusicBtn();
+});
+updateMusicBtn();
 
 /* ---------------- Jarvis dialogue box (VN-style avatar + typed text,
    synced to the spoken line via buam-fx's "buam-jarvis-speak" event) ---- */
@@ -6969,9 +7018,12 @@ window.speakBootGreeting = function(){
 let lastCoreActivate = 0;
 function activateBuamCore(){
   const bar = document.getElementById("ccJarvisBar");
-  // state protection: never stack a second reply onto one already speaking,
-  // and swallow double-taps that would otherwise queue two utterances
-  if(bar && bar.classList.contains("talking")) return;
+  // a tap while speaking interrupts it — symmetric with the tap-while-
+  // listening cancel below, so the Core never has to be waited out
+  if(bar && bar.classList.contains("talking")){
+    if(window.buamFx) buamFx.stopSpeaking();
+    return;
+  }
 
   // a tap while listening cancels, so the Core is never a one-way trip — and
   // that includes walking away from a question rather than answering it
@@ -7143,17 +7195,24 @@ function replaceArrayInPlace(arr, next){ arr.length = 0; next.forEach(x=>arr.pus
    app open and so the array references below stay stable for cloud-sync to hold onto */
 const moneyState = {
   settings: BuamMoney.loadSettings(),
-  budgetGroups: BuamMoney.loadBudgetGroups(),
+  budgetGroups: BuamMoney.sortBudgetGroups(BuamMoney.loadBudgetGroups()),
   categories: BuamMoney.loadCategories(),
   transactions: BuamMoney.loadTransactions(),
   monthlyBudgets: BuamMoney.loadMonthlyBudgets(),
   recurring: BuamMoney.loadRecurring(),
   monthCursor: BuamMoney.monthKeyOf(BuamMoney.todayStr()),
   currentSubview: "dashboard", txnType: "income", txnFilter: "all", txnSearch: "",
-  analyticsRange: "month", catTypeTab: "income",
+  analyticsRange: "month", catTypeTab: "income", newGroupType: "expense",
   editingTxnId: null, editingGroupId: null, editingCatId: null, editingRecId: null, confirmAction: null
 };
 let moneyUiInitialized = false;
+
+// one-time upgrade: older saves had investment transactions roll up to the
+// Investment group automatically, with no category link — link them now so
+// existing budgets don't silently drop to zero under the new link-based rule
+if(BuamMoney.migrateUnlinkedInvestmentCategories(moneyState.categories, moneyState.budgetGroups)){
+  BuamMoney.saveCategories(moneyState.categories);
+}
 
 function saveMoneySettings(){ BuamMoney.saveSettings(moneyState.settings); pushMoneyConfig(); }
 function saveMoneyBudgetGroups(){ BuamMoney.saveBudgetGroups(moneyState.budgetGroups); pushMoneyConfig(); }
@@ -7288,8 +7347,9 @@ function populateCategorySelect(selectEl, type, includeArchivedId){
   }
   selectEl.innerHTML = cats.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("") + extra;
 }
-function populateGroupSelect(selectEl){
-  selectEl.innerHTML = moneyState.budgetGroups.filter(g=>!g.isInvestmentGroup).map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
+function populateGroupSelect(selectEl, type){
+  const groups = moneyState.budgetGroups.filter(g=>(g.type || "expense") === type);
+  selectEl.innerHTML = `<option value="">— none —</option>` + groups.map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
 }
 
 /* ---- generic modal (confirm / alert) ---- */
@@ -7391,7 +7451,7 @@ function budgetGroupCardHtml(g){
   return `
     <div class="budget-group-card">
       <div class="budget-group-head">
-        <div class="budget-group-name">${escapeHtml(g.name)}</div>
+        <div class="budget-group-name">${escapeHtml(g.name)}${g.type!=="expense"?` <span style="color:var(--cyan);font-size:0.68rem;">(${g.type})</span>`:''}</div>
         <div class="budget-group-amounts">฿${BuamMoney.formatBaht(g.spent)} / ฿${BuamMoney.formatBaht(g.budget)}</div>
       </div>
       <div class="budget-bar"><div class="budget-bar-fill status-${g.status}" style="width:${fillPct}%"></div></div>
@@ -7533,12 +7593,48 @@ function confirmMoneyDeleteTxn(id){
 }
 
 /* ---- budget ---- */
+
+// shared by the add-group card and the edit-group modal: one checkbox row
+// per expense category, pre-checked against whichever ids are passed in
+function renderGroupCategoryPicker(containerId, checkedIds, type){
+  const el = document.getElementById(containerId);
+  const cats = BuamMoney.categoriesForType(moneyState.categories, type);
+  if(!cats.length){ el.innerHTML = `<div class="empty">no_${type}_categories_yet</div>`; return; }
+  el.innerHTML = cats.map(c=>`
+    <label><input type="checkbox" value="${c.id}" ${checkedIds.includes(c.id) ? "checked" : ""}> ${escapeHtml(c.name)}</label>
+  `).join("");
+}
+function readGroupCategoryPicker(containerId){
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(el=>el.value);
+}
+// applies a category checklist's state to the real data: links every checked
+// category to groupId, unlinks any category that was linked to groupId but
+// got unchecked, and leaves categories linked to a different group alone
+function applyGroupCategoryPicker(containerId, groupId, type){
+  const checked = readGroupCategoryPicker(containerId);
+  BuamMoney.categoriesForType(moneyState.categories, type).forEach(c=>{
+    const isChecked = checked.includes(c.id);
+    if(isChecked && c.groupId !== groupId) BuamMoney.setCategoryGroup(moneyState.categories, c.id, groupId);
+    else if(!isChecked && c.groupId === groupId) BuamMoney.setCategoryGroup(moneyState.categories, c.id, null);
+  });
+  saveMoneyCategories();
+}
+
+function moveMoneyGroup(id, direction){
+  const res = BuamMoney.reorderBudgetGroup(moneyState.budgetGroups, id, direction);
+  if(!res.ok) return;
+  saveMoneyBudgetGroups();
+  renderMoneyBudgetView();
+  if(moneyState.currentSubview==="dashboard") renderMoneyDashboard();
+  if(window.buamFx) buamFx.blip();
+}
+
 function renderMoneyBudgetView(){
   const mKey = moneyState.monthCursor;
   const budget = BuamMoney.ensureMonthlyBudget(moneyState.monthlyBudgets, moneyState.budgetGroups, moneyState.settings, mKey);
   saveMoneyMonthlyBudgets();
   const usage = BuamMoney.calcGroupUsage(moneyState.transactions, moneyState.categories, moneyState.budgetGroups, budget, mKey);
-  document.getElementById("moneyBudgetList").innerHTML = usage.length ? usage.map(g=>{
+  document.getElementById("moneyBudgetList").innerHTML = usage.length ? usage.map((g,i)=>{
     const pctDisplay = g.pct==null ? "—" : BuamMoney.formatPct(Math.min(g.pct,1));
     const fillPct = g.pct==null ? 0 : Math.min(g.pct,1)*100;
     const statusLabel = moneyStatusLabel(g.status);
@@ -7546,8 +7642,12 @@ function renderMoneyBudgetView(){
     return `
     <div class="budget-group-card">
       <div class="budget-group-head">
-        <div class="budget-group-name">${escapeHtml(g.name)}${g.isInvestmentGroup?' <span style="color:var(--cyan);font-size:0.68rem;">(auto: investment txns)</span>':''}</div>
-        <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        <div class="budget-group-name">${escapeHtml(g.name)}${g.type!=="expense"?` <span style="color:var(--cyan);font-size:0.68rem;">(${g.type})</span>`:''}</div>
+        <div style="display:flex; gap:2px;">
+          ${i>0 ? `<button class="icon-btn" data-fx-skip onclick="moveMoneyGroup('${g.groupId}','up')" title="Move up" aria-label="Move up">${ico("up")}</button>` : ""}
+          ${i<usage.length-1 ? `<button class="icon-btn" data-fx-skip onclick="moveMoneyGroup('${g.groupId}','down')" title="Move down" aria-label="Move down">${ico("down")}</button>` : ""}
+          <button class="icon-btn" data-fx-skip onclick="openMoneyEditGroup('${g.groupId}')" title="Edit" aria-label="Edit">${ico("edit")}</button>
+        </div>
       </div>
       <div class="budget-group-amounts" style="margin-bottom:8px;">฿${BuamMoney.formatBaht(g.spent)} / ฿${BuamMoney.formatBaht(g.budget)}</div>
       <div class="budget-bar"><div class="budget-bar-fill status-${g.status}" style="width:${fillPct}%"></div></div>
@@ -7557,6 +7657,7 @@ function renderMoneyBudgetView(){
       </div>
     </div>`;
   }).join("") : `<div class="empty">no_budget_groups</div>`;
+  renderGroupCategoryPicker("moneyGroupAddCatPicker", [], moneyState.newGroupType);
 }
 
 function openMoneyEditGroup(id){
@@ -7565,6 +7666,9 @@ function openMoneyEditGroup(id){
   moneyState.editingGroupId = id;
   document.getElementById("moneyEditGroupNameInput").value = g.name;
   document.getElementById("moneyEditGroupAmountInput").value = BuamMoney.toBaht(g.monthlyAmount);
+  document.getElementById("moneyEditGroupTypeRow").textContent = `type: ${g.type || "expense"}`;
+  const linkedIds = moneyState.categories[g.type || "expense"].filter(c=>c.groupId===g.id).map(c=>c.id);
+  renderGroupCategoryPicker("moneyEditGroupCatPicker", linkedIds, g.type || "expense");
   document.getElementById("moneyEditGroupError").style.display = "none";
   document.getElementById("moneyEditGroupOverlay").classList.remove("hidden");
   if(window.buamFx) buamFx.blip();
@@ -7729,7 +7833,6 @@ function renderMoneyAnalyticsView(){
 function renderMoneySettingsView(){
   document.getElementById("moneySettingsIncomeInput").value = BuamMoney.toBaht(moneyState.settings.monthlyIncome);
   renderMoneyCategoryList();
-  populateGroupSelect(document.getElementById("moneyNewCategoryGroupInput"));
   if(!moneyState.editingRecId) populateCategorySelect(document.getElementById("moneyRecCategoryInput"), "income");
   renderMoneyRecurringList();
 }
@@ -7737,7 +7840,7 @@ function renderMoneySettingsView(){
 function renderMoneyCategoryList(){
   const type = moneyState.catTypeTab;
   const cats = moneyState.categories[type].filter(c=>!c.archived);
-  document.getElementById("moneyNewCategoryGroupField").style.display = type==="expense" ? "" : "none";
+  populateGroupSelect(document.getElementById("moneyNewCategoryGroupInput"), type);
   document.getElementById("moneyCategoryList").innerHTML = cats.length ? cats.map(c=>{
     const group = c.groupId ? moneyState.budgetGroups.find(g=>g.id===c.groupId) : null;
     return `
@@ -7753,14 +7856,8 @@ function openMoneyEditCat(id){
   if(!c) return;
   moneyState.editingCatId = id;
   document.getElementById("moneyEditCatNameInput").value = c.name;
-  const groupField = document.getElementById("moneyEditCatGroupField");
-  if(c.type==="expense"){
-    groupField.style.display = "";
-    populateGroupSelect(document.getElementById("moneyEditCatGroupInput"));
-    document.getElementById("moneyEditCatGroupInput").value = c.groupId || "";
-  } else {
-    groupField.style.display = "none";
-  }
+  populateGroupSelect(document.getElementById("moneyEditCatGroupInput"), c.type);
+  document.getElementById("moneyEditCatGroupInput").value = c.groupId || "";
   document.getElementById("moneyEditCatError").style.display = "none";
   document.getElementById("moneyEditCatOverlay").classList.remove("hidden");
   if(window.buamFx) buamFx.blip();
@@ -7922,15 +8019,25 @@ function setupMoneyEventListeners(){
     if(window.buamFx) buamFx.blip();
   });
 
+  document.getElementById("moneyGroupTypeToggle").addEventListener("click", e=>{
+    const btn = e.target.closest(".tvt-btn");
+    if(!btn) return;
+    moneyState.newGroupType = btn.dataset.grouptype;
+    document.querySelectorAll("#moneyGroupTypeToggle .tvt-btn").forEach(b=>b.classList.toggle("active", b===btn));
+    renderGroupCategoryPicker("moneyGroupAddCatPicker", [], moneyState.newGroupType);
+    if(window.buamFx) buamFx.blip();
+  });
   document.getElementById("moneyGroupAddBtn").addEventListener("click", ()=>{
     const res = BuamMoney.addBudgetGroup(moneyState.budgetGroups, {
       name: document.getElementById("moneyGroupNameInput").value,
-      monthlyAmount: document.getElementById("moneyGroupAmountInput").value
+      monthlyAmount: document.getElementById("moneyGroupAmountInput").value,
+      type: moneyState.newGroupType
     });
     const errBox = document.getElementById("moneyGroupAddError");
     if(!res.ok){ errBox.textContent = "กรอกชื่อและจำนวนเงินให้ถูกต้อง"; errBox.style.display=""; return; }
     errBox.style.display = "none";
     saveMoneyBudgetGroups();
+    applyGroupCategoryPicker("moneyGroupAddCatPicker", res.group.id, moneyState.newGroupType);
     document.getElementById("moneyGroupNameInput").value = "";
     document.getElementById("moneyGroupAmountInput").value = "";
     renderMoneyBudgetView();
@@ -7953,6 +8060,7 @@ function setupMoneyEventListeners(){
       return;
     }
     saveMoneyBudgetGroups();
+    applyGroupCategoryPicker("moneyEditGroupCatPicker", id, res.group.type || "expense");
     const activeBudget = moneyState.monthlyBudgets[moneyState.monthCursor];
     if(activeBudget){
       const bg = activeBudget.groups.find(x=>x.groupId===id);
@@ -8029,8 +8137,7 @@ function setupMoneyEventListeners(){
       document.getElementById("moneyEditCatError").style.display = "";
       return;
     }
-    const c = BuamMoney.findCategory(moneyState.categories, id);
-    if(c.type==="expense") BuamMoney.setCategoryGroup(moneyState.categories, id, document.getElementById("moneyEditCatGroupInput").value);
+    BuamMoney.setCategoryGroup(moneyState.categories, id, document.getElementById("moneyEditCatGroupInput").value);
     saveMoneyCategories();
     document.getElementById("moneyEditCatOverlay").classList.add("hidden");
     moneyState.editingCatId = null;

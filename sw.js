@@ -1,4 +1,4 @@
-const CACHE = "buam-v70";
+const CACHE = "buam-v75";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const ASSETS = [
   "./buam-fx.js",
   "./buam-money.js",
   "./bgm.mp3",
+  "./fonts/ByteBounce.ttf",
   "./games/index.html",
   "./games/breach-runner.html",
   "./games/neon-arena.html"

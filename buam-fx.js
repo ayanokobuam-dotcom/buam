@@ -132,11 +132,19 @@
   function startMusic(){
     try{
       var c = ensureCtx();
+      if(c && c.state === "suspended") c.resume();
       if(!c || musicStarted) return;
       musicStarted = true;
       playTrack();
     }catch(e){}
   }
+
+  function stopMusic(){
+    if(activeStop){ activeStop(); activeStop = null; }
+    musicStarted = false;
+  }
+
+  function isMusicPlaying(){ return musicStarted; }
 
   // tears down whatever's currently playing/resumed and starts bgm.mp3 fresh
   // from BOOT_START_AT, wiping the saved resume position — used by the boot
@@ -344,8 +352,9 @@
   function unlock(){
     if(unlocked) return;
     unlocked = true;
+    // unlocks the audio context for sound effects only — music is opt-in,
+    // started only by an explicit tap on the music control
     try{ ensureCtx(); if(ctx && ctx.state === "suspended") ctx.resume(); }catch(e){}
-    startMusic();
   }
   ["pointerdown", "keydown", "touchstart"].forEach(function(evt){
     window.addEventListener(evt, unlock, { once: true, passive: true });
@@ -363,6 +372,9 @@
      shipping copyrighted movie clips) ---- */
   var synth = global.speechSynthesis || null;
   var jarvisVoice = null, thaiVoice = null, jarvisVoicesReady = false;
+  // set by speak() while a line is in flight, so an outside tap can force the
+  // whole chained line to stop rather than just cancelling one queued chunk
+  var currentStop = null;
 
   // Thai block, plus the Thai digits — everything else (latin, numerals,
   // punctuation) is left to the English voice
@@ -554,6 +566,7 @@
           // start talking over whatever happens next
           try{ synth.cancel(); }catch(e){}
         }
+        currentStop = null;
         relay.dispatchEvent(new Event("end"));
       }
 
@@ -603,10 +616,16 @@
           speakNext();
         }
       }
+      // an outside caller (tap-to-interrupt) forces the whole chained line to
+      // stop via the same "stuck" path speakNext's own deadline uses
+      currentStop = function(){ finishLine(true); };
       speakNext();
       armDeadline(budget);
     }catch(e){}
   }
+
+  // stop whatever line is currently speaking, if any — a no-op otherwise
+  function stopSpeaking(){ if(currentStop) currentStop(); }
 
   function jarvisSay(kind){ speak(pickLine(kind, JARVIS_LINES[kind] || [])); }
   function jarvisTaskAdded(){ jarvisSay("taskAdded"); }
@@ -638,9 +657,13 @@
     getVolume: getVolume,
     setVolume: setVolume,
     unlock: unlock,
+    startMusic: startMusic,
+    stopMusic: stopMusic,
+    isMusicPlaying: isMusicPlaying,
     forceRestartMusic: forceRestartMusic,
     ambient: playAmbient,
     stopAmbient: stopAmbient,
+    stopSpeaking: stopSpeaking,
     jarvisTaskAdded: jarvisTaskAdded,
     jarvisTaskDone: jarvisTaskDone,
     jarvisMoneyAdded: jarvisMoneyAdded,
