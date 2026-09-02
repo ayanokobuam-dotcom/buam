@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Active Recall</title>
+<meta name="description" content="Read, hide the material, and write what you remember — an active recall study app.">
+<meta name="theme-color" content="#f6f4ef">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!--
+  Interim fallback only — see study/fonts/README.md. The primary typeface
+  is TH Mali Grade 6 (self-hosted, see @font-face in style.css); this
+  Google Fonts stylesheet just keeps Thai text comfortable to read until
+  the real font files are added.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script>
+  try {
+    var t = localStorage.getItem("activeRecall.theme");
+    if (t) document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
