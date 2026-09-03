@@ -1,4 +1,5 @@
-const CACHE = "buam-v76";
+const CACHE = "buam-v77";
+const SHARE_CACHE = "buam-share-cache";
 const ASSETS = [
   "./",
   "./index.html",
@@ -24,15 +25,20 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE && k !== SHARE_CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
 self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  if (e.request.method === "POST" && url.pathname.endsWith("/share-target")) {
+    e.respondWith(handleShareTarget(e.request));
+    return;
+  }
   if (e.request.method !== "GET") return;
-  if (new URL(e.request.url).origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request)
@@ -46,6 +52,24 @@ self.addEventListener("fetch", (e) => {
     })
   );
 });
+
+async function handleShareTarget(request) {
+  try {
+    const formData = await request.formData();
+    const file = formData.get("receipt");
+    if (file) {
+      const cache = await caches.open(SHARE_CACHE);
+      const key = new URL("shared-receipt", self.registration.scope).toString();
+      await cache.put(
+        key,
+        new Response(file, { headers: { "Content-Type": file.type || "application/octet-stream" } })
+      );
+    }
+  } catch (err) {
+    // no-op: page falls back to manual scan when nothing was stored
+  }
+  return Response.redirect(new URL("?shared-receipt=1", self.registration.scope).toString(), 303);
+}
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();

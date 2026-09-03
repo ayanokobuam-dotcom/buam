@@ -7344,6 +7344,27 @@ render();
 renderCalendar();
 if(window.buamAICore && currentView === "home") buamAICore.start();
 
+/* ---- pick up a receipt image handed to us by the OS share sheet ---- */
+async function handleIncomingSharedReceipt(){
+  if(new URLSearchParams(location.search).get("shared-receipt") !== "1") return;
+  history.replaceState(null, "", location.pathname);
+  if(!("caches" in window)) return;
+  try{
+    const cache = await caches.open("buam-share-cache");
+    const key = new URL("shared-receipt", location.href).toString();
+    const res = await cache.match(key);
+    if(!res) return;
+    const blob = await res.blob();
+    await cache.delete(key);
+    switchView("money");
+    document.querySelector('#moneySubnav .tvt-btn[data-moneyview="transactions"]').click();
+    scanReceiptFile(blob);
+  }catch(err){
+    console.error("[money] failed to read shared receipt", err);
+  }
+}
+handleIncomingSharedReceipt();
+
 function initMoneyView(){
   if(!window.BuamMoney){ console.error("[money] BuamMoney failed to load"); return; }
   if(!moneyUiInitialized){
