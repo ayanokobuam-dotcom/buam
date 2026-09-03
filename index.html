@@ -7153,6 +7153,79 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) checkDa
 window.addEventListener("focus", checkDateRollover);
 scheduleMidnightRefresh();
 
+/* ---------------- daily 8:30 "what's on today" notification ---------------- */
+/* Once a day, past 08:30 local time, nudge the user with what's due today and
+   a line meant to pull them back into the app. Fires on a setTimeout aimed at
+   the next 08:30 (same trick as scheduleMidnightRefresh above) so it lands
+   close to on-time while the tab stays open, and also checks on load/focus in
+   case the app was opened later in the day and missed the exact tick. The
+   notified date is stashed in localStorage so a reload never double-fires it. */
+const DAILY_NOTIFY_KEY = "buam-daily-notif-date";
+const DAILY_NOTIFY_HOUR = 8;
+const DAILY_NOTIFY_MINUTE = 30;
+
+const DAILY_NOTIFY_HOOKS = {
+  some: [
+    "ตื่นมาแล้วอย่าลืมงานนะ วันนี้มี {n} งานรอคุณอยู่ ไปเคลียร์ให้เกลี้ยงกันเถอะ!",
+    "เช้านี้มีงานรอ {n} อย่าง แวะเข้ามาดูหน่อยว่ามีอะไรบ้าง แล้วลุยให้จบ!",
+    "{n} งานกำลังรอคุณอยู่ในแอป กลับมาเช็กแล้วเริ่มวันนี้ให้ปังกันเถอะ!",
+    "อย่าปล่อยให้งานกองพะเนิน วันนี้มี {n} งาน แตะเข้ามาจัดการทีละอย่างกันเลย!",
+    "รายการวันนี้พร้อมแล้ว {n} งาน กลับเข้าแอปมาลุยกันต่อนะ!"
+  ],
+  none: [
+    "วันนี้ไม่มีงานค้างเลย แวะมาทักทายหรือวางแผนล่วงหน้าหน่อยไหม?",
+    "ปฏิทินว่างวันนี้ ถือโอกาสแวะมาเพิ่มงานที่วางแผนไว้ได้เลยนะ",
+    "ไม่มีงานรออยู่วันนี้ พักได้เต็มที่ แต่แวะมาเช็กอินกันได้เสมอ!"
+  ]
+};
+
+function pickDailyNotifyLine(count){
+  const bucket = count > 0 ? DAILY_NOTIFY_HOOKS.some : DAILY_NOTIFY_HOOKS.none;
+  return bucket[Math.floor(Math.random()*bucket.length)].replace("{n}", count);
+}
+
+function todayOpenTasks(){
+  const today = todayStr();
+  return tasks.filter(t => !t.done && t.due === today);
+}
+
+function showDailyNotification(){
+  const due = todayOpenTasks();
+  const count = due.length;
+  const title = count > 0 ? `📋 วันนี้มีงานรอ ${count} อย่าง` : "📋 เช็กอินประจำวัน";
+  const preview = due.slice(0,3).map(t=>`• ${t.title}`).join("\n");
+  const body = preview ? `${pickDailyNotifyLine(count)}\n${preview}` : pickDailyNotifyLine(count);
+  notifyTimerDone(title, body, "buam-daily");
+}
+
+function msUntilNextDailyNotify(){
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DAILY_NOTIFY_HOUR, DAILY_NOTIFY_MINUTE, 0, 0);
+  if(target <= now) target.setDate(target.getDate()+1);
+  return target - now;
+}
+
+function maybeFireDailyNotification(){
+  const now = new Date();
+  const pastNotifyTime = now.getHours() > DAILY_NOTIFY_HOUR ||
+    (now.getHours() === DAILY_NOTIFY_HOUR && now.getMinutes() >= DAILY_NOTIFY_MINUTE);
+  if(!pastNotifyTime) return;
+  const today = todayStr();
+  if(localStorage.getItem(DAILY_NOTIFY_KEY) === today) return;
+  localStorage.setItem(DAILY_NOTIFY_KEY, today);
+  showDailyNotification();
+}
+
+function scheduleDailyNotification(){
+  maybeFireDailyNotification();
+  setTimeout(()=>{ maybeFireDailyNotification(); scheduleDailyNotification(); }, msUntilNextDailyNotify());
+}
+
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) maybeFireDailyNotification(); });
+window.addEventListener("focus", maybeFireDailyNotification);
+ensureNotifyPermission();
+scheduleDailyNotification();
+
 /* ---------------- resume dose/timer countdowns left running when the app was closed ---------------- */
 function restoreActiveTimers(){
   try {
