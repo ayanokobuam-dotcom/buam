@@ -259,7 +259,10 @@
   body.ambient-mode .wrap{ opacity:0.04; pointer-events:none; }
   /* the whole block stays click-through so a tap anywhere still dismisses */
   .ambient-readout{
-    position:relative; z-index:1; pointer-events:none;
+    /* above #wxCanvas/#wxFlash (z-index 45/46), which get reparented in here
+       while idle so rain/snow/lightning stay visible over the ship — the
+       readout must stay on top of them, not just of the ship canvas. */
+    position:relative; z-index:50; pointer-events:none;
     text-align:center; max-width:min(92vw, 560px);
   }
   /* the faint light the core spills behind the readout — the only thing
@@ -6084,6 +6087,19 @@ const IDLE_MS = 60000;
 let idleTimerId = null;
 let ambientClockTimerId = null;
 
+/* Weather still renders while idle (rain/snow/lightning stay visible), but
+   #wxCanvas/#wxFlash normally sit BEHIND the whole app (z-index 45/46 in the
+   document's root stacking context) while the idle screen is its own
+   stacking context at z-index 900 — raising their z-index there would do
+   nothing, the entire ambient screen still paints as one unit above them.
+   Reparenting the two canvases in front of the ship canvas (still behind the
+   readout text) is what actually puts them on top while idle is showing;
+   moving a canvas element in the DOM doesn't reset its rendering context, so
+   this is safe to do every show/hide. The wx-dark/wx-haze tint washes are
+   deliberately left where they are — only the particle layers move. */
+const wxCanvasEl = document.getElementById("wxCanvas");
+const wxFlashEl = document.getElementById("wxFlash");
+
 function anyOverlayOpen(){
   if(document.getElementById("sidebarNav").classList.contains("open")) return true;
   return [doseOverlay, syncOverlay, timerOverlay, notesOverlay, editOverlay,
@@ -6111,11 +6127,13 @@ function showAmbientScreen(){
   ambientScreen.classList.add("visible");
   document.body.classList.add("ambient-mode");
   document.querySelector(".app-aurora").classList.add("intensify");
+  ambientScreen.insertBefore(wxCanvasEl, ambientScreen.querySelector(".ambient-readout"));
+  ambientScreen.insertBefore(wxFlashEl, ambientScreen.querySelector(".ambient-readout"));
   if(window.buamRainIdleMode) buamRainIdleMode(true);
   if(window.buamDustIdleMode) buamDustIdleMode(true);
   if(window.buamAmbientShip) buamAmbientShip.start();
   if(window.buamAICore) buamAICore.stop(); // the ambient screen fully covers it, no point rendering underneath
-  if(window.BuamWeather) BuamWeather.syncLoop(); // same reason: it is behind a full-screen layer now
+  if(window.BuamWeather) BuamWeather.syncLoop(); // weather keeps running: rain/snow/lightning stay visible over the ship
   updateAmbientClock();
   ambientClockTimerId = setInterval(updateAmbientClock, 1000);
 }
@@ -6125,6 +6143,11 @@ function hideAmbientScreen(){
   ambientScreen.classList.remove("visible");
   document.body.classList.remove("ambient-mode");
   document.querySelector(".app-aurora").classList.remove("intensify");
+  // exact restore position among the fixed atmosphere layers doesn't matter —
+  // they stack purely by z-index — so just move them back out ahead of the
+  // ambient screen in the document
+  ambientScreen.parentNode.insertBefore(wxCanvasEl, ambientScreen);
+  ambientScreen.parentNode.insertBefore(wxFlashEl, ambientScreen);
   if(window.buamRainIdleMode) buamRainIdleMode(false);
   if(window.buamDustIdleMode) buamDustIdleMode(false);
   if(window.buamAmbientShip) buamAmbientShip.stop();

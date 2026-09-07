@@ -465,11 +465,6 @@
   function shouldRun() {
     if (!started || !ctx) return false;
     try { if (global.document.hidden) return false; } catch (e) {}
-    // the ambient/idle screen covers this layer entirely — no point rendering
-    try {
-      var amb = global.document.getElementById("ambientScreen");
-      if (amb && amb.classList.contains("visible")) return false;
-    } catch (e) {}
     if (reducedMotion) return false;
     if (state === "CLEAR" || state === "CLOUDY" || state === "FOG") return false;
     return true;
